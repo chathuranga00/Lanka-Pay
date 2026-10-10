@@ -16,12 +16,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 /**
  * Spring Security configuration.
  *
- * Rules:
- * - Stateless JWT – no session, no CSRF needed.
- * - /actuator/health and /api/v1/auth/** are the only public endpoints.
- * - Everything else requires a valid JWT Bearer token.
- * - ROLE_ADMIN is required for /api/v1/admin/**.
- * - @EnableMethodSecurity enables @PreAuthorize for object-level checks in services.
+ * Roles: CUSTOMER, MERCHANT, ADMIN
+ * - Public:   actuator health/info, all /auth/** endpoints, OpenAPI docs
+ * - ADMIN:    /api/v1/admin/**
+ * - Any auth: everything else (object-level checks done in services via @PreAuthorize)
+ *
+ * Stateless JWT – no session, no CSRF.
+ * @EnableMethodSecurity enables @PreAuthorize on service methods.
  */
 @Configuration
 @EnableWebSecurity
@@ -37,42 +38,44 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            // Stateless API – disable CSRF and sessions
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // Authorization rules
             .authorizeHttpRequests(auth -> auth
 
-                // Public: actuator health
+                // ── Actuator ──────────────────────────────────────
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/info").permitAll()
 
-                // Public: auth endpoints
+                // ── Auth – all public ──────────────────────────────
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/verify-otp").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
 
-                // Public: OpenAPI docs (dev only – restrict in prod)
+                // logout and change-pin require a valid JWT (authenticated)
+                .requestMatchers(HttpMethod.POST,  "/api/v1/auth/logout").authenticated()
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/change-pin").authenticated()
+
+                // ── OpenAPI (dev only) ─────────────────────────────
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
-                // Admin endpoints require ROLE_ADMIN
+                // ── Admin ──────────────────────────────────────────
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
 
-                // Everything else requires authentication
+                // ── Everything else requires any authenticated role ─
                 .anyRequest().authenticated()
             )
 
-            // Add JWT filter before Spring's username/password filter
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     /**
-     * BCrypt with cost 12.
-     * Used for password and PIN hashing only – OTPs use their own BCrypt call.
+     * BCrypt password encoder, cost 12.
+     * Used for PIN hashing. OTPs use a separate BCrypt call in OtpService.
+     * Never use this encoder for OTPs directly – keep them separate.
      */
     @Bean
     public PasswordEncoder passwordEncoder() {

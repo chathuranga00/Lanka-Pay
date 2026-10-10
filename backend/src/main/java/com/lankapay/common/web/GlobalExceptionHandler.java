@@ -1,8 +1,12 @@
 package com.lankapay.common.web;
 
+import com.lankapay.common.exception.AccountLockedException;
 import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ConflictException;
+import com.lankapay.common.exception.InvalidCredentialsException;
+import com.lankapay.common.exception.OtpException;
 import com.lankapay.common.exception.ResourceNotFoundException;
+import com.lankapay.common.exception.TokenExpiredException;
 import com.lankapay.common.exception.ValidationException;
 import com.lankapay.common.filter.CorrelationIdFilter;
 import jakarta.validation.ConstraintViolationException;
@@ -59,6 +63,39 @@ public class GlobalExceptionHandler {
         log.debug("Conflict [{}]: {}", ex.getErrorCode(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of(409, ex.getErrorCode(), ex.getMessage(), correlationId()));
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
+        log.debug("Invalid credentials attempt");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of(401, ex.getErrorCode(), ex.getMessage(), correlationId()));
+    }
+
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<ErrorResponse> handleAccountLocked(AccountLockedException ex) {
+        log.warn("Account locked out until {}", ex.getLockedUntil());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(429, ex.getErrorCode(), ex.getMessage(), correlationId()));
+    }
+
+    @ExceptionHandler(TokenExpiredException.class)
+    public ResponseEntity<ErrorResponse> handleTokenExpired(TokenExpiredException ex) {
+        log.debug("Token expired or revoked");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.of(401, ex.getErrorCode(), ex.getMessage(), correlationId()));
+    }
+
+    @ExceptionHandler(OtpException.class)
+    public ResponseEntity<ErrorResponse> handleOtp(OtpException ex) {
+        log.debug("OTP error [{}]", ex.getErrorCode());
+        int status = switch (ex.getErrorCode()) {
+            case "OTP_EXPIRED"       -> 410;
+            case "OTP_MAX_ATTEMPTS"  -> 429;
+            default                  -> 400;
+        };
+        return ResponseEntity.status(status)
+                .body(ErrorResponse.of(status, ex.getErrorCode(), ex.getMessage(), correlationId()));
     }
 
     // ── Spring Security exceptions ─────────────────────────────
