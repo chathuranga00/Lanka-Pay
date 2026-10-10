@@ -1,0 +1,114 @@
+# ============================================================
+# Lanka Pay – .gitignore
+# Java/Maven + Flutter + IDEs + secrets
+# ============================================================
+
+# ------ Secrets & environment --------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+secrets/
+config/secrets/
+
+# ------ Java / Maven ----------------------------------------
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ------ Spring Boot / application ---------------------------
+backend/src/main/resources/application-local.properties
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-prod.properties
+backend/src/main/resources/application-prod.yml
+
+# ------ Flutter / Dart --------------------------------------
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/app/google-services.json
+mobile/ios/Flutter/flutter_export_environment.sh
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Runner/GeneratedPluginRegistrant.*
+mobile/web/
+mobile/*.g.dart
+mobile/**/*.g.dart
+mobile/*.freezed.dart
+mobile/**/*.freezed.dart
+
+admin-web/.dart_tool/
+admin-web/.flutter-plugins
+admin-web/.flutter-plugins-dependencies
+admin-web/build/
+
+# ------ IntelliJ IDEA / Android Studio ----------------------
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+
+# ------ VS Code / Kiro --------------------------------------
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/*.code-workspace
+# Keep .vscode/extensions.json if you want shared extension recommendations
+
+# ------ Eclipse ---------------------------------------------
+.classpath
+.project
+.settings/
+bin/
+
+# ------ NetBeans --------------------------------------------
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# ------ macOS -----------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ------ Windows ---------------------------------------------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------ Logs ------------------------------------------------
+*.log
+logs/
+log/
+
+# ------ Database --------------------------------------------
+*.sql.bak
+dump/

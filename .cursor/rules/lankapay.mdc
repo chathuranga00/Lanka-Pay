@@ -1,0 +1,45 @@
+---
+alwaysApply: true
+---
+
+# Lanka Pay – Project Rules
+
+## Stack
+- **Backend:** Java 21, Spring Boot 3.x, Spring Security, Spring Data JPA, Flyway, MySQL
+- **Mobile:** Flutter / Dart
+- **Admin Web:** Flutter Web (or React – confirm before starting)
+
+## Architecture
+- Modular monolith: organise backend code by module (e.g. `com.lankapay.user`, `com.lankapay.payment`, `com.lankapay.account`).
+- All bank interactions **must** go through the `BankAdapter` interface. No direct bank API calls anywhere else.
+- Simulated bank implementations must be in a clearly named package (e.g. `*.bank.simulated`) and every simulated response **must** include `"simulated": true` in the JSON and a visible "SIMULATED" label in the UI.
+
+## Money & Currency
+- All monetary values use `java.math.BigDecimal` on the backend. Never use `double` or `float` for money.
+- Flutter: store and transmit amounts as **integer minor units** (cents/paisa) or `Decimal` package. Never use `double` for money.
+- Currency is **LKR** (Sri Lankan Rupee). Store currency explicitly on every money column/field.
+
+## Security
+- Never store plaintext passwords, OTPs, or any secret. Always hash passwords with BCrypt (or Argon2).
+- Never log PII (names, NIC numbers, full phone numbers, email addresses).
+- Never log or display full account numbers; mask to last 4 digits in logs and UI.
+- OTPs must be hashed before persistence and expire within a short TTL (default 5 minutes).
+
+## API & Validation
+- Every endpoint requires authentication (JWT Bearer) and authorisation (object-level: users may only access their own resources).
+- All request bodies must be validated with Bean Validation (`@Valid` + constraint annotations).
+- Return structured error responses; never leak stack traces to clients.
+
+## Testing
+- Every new endpoint or service method needs at least one unit test and one integration/slice test.
+- Use `@SpringBootTest` slices (`@WebMvcTest`, `@DataJpaTest`) to keep tests fast.
+
+## Payment Integrity
+- **Never** mark a payment as succeeded until the `BankAdapter` implementation returns an explicit success confirmation.
+- Payments that time out or receive no response must be recorded as `PENDING` and reconciled separately.
+
+## General Workflow
+- Work in small, reviewable steps. Each step should be a single cohesive change.
+- Provide exact file paths with every code snippet.
+- Explain changes in simple, plain language suitable for a university-level audience.
+- Migrations go in `src/main/resources/db/migration` following Flyway naming (`V{n}__{description}.sql`).
