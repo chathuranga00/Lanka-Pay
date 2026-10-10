@@ -63,6 +63,10 @@ public class SecurityConfig {
                 // payment profile requires a valid JWT
                 .requestMatchers("/api/v1/payment-profile/**").authenticated()
 
+                // bank accounts require a valid JWT
+                .requestMatchers("/api/v1/bank-accounts/**").authenticated()
+                .requestMatchers("/api/v1/bank-institutions").authenticated()
+
                 // ── OpenAPI (dev only) ─────────────────────────────
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 

@@ -2,5 +2,9 @@ package com.lankapay.bank.domain;
 
 public enum BankAccountStatus {
     ACTIVE,
-    REMOVED
+    REMOVED;
+
+    public boolean isUsable() {
+        return this == ACTIVE;
+    }
 }
