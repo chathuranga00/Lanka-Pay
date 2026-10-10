@@ -57,6 +57,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST,  "/api/v1/auth/logout").authenticated()
                 .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/change-pin").authenticated()
 
+                // phone verification requires a valid JWT
+                .requestMatchers("/api/v1/auth/verify-phone/**").authenticated()
+
+                // payment profile requires a valid JWT
+                .requestMatchers("/api/v1/payment-profile/**").authenticated()
+
                 // ── OpenAPI (dev only) ─────────────────────────────
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
