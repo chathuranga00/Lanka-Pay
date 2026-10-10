@@ -1,48 +1,32 @@
 package com.lankapay.bank.adapter.simulated;
 
-import com.lankapay.bank.adapter.BankAdapter;
-import com.lankapay.bank.adapter.BankAdapterRequest;
-import com.lankapay.bank.adapter.BankAdapterResponse;
-import com.lankapay.common.util.SimulatedResponseUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
- * SIMULATED bank adapter.
+ * Legacy single-instance simulated adapter — kept for backward compatibility
+ * with any code that injected {@code BankAdapter} directly before the registry
+ * was introduced.
  *
- * ⚠ UNIVERSITY PROTOTYPE – this does NOT connect to any real bank.
- * All operations always return success with a SIMULATED transaction reference.
+ * ⚠ Prefer using {@link com.lankapay.bank.adapter.BankAdapterRegistry} to route
+ * by institution code. Direct injection of this bean is deprecated.
  *
- * Active when: BANK_ADAPTER_MODE=SIMULATED (default).
+ * Delegates all operations to the SIMULATED_BANK_A implementation.
+ *
+ * Active when: app.bank-adapter.mode=SIMULATED (default).
  */
 @Component
-@ConditionalOnProperty(name = "app.bank-adapter.mode", havingValue = "SIMULATED", matchIfMissing = true)
-public class SimulatedBankAdapter implements BankAdapter {
+@ConditionalOnProperty(name = "app.bank-adapter.mode", havingValue = "SIMULATED",
+        matchIfMissing = true)
+public class SimulatedBankAdapter extends AbstractSimulatedBankAdapter {
 
-    private static final Logger log = LoggerFactory.getLogger(SimulatedBankAdapter.class);
-
-    @Override
-    public BankAdapterResponse verifyAccount(BankAdapterRequest request) {
-        log.info("[SIMULATED] verifyAccount bankCode={} maskedAccount={}",
-                request.bankCode(), request.maskedAccountNumber());
-        return BankAdapterResponse.success(SimulatedResponseUtil.generateSimulatedTxRef());
+    public SimulatedBankAdapter(SimulatedAccountStore store) {
+        super(store);
     }
 
     @Override
-    public BankAdapterResponse debit(BankAdapterRequest request) {
-        log.info("[SIMULATED] debit bankCode={} maskedAccount={} amount={} {}",
-                request.bankCode(), request.maskedAccountNumber(),
-                request.amount(), request.currency());
-        return BankAdapterResponse.success(SimulatedResponseUtil.generateSimulatedTxRef());
-    }
-
-    @Override
-    public BankAdapterResponse credit(BankAdapterRequest request) {
-        log.info("[SIMULATED] credit bankCode={} maskedAccount={} amount={} {}",
-                request.bankCode(), request.maskedAccountNumber(),
-                request.amount(), request.currency());
-        return BankAdapterResponse.success(SimulatedResponseUtil.generateSimulatedTxRef());
+    public String getInstitutionCode() {
+        // Acts as Bank A when injected directly
+        return "SIMULATED_BANK_A";
     }
 }

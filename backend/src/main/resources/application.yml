@@ -90,6 +90,8 @@ app:
 
   bank-adapter:
     mode: ${BANK_ADAPTER_MODE:SIMULATED}
+    # SIMULATED  → SimulatedBankAdapterA/B/C are active (default, safe for all non-prod envs)
+    # REAL_BANK_X → FutureAuthorizedBankAdapter or a real implementation (requires explicit opt-in)
 
   base-url: ${APP_BASE_URL:http://localhost:8080}
 
