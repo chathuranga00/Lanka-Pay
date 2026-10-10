@@ -1,0 +1,37 @@
+##############################################################
+# Lanka Pay – test profile
+# Testcontainers overrides the datasource at runtime.
+# Flyway runs automatically against the Testcontainers DB.
+##############################################################
+
+spring:
+  datasource:
+    # Testcontainers sets these via @DynamicPropertySource – kept as placeholders
+    url: jdbc:tc:mysql:8.0:///lankapay_test?TC_REUSABLE=false
+    username: test
+    password: test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+app:
+  jwt:
+    secret: test-secret-value-that-is-long-enough-32chars
+    expiry-minutes: 30
+  otp:
+    mode: TEST
+    expiry-seconds: 300
+  bank-adapter:
+    mode: SIMULATED
+
+logging:
+  level:
+    root: WARN
+    com.lankapay: INFO

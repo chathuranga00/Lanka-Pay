@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Lanka Pay – structured logging configuration.
+
+  Rules enforced here:
+  - correlationId is included on every line via MDC.
+  - SQL logging is OFF (org.hibernate.SQL = OFF) to prevent data leakage.
+  - No PII is ever logged; the application code is responsible for masking
+    before calling any logger.
+  - Stack traces appear in logs (for debugging) but NEVER in API responses.
+-->
+<configuration>
+
+    <springProfile name="!test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>
+                    %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId:-NO_CID}] %-5level %logger{40} - %msg%n
+                </pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+        <logger name="com.lankapay"           level="DEBUG" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <!-- Suppress noisy framework loggers -->
+        <logger name="org.hibernate.SQL"                       level="OFF"/>
+        <logger name="org.hibernate.type.descriptor.sql"       level="OFF"/>
+        <logger name="org.springframework.security"            level="INFO"/>
+        <logger name="org.flywaydb"                            level="INFO"/>
+        <logger name="com.zaxxer.hikari"                       level="INFO"/>
+    </springProfile>
+
+    <springProfile name="test">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} [%X{correlationId:-NO_CID}] %-5level %logger{30} - %msg%n</pattern>
+            </encoder>
+        </appender>
+
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+
+        <logger name="com.lankapay" level="INFO" additivity="false">
+            <appender-ref ref="CONSOLE"/>
+        </logger>
+
+        <logger name="org.hibernate.SQL" level="OFF"/>
+        <logger name="org.flywaydb"      level="INFO"/>
+    </springProfile>
+
+</configuration>
