@@ -43,6 +43,14 @@ public class DailyLimit {
         this.limitDate = limitDate;
     }
 
+    public DailyLimit(User user, LocalDate limitDate, BigDecimal dailyCap) {
+        this.user = user;
+        this.limitDate = limitDate;
+        if (dailyCap != null) {
+            this.dailyCap = dailyCap;
+        }
+    }
+
     public Long getId() { return id; }
     public User getUser() { return user; }
     public LocalDate getLimitDate() { return limitDate; }

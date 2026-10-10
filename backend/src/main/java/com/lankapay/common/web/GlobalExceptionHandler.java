@@ -66,6 +66,13 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(409, ex.getErrorCode(), ex.getMessage(), correlationId()));
     }
 
+    @ExceptionHandler(com.lankapay.common.exception.UnprocessableEntityException.class)
+    public ResponseEntity<ErrorResponse> handleUnprocessableEntity(com.lankapay.common.exception.UnprocessableEntityException ex) {
+        log.warn("Unprocessable entity [{}]: {}", ex.getErrorCode(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ErrorResponse.of(422, ex.getErrorCode(), ex.getMessage(), correlationId()));
+    }
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
         log.debug("Invalid credentials attempt");
@@ -146,6 +153,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(400, "VALIDATION_ERROR",
                         "Constraint violation", correlationId()));
+    }
+
+    @ExceptionHandler({org.springframework.web.bind.MissingRequestHeaderException.class,
+                       org.springframework.web.bind.MissingServletRequestParameterException.class})
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeader(Exception ex) {
+        log.debug("Missing request header or parameter: {}", ex.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of(400, "VALIDATION_ERROR",
+                        ex.getMessage(), correlationId()));
     }
 
     // ── Catch-all ──────────────────────────────────────────────

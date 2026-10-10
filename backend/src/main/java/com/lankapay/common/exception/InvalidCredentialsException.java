@@ -10,4 +10,8 @@ public class InvalidCredentialsException extends LankaPayException {
     public InvalidCredentialsException() {
         super("INVALID_CREDENTIALS", "Invalid phone number or password");
     }
+
+    public InvalidCredentialsException(String errorCode, String message) {
+        super(errorCode, message);
+    }
 }
