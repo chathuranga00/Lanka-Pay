@@ -93,6 +93,14 @@ app:
     # SIMULATED  → SimulatedBankAdapterA/B/C are active (default, safe for all non-prod envs)
     # REAL_BANK_X → FutureAuthorizedBankAdapter or a real implementation (requires explicit opt-in)
 
+  lookup:
+    # Per-user token bucket: max requests per minute for the lookup endpoint
+    rate-limit-per-user-per-minute: ${LOOKUP_RATE_LIMIT_USER:10}
+    # Per-IP token bucket: prevents unauthenticated / multi-account abuse
+    rate-limit-per-ip-per-minute: ${LOOKUP_RATE_LIMIT_IP:20}
+    # Abuse threshold: warn + audit when a user exceeds this many lookups/day
+    abuse-daily-threshold: ${LOOKUP_ABUSE_THRESHOLD:50}
+
   encryption:
     # AES-256-GCM key for encrypting bank account references at rest.
     # Must be a Base64-URL encoded 32-byte (256-bit) value.

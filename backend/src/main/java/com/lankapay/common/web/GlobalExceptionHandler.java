@@ -5,6 +5,7 @@ import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ConflictException;
 import com.lankapay.common.exception.InvalidCredentialsException;
 import com.lankapay.common.exception.OtpException;
+import com.lankapay.common.exception.RateLimitException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.TokenExpiredException;
 import com.lankapay.common.exception.ValidationException;
@@ -75,6 +76,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccountLockedException.class)
     public ResponseEntity<ErrorResponse> handleAccountLocked(AccountLockedException ex) {
         log.warn("Account locked out until {}", ex.getLockedUntil());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.of(429, ex.getErrorCode(), ex.getMessage(), correlationId()));
+    }
+
+    @ExceptionHandler(RateLimitException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimit(RateLimitException ex) {
+        log.warn("Rate limit exceeded [{}]", ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .body(ErrorResponse.of(429, ex.getErrorCode(), ex.getMessage(), correlationId()));
     }

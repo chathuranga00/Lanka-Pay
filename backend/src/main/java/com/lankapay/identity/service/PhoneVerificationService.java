@@ -146,6 +146,60 @@ public class PhoneVerificationService {
         return new PaymentProfileResponse(masked, registry.isDiscoverable());
     }
 
+    // ── Update discovery flag ──────────────────────────────────
+
+    /**
+     * Update the authenticated user's discoverable flag.
+     * The user must have a verified phone in the registry.
+     */
+    @Transactional
+    public PaymentProfileResponse setDiscovery(Long userId, boolean discoverable,
+                                               String ipAddress) {
+        Registry registry = registryRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "PHONE_NOT_VERIFIED",
+                        "No verified phone found. Please complete phone verification first."));
+
+        registry.setDiscoverable(discoverable);
+        registryRepository.save(registry);
+
+        String masked = PhoneNumberNormalizer.mask(registry.getPhone());
+        auditService.log(userId, "DISCOVERY_UPDATED", "USER",
+                userId, "{\"discoverable\":" + discoverable + "}", ipAddress);
+
+        log.info("Discovery updated userId={} discoverable={}", userId, discoverable);
+        return new PaymentProfileResponse(masked, discoverable);
+    }
+
+    // ── Full profile (me) ──────────────────────────────────────
+
+    /**
+     * Return the authenticated user's full payment profile including
+     * display name and verification status.
+     */
+    @Transactional(readOnly = true)
+    public com.lankapay.identity.web.PaymentProfileMeResponse getMe(Long userId) {
+        Registry registry = registryRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "PHONE_NOT_VERIFIED",
+                        "No verified phone found. Please complete phone verification first."));
+
+        User user = registry.getUser();
+        String masked   = PhoneNumberNormalizer.mask(registry.getPhone());
+        String display  = safeDisplayName(user.getFullName());
+
+        return new com.lankapay.identity.web.PaymentProfileMeResponse(
+                masked, registry.isDiscoverable(), "VERIFIED", display);
+    }
+
+    /** First name + last initial, e.g. "Kamal P." */
+    static String safeDisplayName(String fullName) {
+        if (fullName == null || fullName.isBlank()) return "User";
+        String[] parts = fullName.trim().split("\\s+");
+        if (parts.length == 1) return parts[0];
+        return parts[0] + " " + parts[parts.length - 1].substring(0, 1).toUpperCase() + ".";
+    }
+
     // ── Payment profile ────────────────────────────────────────
 
     /**
