@@ -10,11 +10,14 @@ import '../../features/auth/presentation/consent_screen.dart';
 import '../../features/auth/presentation/recovery_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/accounts/presentation/accounts_screen.dart';
+import '../../features/accounts/presentation/add_bank_account_screen.dart';
 import '../../features/send/presentation/send_screen.dart';
 import '../../features/qr/presentation/qr_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/settings/presentation/privacy_settings_screen.dart';
+import '../../features/settings/presentation/security_settings_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -65,6 +68,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AccountsScreen(),
       ),
       GoRoute(
+        path: '/accounts/add',
+        builder: (context, state) => const AddBankAccountScreen(),
+      ),
+      GoRoute(
         path: '/send',
         builder: (context, state) => const SendScreen(),
       ),
@@ -83,6 +90,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/privacy',
+        builder: (context, state) => const PrivacySettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/security',
+        builder: (context, state) => const SecuritySettingsScreen(),
       ),
     ],
   );
