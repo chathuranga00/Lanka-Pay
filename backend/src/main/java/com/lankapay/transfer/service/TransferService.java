@@ -205,7 +205,49 @@ public class TransferService {
     }
 
     /**
-     * Get user transfer history with filters and pagination.
+     * Get transaction receipt data. Object-level check: caller must be sender or receiver.
+     */
+    @Transactional(readOnly = true)
+    public ReceiptResponse getTransferReceipt(Long id, Long authenticatedUserId) {
+        Transfer transfer = transferRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND",
+                        "Transfer not found with id: " + id));
+
+        boolean isSender = transfer.getSender().getId().equals(authenticatedUserId);
+        boolean isReceiver = transfer.getReceiver().getId().equals(authenticatedUserId);
+
+        if (!isSender && !isReceiver) {
+            throw new AuthorizationException("FORBIDDEN",
+                    "You do not have permission to view receipt for transfer id: " + id);
+        }
+
+        return ReceiptResponse.from(transfer);
+    }
+
+    /**
+     * Get user transfer history with all 5 filters (date range, direction, bank, status, amount range) and pagination.
+     */
+    @Transactional(readOnly = true)
+    public Page<TransferResponse> getTransfersWithFilters(Long authenticatedUserId,
+                                                          TransferDirection direction,
+                                                          TransactionStatus status,
+                                                          Instant fromTime,
+                                                          Instant toTime,
+                                                          String bank,
+                                                          BigDecimal minAmount,
+                                                          BigDecimal maxAmount,
+                                                          Pageable pageable) {
+
+        org.springframework.data.jpa.domain.Specification<Transfer> spec =
+                com.lankapay.transfer.repository.TransferSpecification.withFilters(
+                        authenticatedUserId, direction, status, fromTime, toTime, bank, minAmount, maxAmount);
+
+        Page<Transfer> page = transferRepository.findAll(spec, pageable);
+        return page.map(TransferResponse::from);
+    }
+
+    /**
+     * Backwards-compatible overload for existing callers.
      */
     @Transactional(readOnly = true)
     public Page<TransferResponse> getTransfers(Long authenticatedUserId,
@@ -214,23 +256,7 @@ public class TransferService {
                                               Instant fromTime,
                                               Instant toTime,
                                               Pageable pageable) {
-
-        Long senderId = null;
-        Long receiverId = null;
-        Long userId = authenticatedUserId;
-
-        if (direction == TransferDirection.SENT) {
-            senderId = authenticatedUserId;
-            userId = null;
-        } else if (direction == TransferDirection.RECEIVED) {
-            receiverId = authenticatedUserId;
-            userId = null;
-        }
-
-        Page<Transfer> page = transferRepository.findWithFilters(
-                userId, senderId, receiverId, status, fromTime, toTime, pageable);
-
-        return page.map(TransferResponse::from);
+        return getTransfersWithFilters(authenticatedUserId, direction, status, fromTime, toTime, null, null, null, pageable);
     }
 
     private User resolvePayee(Long payeeId, String payeePhone) {

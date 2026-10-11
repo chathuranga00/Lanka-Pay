@@ -13,8 +13,10 @@ import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.repository.TransactionEventRepository;
 import com.lankapay.transfer.repository.TransferRepository;
+import com.lankapay.notification.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,17 +40,29 @@ public class TransferProcessor {
     private final BankAdapterRegistry bankAdapterRegistry;
     private final DailyLimitService dailyLimitService;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     public TransferProcessor(TransferRepository transferRepository,
                              TransactionEventRepository transactionEventRepository,
                              BankAdapterRegistry bankAdapterRegistry,
                              DailyLimitService dailyLimitService,
                              AuditService auditService) {
+        this(transferRepository, transactionEventRepository, bankAdapterRegistry, dailyLimitService, auditService, null);
+    }
+
+    @Autowired
+    public TransferProcessor(TransferRepository transferRepository,
+                             TransactionEventRepository transactionEventRepository,
+                             BankAdapterRegistry bankAdapterRegistry,
+                             DailyLimitService dailyLimitService,
+                             AuditService auditService,
+                             @Autowired(required = false) NotificationService notificationService) {
         this.transferRepository = transferRepository;
         this.transactionEventRepository = transactionEventRepository;
         this.bankAdapterRegistry = bankAdapterRegistry;
         this.dailyLimitService = dailyLimitService;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -71,6 +85,13 @@ public class TransferProcessor {
         log.info("Processing transfer ref={} amount={} {} (sender={}, receiver={})",
                 transfer.getReference(), transfer.getAmount(), transfer.getCurrency(),
                 transfer.getSender().getId(), transfer.getReceiver().getId());
+
+        if (senderAccount != null) {
+            transfer.setSenderBankCode(senderAccount.getBankCode());
+        }
+        if (receiverAccount != null) {
+            transfer.setReceiverBankCode(receiverAccount.getBankCode());
+        }
 
         // 1. Initial PENDING audit event
         TransactionEvent pendingEvent = new TransactionEvent(
@@ -158,6 +179,17 @@ public class TransferProcessor {
             auditService.log(transfer.getSender().getId(), "TRANSFER_COMPLETED",
                     "TRANSFER", transfer.getId(), "{\"providerRef\":\"" + adapterResp.providerReference() + "\"}", clientIp);
 
+            // Safe notification delivery: failure must never break payment
+            if (notificationService != null) {
+                try {
+                    notificationService.notifyPaymentSent(transfer);
+                    notificationService.notifyPaymentReceived(transfer);
+                } catch (Exception ex) {
+                    log.error("Notification delivery failure for transfer ref={}: {}",
+                            transfer.getReference(), ex.getMessage());
+                }
+            }
+
         } else if ("TIMEOUT".equalsIgnoreCase(status) || "TIMEOUT".equalsIgnoreCase(adapterResp.errorCode())) {
             // Invariant: BankAdapter timeout MUST move to REQUIRES_RECONCILIATION, NEVER to FAILED!
             TransactionEvent reconEvent = transfer.requiresReconciliation(adapterResp.providerReference());
@@ -185,6 +217,15 @@ public class TransferProcessor {
 
             auditService.log(transfer.getSender().getId(), "TRANSFER_FAILED",
                     "TRANSFER", transfer.getId(), "{\"reason\":\"" + reason + "\"}", clientIp);
+
+            if (notificationService != null) {
+                try {
+                    notificationService.notifyPaymentFailed(transfer, reason);
+                } catch (Exception ex) {
+                    log.error("Notification delivery failure for failed transfer ref={}: {}",
+                            transfer.getReference(), ex.getMessage());
+                }
+            }
         }
 
         return transfer;

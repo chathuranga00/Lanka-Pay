@@ -9,6 +9,7 @@ import com.lankapay.identity.domain.UserStatus;
 import com.lankapay.identity.repository.UserRepository;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
+import com.lankapay.transfer.domain.TransferInitiatedVia;
 import com.lankapay.transfer.service.ReconciliationService;
 import com.lankapay.transfer.service.ReversalService;
 import com.lankapay.transfer.service.TransferService;
@@ -201,13 +202,83 @@ class TransferControllerTest {
                 2L, "Kamal P.", "SIM-TX-1", "SIM-PROV-1",
                 "Lunch split", null, true, Instant.now(), Instant.now());
 
-        when(transferService.getTransfers(eq(USER_ID), any(), any(), any(), any(), any()))
+        when(transferService.getTransfersWithFilters(eq(USER_ID), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(response), PageRequest.of(0, 20), 1));
 
         mockMvc.perform(get("/api/v1/transfers?page=0&size=20"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].transferId").value(100))
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /transfers with all 5 filters: date range, direction, bank, status, amount range")
+    void testListTransfersWithAllFilters() throws Exception {
+        TransferResponse response = new TransferResponse(
+                100L, "uuid-ref-1", TransactionStatus.COMPLETED,
+                new BigDecimal("2500.00"), "LKR", 1L, "+9477***1234",
+                2L, "Kamal P.", "SIM-TX-1", "SIM-PROV-1",
+                "Dinner", null, true, Instant.now(), Instant.now());
+
+        when(transferService.getTransfersWithFilters(
+                eq(USER_ID),
+                eq(TransferDirection.SENT),
+                eq(TransactionStatus.COMPLETED),
+                any(Instant.class),
+                any(Instant.class),
+                eq("BOC"),
+                eq(new BigDecimal("1000.00")),
+                eq(new BigDecimal("5000.00")),
+                any()))
+                .thenReturn(new PageImpl<>(List.of(response), PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get("/api/v1/transfers")
+                        .param("direction", "SENT")
+                        .param("status", "COMPLETED")
+                        .param("from", "2026-01-01T00:00:00Z")
+                        .param("to", "2026-01-31T23:59:59Z")
+                        .param("bank", "BOC")
+                        .param("minAmount", "1000.00")
+                        .param("maxAmount", "5000.00"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].transferId").value(100))
+                .andExpect(jsonPath("$.content[0].amount").value(2500.00));
+    }
+
+    @Test
+    @DisplayName("GET /transfers/{id}/receipt returns structured receipt data")
+    void testGetTransferReceipt() throws Exception {
+        ReceiptResponse.ReceiptParty senderParty = new ReceiptResponse.ReceiptParty(1L, "Kamal Perera", "+9477***1234", "BOC");
+        ReceiptResponse.ReceiptParty receiverParty = new ReceiptResponse.ReceiptParty(2L, "Nimal Silva", "+9477***5678", "COMB");
+
+        ReceiptResponse receipt = new ReceiptResponse(
+                "REC-UUID-1", 100L, "uuid-ref-1", "SIM-TX-1", TransactionStatus.COMPLETED,
+                new BigDecimal("1500.00"), "LKR", new BigDecimal("0.00"), new BigDecimal("1500.00"),
+                senderParty, receiverParty, TransferInitiatedVia.APP, "Lunch split",
+                Instant.now(), Instant.now(), true, "sig-12345");
+
+        when(transferService.getTransferReceipt(100L, USER_ID)).thenReturn(receipt);
+
+        mockMvc.perform(get("/api/v1/transfers/100/receipt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.receiptNumber").value("REC-UUID-1"))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.amount").value(1500.00))
+                .andExpect(jsonPath("$.sender.bankCode").value("BOC"))
+                .andExpect(jsonPath("$.receiver.bankCode").value("COMB"))
+                .andExpect(jsonPath("$.digitalSignature").value("sig-12345"));
+    }
+
+    @Test
+    @DisplayName("GET /transfers/{id}/receipt returns 403 Forbidden for unauthorized user")
+    void testGetTransferReceiptForbidden() throws Exception {
+        when(transferService.getTransferReceipt(100L, USER_ID))
+                .thenThrow(new com.lankapay.common.exception.AuthorizationException(
+                        "FORBIDDEN", "You do not have permission to view receipt for transfer id: 100"));
+
+        mockMvc.perform(get("/api/v1/transfers/100/receipt"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

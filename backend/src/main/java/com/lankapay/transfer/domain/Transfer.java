@@ -51,6 +51,12 @@ public class Transfer {
     @JoinColumn(name = "receiver_id", nullable = false)
     private User receiver;
 
+    @Column(name = "sender_bank_code", length = 20)
+    private String senderBankCode;
+
+    @Column(name = "receiver_bank_code", length = 20)
+    private String receiverBankCode;
+
     /** DECIMAL(15,2) – BigDecimal with scale 2. */
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
@@ -121,6 +127,8 @@ public class Transfer {
     public String getIdempotencyKey()             { return idempotencyKey; }
     public User getSender()                       { return sender; }
     public User getReceiver()                     { return receiver; }
+    public String getSenderBankCode()             { return senderBankCode; }
+    public String getReceiverBankCode()           { return receiverBankCode; }
     public BigDecimal getAmount()                 { return amount; }
     public String getCurrency()                   { return currency; }
     public TransactionStatus getStatus()          { return status; }
@@ -138,6 +146,8 @@ public class Transfer {
     // ── Setters ────────────────────────────────────────────────
 
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public void setSenderBankCode(String code)           { this.senderBankCode = code; }
+    public void setReceiverBankCode(String code)         { this.receiverBankCode = code; }
     public void setNote(String note)                     { this.note = note; }
     public void setQrCode(QrCode qrCode)                 { this.qrCode = qrCode; }
     public void setProviderReference(String ref)         { this.providerReference = ref; }

@@ -131,10 +131,30 @@ public class TransferController {
         return ResponseEntity.ok(response);
     }
 
+    // ── GET /transfers/{id}/receipt ───────────────────────────
+
+    @Operation(summary = "Get transaction receipt",
+               description = "Returns complete structured receipt data for a transfer. Object-level check: caller must be sender or receiver.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Transaction receipt"),
+        @ApiResponse(responseCode = "403", description = "Forbidden (not party to transfer)",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "404", description = "Transfer not found",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @GetMapping("/{id}/receipt")
+    public ResponseEntity<ReceiptResponse> getTransferReceipt(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+
+        ReceiptResponse receipt = transferService.getTransferReceipt(id, userId);
+        return ResponseEntity.ok(receipt);
+    }
+
     // ── GET /transfers ─────────────────────────────────────────
 
-    @Operation(summary = "List transfer history",
-               description = "Returns paginated list of user's transfers with filters by direction, status, and date range.")
+    @Operation(summary = "List transfer history with filters",
+               description = "Returns paginated list of user's transfers with filters by date range, direction, bank, status, and amount range.")
     @ApiResponse(responseCode = "200", description = "Paginated transfers")
     @GetMapping
     public ResponseEntity<Page<TransferResponse>> listTransfers(
@@ -142,12 +162,16 @@ public class TransferController {
             @RequestParam(required = false) TransactionStatus status,
             @RequestParam(required = false) Instant from,
             @RequestParam(required = false) Instant to,
+            @RequestParam(required = false) String bank,
+            @RequestParam(required = false) java.math.BigDecimal minAmount,
+            @RequestParam(required = false) java.math.BigDecimal maxAmount,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal Long userId) {
 
         PageRequest pageable = PageRequest.of(page, Math.min(size, 100), Sort.by("createdAt").descending());
-        Page<TransferResponse> result = transferService.getTransfers(userId, direction, status, from, to, pageable);
+        Page<TransferResponse> result = transferService.getTransfersWithFilters(
+                userId, direction, status, from, to, bank, minAmount, maxAmount, pageable);
         return ResponseEntity.ok(result);
     }
 

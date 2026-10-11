@@ -75,6 +75,7 @@ public class User {
 
     public Long getId()                    { return id; }
     public String getPhone()               { return phone; }
+    public String getMaskedPhone()         { return com.lankapay.common.util.PhoneNumberNormalizer.mask(phone); }
     public String getFullName()            { return fullName; }
     public String getNicNumber()           { return nicNumber; }
     public String getPasswordHash()        { return passwordHash; }

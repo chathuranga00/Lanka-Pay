@@ -12,7 +12,7 @@ import com.lankapay.identity.otp.OtpProvider;
 import com.lankapay.identity.repository.OtpMetadataRepository;
 import com.lankapay.identity.repository.OtpRepository;
 import com.lankapay.notification.domain.Notification;
-import com.lankapay.notification.domain.NotificationChannel;
+import com.lankapay.notification.domain.NotificationChannelType;
 import com.lankapay.notification.domain.NotificationType;
 import com.lankapay.notification.repository.NotificationRepository;
 import org.slf4j.Logger;
@@ -138,7 +138,7 @@ public class OtpService {
         // ── Persist notification event (hook — no delivery yet) ─
         String maskedPhone = PhoneNumberNormalizer.mask(user.getPhone());
         String notifMsg = buildOtpMessage(purpose, expiresAt);
-        Notification notif = new Notification(user, NotificationChannel.SMS,
+        Notification notif = new Notification(user, NotificationChannelType.SMS,
                 NotificationType.OTP, notifMsg);
 
         // ── Deliver via OtpProvider ────────────────────────────
