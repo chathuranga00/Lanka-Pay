@@ -284,11 +284,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Cards'), findsOneWidget);
-      expect(find.text('Transfers'), findsOneWidget);
+      expect(find.text('Accounts'), findsOneWidget);
+      expect(find.text('Send'), findsOneWidget);
       expect(find.text('More'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('app_nav_transfers')));
+      await tester.tap(find.byKey(const Key('nav_send')));
       expect(selected, 2);
     });
 

@@ -6,39 +6,42 @@ import '../theme/app_tokens.dart';
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onIndexChanged;
+  final List<AppNavItem>? items;
 
   const AppBottomNav({
     super.key,
     required this.currentIndex,
     required this.onIndexChanged,
+    this.items,
   });
 
-  static const List<AppNavItem> items = [
+  static const List<AppNavItem> defaultItems = [
     AppNavItem(
       label: 'Home',
       icon: Icons.home_rounded,
-      key: Key('app_nav_home'),
+      key: Key('nav_home'),
     ),
     AppNavItem(
-      label: 'Cards',
+      label: 'Accounts',
       icon: Icons.credit_card_rounded,
-      key: Key('app_nav_cards'),
+      key: Key('nav_accounts'),
     ),
     AppNavItem(
-      label: 'Transfers',
+      label: 'Send',
       icon: Icons.swap_horiz_rounded,
-      key: Key('app_nav_transfers'),
+      key: Key('nav_send'),
     ),
     AppNavItem(
       label: 'More',
       icon: Icons.grid_view_rounded,
-      key: Key('app_nav_more'),
+      key: Key('nav_more'),
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final navItems = items ?? defaultItems;
 
     return ClipRRect(
       child: BackdropFilter(
@@ -60,8 +63,8 @@ class AppBottomNav extends StatelessWidget {
             top: false,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(items.length, (index) {
-                final item = items[index];
+              children: List.generate(navItems.length, (index) {
+                final item = navItems[index];
                 final isSelected = index == currentIndex;
 
                 return InkWell(

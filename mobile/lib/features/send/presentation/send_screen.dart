@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/simulated_banner.dart';
+import '../../../core/widgets/simulated_badge.dart';
 import '../../accounts/data/bank_account_service.dart';
 import '../../accounts/domain/bank_account_model.dart';
 import '../data/transfer_service.dart';
@@ -326,6 +326,10 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Send Money'),
+        actions: const [
+          Center(child: SimulatedBadge(compact: true)),
+          SizedBox(width: 16),
+        ],
         leading: _currentStep == 1
             ? IconButton(
                 icon: const Icon(Icons.arrow_back_rounded),
@@ -336,7 +340,6 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            const SimulatedBanner(),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),

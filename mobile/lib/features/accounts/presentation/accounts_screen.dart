@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/widgets/simulated_banner.dart';
+import '../../../core/widgets/simulated_badge.dart';
 import '../../../l10n/app_localizations.dart';
 import '../data/bank_account_service.dart';
 import '../domain/bank_account_model.dart';
@@ -82,17 +82,19 @@ class AccountsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n?.navAccounts ?? 'Linked Bank Accounts'),
         actions: [
+          const Center(child: SimulatedBadge(compact: true)),
+          const SizedBox(width: 4),
           IconButton(
             key: const Key('add_bank_account_icon_btn'),
             icon: const Icon(Icons.add_rounded),
             onPressed: () => context.push('/accounts/add'),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            const SimulatedBanner(),
             Expanded(
               child: accountsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
