@@ -149,6 +149,7 @@ class TransferModel {
   final String? senderPhone;
   final int? receiverId;
   final String? receiverDisplayName;
+  final String? receiverPhone;
   final String? bankTxRef;
   final String? providerReference;
   final String? note;
@@ -169,6 +170,7 @@ class TransferModel {
     this.senderPhone,
     this.receiverId,
     this.receiverDisplayName,
+    this.receiverPhone,
     this.bankTxRef,
     this.providerReference,
     this.note,
@@ -193,6 +195,7 @@ class TransferModel {
       senderPhone: json['senderPhone'] as String?,
       receiverId: json['receiverId'] as int?,
       receiverDisplayName: json['receiverDisplayName'] as String?,
+      receiverPhone: json['receiverPhone'] as String?,
       bankTxRef: json['bankTxRef'] as String?,
       providerReference: json['providerReference'] as String?,
       note: json['note'] as String?,
