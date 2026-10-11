@@ -1,239 +1,414 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'app_tokens.dart';
 
-/// Semantic colors for the LankaPay palette per section 18:
-/// Deep emerald green, white, subtle gold accents, accessible contrast.
-class AppColors {
-  AppColors._();
+/// Custom theme extension providing brand gradients and custom tokens.
+@immutable
+class AppThemeExtension extends ThemeExtension<AppThemeExtension> {
+  final Gradient headerGradient;
+  final Color sheetColor;
+  final Color mutedSurface;
+  final Color navyIconBg;
+  final Color cardBackground;
+  final Color positiveAmountColor;
+  final Color negativeAmountColor;
+  final Color simulatedBadgeBg;
+  final Color simulatedBadgeText;
+  final Gradient accountCardDarkGradient;
+  final Gradient accountCardLavenderGradient;
+  final Gradient violetTileGradient;
+  final Gradient orangeTileGradient;
+  final Gradient pinkTileGradient;
+  final Gradient cyanTileGradient;
+  final Color textSecondary;
+  final Color border;
 
-  // Primary: Deep Emerald Green
-  static const Color primaryGreen = Color(0xFF0A5C36);
-  static const Color primaryGreenLight = Color(0xFF0F7A49);
-  static const Color primaryGreenDark = Color(0xFF063A22);
+  const AppThemeExtension({
+    required this.headerGradient,
+    required this.sheetColor,
+    required this.mutedSurface,
+    required this.navyIconBg,
+    required this.cardBackground,
+    required this.positiveAmountColor,
+    required this.negativeAmountColor,
+    required this.simulatedBadgeBg,
+    required this.simulatedBadgeText,
+    required this.accountCardDarkGradient,
+    required this.accountCardLavenderGradient,
+    required this.violetTileGradient,
+    required this.orangeTileGradient,
+    required this.pinkTileGradient,
+    required this.cyanTileGradient,
+    required this.textSecondary,
+    required this.border,
+  });
 
-  // Secondary: Subtle Gold Accents
-  static const Color accentGold = Color(0xFFD4AF37);
-  static const Color accentGoldLight = Color(0xFFF1D779);
-  static const Color accentGoldDark = Color(0xFF9E7E19);
+  static const AppThemeExtension light = AppThemeExtension(
+    headerGradient: AppTokens.lightHeaderGradient,
+    sheetColor: AppTokens.sheetLight,
+    mutedSurface: AppTokens.mutedSurfaceLight,
+    navyIconBg: AppTokens.navyIconTile,
+    cardBackground: AppTokens.sheetLight,
+    positiveAmountColor: AppTokens.amountPositiveLight,
+    negativeAmountColor: AppTokens.amountNegativeLight,
+    simulatedBadgeBg: AppTokens.simulatedBadgeBgLight,
+    simulatedBadgeText: AppTokens.simulatedBadgeTextLight,
+    accountCardDarkGradient: AppTokens.cardCharcoalGradient,
+    accountCardLavenderGradient: AppTokens.cardLavenderGradient,
+    violetTileGradient: AppTokens.violetTileGradient,
+    orangeTileGradient: AppTokens.orangeTileGradient,
+    pinkTileGradient: AppTokens.pinkTileGradient,
+    cyanTileGradient: AppTokens.cyanTileGradient,
+    textSecondary: AppTokens.textSecondaryLight,
+    border: AppTokens.borderLight,
+  );
 
-  // Surface & Background - Light
-  static const Color backgroundLight = Color(0xFFF7FAF8);
-  static const Color surfaceLight = Color(0xFFFFFFFF);
-  static const Color cardLight = Color(0xFFFFFFFF);
+  static const AppThemeExtension dark = AppThemeExtension(
+    headerGradient: AppTokens.darkHeaderAmbient,
+    sheetColor: AppTokens.sheetLight, // Can be switched to AppTokens.mutedSurfaceDark if desired
+    mutedSurface: AppTokens.mutedSurfaceDark,
+    navyIconBg: AppTokens.navyIconTile,
+    cardBackground: AppTokens.cardDark,
+    positiveAmountColor: AppTokens.amountPositiveDark,
+    negativeAmountColor: AppTokens.amountNegativeDark,
+    simulatedBadgeBg: AppTokens.simulatedBadgeBgDark,
+    simulatedBadgeText: AppTokens.simulatedBadgeTextDark,
+    accountCardDarkGradient: AppTokens.cardCharcoalGradient,
+    accountCardLavenderGradient: AppTokens.cardLavenderGradient,
+    violetTileGradient: AppTokens.violetTileGradient,
+    orangeTileGradient: AppTokens.orangeTileGradient,
+    pinkTileGradient: AppTokens.pinkTileGradient,
+    cyanTileGradient: AppTokens.cyanTileGradient,
+    textSecondary: AppTokens.textSecondaryDark,
+    border: AppTokens.borderDark,
+  );
 
-  // Surface & Background - Dark
-  static const Color backgroundDark = Color(0xFF0D1612);
-  static const Color surfaceDark = Color(0xFF13201A);
-  static const Color cardDark = Color(0xFF1B2B23);
+  @override
+  AppThemeExtension copyWith({
+    Gradient? headerGradient,
+    Color? sheetColor,
+    Color? mutedSurface,
+    Color? navyIconBg,
+    Color? cardBackground,
+    Color? positiveAmountColor,
+    Color? negativeAmountColor,
+    Color? simulatedBadgeBg,
+    Color? simulatedBadgeText,
+    Gradient? accountCardDarkGradient,
+    Gradient? accountCardLavenderGradient,
+    Gradient? violetTileGradient,
+    Gradient? orangeTileGradient,
+    Gradient? pinkTileGradient,
+    Gradient? cyanTileGradient,
+    Color? textSecondary,
+    Color? border,
+  }) {
+    return AppThemeExtension(
+      headerGradient: headerGradient ?? this.headerGradient,
+      sheetColor: sheetColor ?? this.sheetColor,
+      mutedSurface: mutedSurface ?? this.mutedSurface,
+      navyIconBg: navyIconBg ?? this.navyIconBg,
+      cardBackground: cardBackground ?? this.cardBackground,
+      positiveAmountColor: positiveAmountColor ?? this.positiveAmountColor,
+      negativeAmountColor: negativeAmountColor ?? this.negativeAmountColor,
+      simulatedBadgeBg: simulatedBadgeBg ?? this.simulatedBadgeBg,
+      simulatedBadgeText: simulatedBadgeText ?? this.simulatedBadgeText,
+      accountCardDarkGradient: accountCardDarkGradient ?? this.accountCardDarkGradient,
+      accountCardLavenderGradient: accountCardLavenderGradient ?? this.accountCardLavenderGradient,
+      violetTileGradient: violetTileGradient ?? this.violetTileGradient,
+      orangeTileGradient: orangeTileGradient ?? this.orangeTileGradient,
+      pinkTileGradient: pinkTileGradient ?? this.pinkTileGradient,
+      cyanTileGradient: cyanTileGradient ?? this.cyanTileGradient,
+      textSecondary: textSecondary ?? this.textSecondary,
+      border: border ?? this.border,
+    );
+  }
 
-  // Text colors
-  static const Color textPrimaryLight = Color(0xFF111D17);
-  static const Color textSecondaryLight = Color(0xFF526058);
-  static const Color textPrimaryDark = Color(0xFFF2F6F3);
-  static const Color textSecondaryDark = Color(0xFFA0AEA6);
-
-  // Status Colors
-  static const Color success = Color(0xFF1B8755);
-  static const Color warning = Color(0xFFD97706);
-  static const Color error = Color(0xFFDC2626);
-  static const Color info = Color(0xFF2563EB);
-
-  // Simulated Banner Colors
-  static const Color simulatedBannerBg = Color(0xFFFFFBEB);
-  static const Color simulatedBannerBorder = Color(0xFFFCD34D);
-  static const Color simulatedBannerText = Color(0xFF92400E);
-
-  static const Color simulatedBannerDarkBg = Color(0xFF2D2305);
-  static const Color simulatedBannerDarkBorder = Color(0xFF785E12);
-  static const Color simulatedBannerDarkText = Color(0xFFFDE68A);
+  @override
+  AppThemeExtension lerp(ThemeExtension<AppThemeExtension>? other, double t) {
+    if (other is! AppThemeExtension) return this;
+    return AppThemeExtension(
+      headerGradient: Gradient.lerp(headerGradient, other.headerGradient, t) ?? headerGradient,
+      sheetColor: Color.lerp(sheetColor, other.sheetColor, t) ?? sheetColor,
+      mutedSurface: Color.lerp(mutedSurface, other.mutedSurface, t) ?? mutedSurface,
+      navyIconBg: Color.lerp(navyIconBg, other.navyIconBg, t) ?? navyIconBg,
+      cardBackground: Color.lerp(cardBackground, other.cardBackground, t) ?? cardBackground,
+      positiveAmountColor: Color.lerp(positiveAmountColor, other.positiveAmountColor, t) ?? positiveAmountColor,
+      negativeAmountColor: Color.lerp(negativeAmountColor, other.negativeAmountColor, t) ?? negativeAmountColor,
+      simulatedBadgeBg: Color.lerp(simulatedBadgeBg, other.simulatedBadgeBg, t) ?? simulatedBadgeBg,
+      simulatedBadgeText: Color.lerp(simulatedBadgeText, other.simulatedBadgeText, t) ?? simulatedBadgeText,
+      accountCardDarkGradient: Gradient.lerp(accountCardDarkGradient, other.accountCardDarkGradient, t) ?? accountCardDarkGradient,
+      accountCardLavenderGradient: Gradient.lerp(accountCardLavenderGradient, other.accountCardLavenderGradient, t) ?? accountCardLavenderGradient,
+      violetTileGradient: Gradient.lerp(violetTileGradient, other.violetTileGradient, t) ?? violetTileGradient,
+      orangeTileGradient: Gradient.lerp(orangeTileGradient, other.orangeTileGradient, t) ?? orangeTileGradient,
+      pinkTileGradient: Gradient.lerp(pinkTileGradient, other.pinkTileGradient, t) ?? pinkTileGradient,
+      cyanTileGradient: Gradient.lerp(cyanTileGradient, other.cyanTileGradient, t) ?? cyanTileGradient,
+      textSecondary: Color.lerp(textSecondary, other.textSecondary, t) ?? textSecondary,
+      border: Color.lerp(border, other.border, t) ?? border,
+    );
+  }
 }
 
-/// Accessible theme definition per section 18
-class AppTheme {
+/// Convenience extension for BuildContext
+extension AppThemeX on BuildContext {
+  AppThemeExtension get appTheme => Theme.of(this).extension<AppThemeExtension>() ?? AppThemeExtension.light;
+}
+
+/// Backward compatibility layer for existing screens.
+/// Maps legacy color tokens directly to [AppTokens] so existing code automatically
+/// acquires the new violet neo-banking palette without compilation errors.
+abstract final class AppColors {
+  AppColors._();
+
+  // Primary: Violet
+  static const Color primaryGreen = AppTokens.primaryViolet;
+  static const Color primaryGreenLight = AppTokens.lightViolet;
+  static const Color primaryGreenDark = AppTokens.deepViolet;
+
+  // Secondary: Light Violet / Lavender
+  static const Color accentGold = AppTokens.lightViolet;
+  static const Color accentGoldLight = AppTokens.softViolet;
+  static const Color accentGoldDark = AppTokens.darkViolet;
+
+  // Surface & Background - Light
+  static const Color backgroundLight = AppTokens.mutedSurfaceLight;
+  static const Color surfaceLight = AppTokens.sheetLight;
+  static const Color cardLight = AppTokens.sheetLight;
+
+  // Surface & Background - Dark
+  static const Color backgroundDark = AppTokens.backgroundDark;
+  static const Color surfaceDark = AppTokens.cardDark;
+  static const Color cardDark = AppTokens.cardDark;
+
+  // Text colors
+  static const Color textPrimaryLight = AppTokens.textPrimaryLight;
+  static const Color textSecondaryLight = AppTokens.textSecondaryLight;
+  static const Color textPrimaryDark = AppTokens.textPrimaryDark;
+  static const Color textSecondaryDark = AppTokens.textSecondaryDark;
+
+  // Status Colors
+  static const Color success = AppTokens.success;
+  static const Color warning = AppTokens.warning;
+  static const Color error = AppTokens.error;
+  static const Color info = AppTokens.primaryViolet;
+
+  // Simulated Banner Colors
+  static const Color simulatedBannerBg = AppTokens.simulatedBadgeBgLight;
+  static const Color simulatedBannerBorder = AppTokens.lightViolet;
+  static const Color simulatedBannerText = AppTokens.deepViolet;
+
+  static const Color simulatedBannerDarkBg = AppTokens.simulatedBadgeBgDark;
+  static const Color simulatedBannerDarkBorder = AppTokens.darkViolet;
+  static const Color simulatedBannerDarkText = AppTokens.lightViolet;
+}
+
+/// Main application theme definitions built strictly from [AppTokens].
+abstract final class AppTheme {
   AppTheme._();
 
   static ThemeData get lightTheme {
-    final colorScheme = ColorScheme(
-      brightness: Brightness.light,
-      primary: AppColors.primaryGreen,
+    final colorScheme = const ColorScheme.light(
+      primary: AppTokens.primaryViolet,
       onPrimary: Colors.white,
-      primaryContainer: AppColors.primaryGreenLight,
-      onPrimaryContainer: Colors.white,
-      secondary: AppColors.accentGold,
-      onSecondary: Colors.black,
-      secondaryContainer: AppColors.accentGoldLight,
-      onSecondaryContainer: AppColors.accentGoldDark,
-      error: AppColors.error,
+      primaryContainer: AppTokens.softViolet,
+      onPrimaryContainer: AppTokens.deepViolet,
+      secondary: AppTokens.lightViolet,
+      onSecondary: Colors.white,
+      secondaryContainer: AppTokens.softViolet,
+      onSecondaryContainer: AppTokens.deepViolet,
+      surface: AppTokens.sheetLight,
+      onSurface: AppTokens.textPrimaryLight,
+      error: AppTokens.error,
       onError: Colors.white,
-      surface: AppColors.surfaceLight,
-      onSurface: AppColors.textPrimaryLight,
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.backgroundLight,
-      fontFamily: 'Inter',
+      scaffoldBackgroundColor: AppTokens.mutedSurfaceLight,
+      fontFamily: GoogleFonts.manrope().fontFamily,
+      textTheme: TextTheme(
+        displayLarge: AppTokens.displayLarge.copyWith(color: AppTokens.textPrimaryLight),
+        displayMedium: AppTokens.displayMedium.copyWith(color: AppTokens.textPrimaryLight),
+        titleLarge: AppTokens.titleLarge.copyWith(color: AppTokens.textPrimaryLight),
+        titleMedium: AppTokens.titleMedium.copyWith(color: AppTokens.textPrimaryLight),
+        bodyLarge: AppTokens.bodyLarge.copyWith(color: AppTokens.textPrimaryLight),
+        bodyMedium: AppTokens.bodyMedium.copyWith(color: AppTokens.textPrimaryLight),
+        labelLarge: AppTokens.labelLarge.copyWith(color: AppTokens.textPrimaryLight),
+        labelMedium: AppTokens.labelMedium.copyWith(color: AppTokens.textPrimaryLight),
+        labelSmall: AppTokens.labelSmall.copyWith(color: AppTokens.textSecondaryLight),
+      ),
+      extensions: const [AppThemeExtension.light],
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.primaryGreen,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppTokens.textPrimaryLight,
         elevation: 0,
         centerTitle: true,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.cardLight,
-        elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.04),
+        color: AppTokens.sheetLight,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.grey.withOpacity(0.12)),
+          borderRadius: AppTokens.borderRadiusCard,
+          side: const BorderSide(color: AppTokens.borderLight),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryGreen,
+          backgroundColor: AppTokens.primaryViolet,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryGreen,
-          side: const BorderSide(color: AppColors.primaryGreen, width: 1.5),
+          foregroundColor: AppTokens.primaryViolet,
+          side: const BorderSide(color: AppTokens.primaryViolet, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.borderLight),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.borderLight),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.primaryViolet, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.error, width: 1.5),
         ),
       ),
-      dividerTheme: DividerThemeData(
-        color: Colors.grey.withOpacity(0.15),
+      dividerTheme: const DividerThemeData(
+        color: AppTokens.borderLight,
         thickness: 1,
       ),
     );
   }
 
   static ThemeData get darkTheme {
-    final colorScheme = ColorScheme(
-      brightness: Brightness.dark,
-      primary: AppColors.primaryGreenLight,
+    final colorScheme = const ColorScheme.dark(
+      primary: AppTokens.primaryViolet,
       onPrimary: Colors.white,
-      primaryContainer: AppColors.primaryGreenDark,
+      primaryContainer: AppTokens.glowPurple,
       onPrimaryContainer: Colors.white,
-      secondary: AppColors.accentGoldLight,
-      onSecondary: Colors.black,
-      secondaryContainer: AppColors.accentGoldDark,
+      secondary: AppTokens.lightViolet,
+      onSecondary: Colors.white,
+      secondaryContainer: AppTokens.glowPurple,
       onSecondaryContainer: Colors.white,
-      error: AppColors.error,
+      surface: AppTokens.cardDark,
+      onSurface: AppTokens.textPrimaryDark,
+      error: AppTokens.error,
       onError: Colors.white,
-      surface: AppColors.surfaceDark,
-      onSurface: AppColors.textPrimaryDark,
     );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.backgroundDark,
-      fontFamily: 'Inter',
+      scaffoldBackgroundColor: AppTokens.backgroundDark,
+      fontFamily: GoogleFonts.manrope().fontFamily,
+      textTheme: TextTheme(
+        displayLarge: AppTokens.displayLarge.copyWith(color: AppTokens.textPrimaryDark),
+        displayMedium: AppTokens.displayMedium.copyWith(color: AppTokens.textPrimaryDark),
+        titleLarge: AppTokens.titleLarge.copyWith(color: AppTokens.textPrimaryDark),
+        titleMedium: AppTokens.titleMedium.copyWith(color: AppTokens.textPrimaryDark),
+        bodyLarge: AppTokens.bodyLarge.copyWith(color: AppTokens.textPrimaryDark),
+        bodyMedium: AppTokens.bodyMedium.copyWith(color: AppTokens.textPrimaryDark),
+        labelLarge: AppTokens.labelLarge.copyWith(color: AppTokens.textPrimaryDark),
+        labelMedium: AppTokens.labelMedium.copyWith(color: AppTokens.textPrimaryDark),
+        labelSmall: AppTokens.labelSmall.copyWith(color: AppTokens.textSecondaryDark),
+      ),
+      extensions: const [AppThemeExtension.dark],
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.surfaceDark,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppTokens.textPrimaryDark,
         elevation: 0,
         centerTitle: true,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.cardDark,
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.3),
+        color: AppTokens.cardDark,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: Colors.white.withOpacity(0.08)),
+          borderRadius: AppTokens.borderRadiusCard,
+          side: const BorderSide(color: AppTokens.borderDark),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryGreenLight,
+          backgroundColor: AppTokens.primaryViolet,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.accentGoldLight,
-          side: const BorderSide(color: AppColors.accentGoldLight, width: 1.5),
+          foregroundColor: AppTokens.lightViolet,
+          side: const BorderSide(color: AppTokens.lightViolet, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceDark,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        fillColor: AppTokens.cardDark,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.borderDark),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.15)),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.borderDark),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.accentGoldLight, width: 2),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.primaryViolet, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+          borderRadius: AppTokens.borderRadiusInput,
+          borderSide: const BorderSide(color: AppTokens.error, width: 1.5),
         ),
       ),
-      dividerTheme: DividerThemeData(
-        color: Colors.white.withOpacity(0.1),
+      dividerTheme: const DividerThemeData(
+        color: AppTokens.borderDark,
         thickness: 1,
       ),
     );

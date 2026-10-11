@@ -89,6 +89,7 @@ The solution incorporates a hardened Java 21 / Spring Boot 3 modular-monolith ba
 | **Backend API** | Java 21, Spring Boot 3.3, Spring Security, Spring Data JPA | REST APIs, business validation, JWT auth, transaction orchestration |
 | **Database** | MySQL 8.0, Flyway Database Migrations, H2 (Test) | Relational storage, schema versioning, foreign keys, index optimization |
 | **Mobile App** | Flutter 3.22+, Dart 3.4+, Riverpod, GoRouter, Dio | Cross-platform client, secure storage, QR scanner, multi-lingual UI |
+| **Mobile Design** | Neo-Banking Violet (`#7B5CFA` / `#A592FF`), Material 3, Manrope | Design system tokens centralized in `lib/core/theme/app_tokens.dart` (replaces legacy emerald/gold) |
 | **Admin Web** | React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons | Back-office reconciliation, fraud alerts, bank gateway status controls |
 | **Security & Quality** | BCrypt, AES-GCM, Bucket4j, OWASP Dependency Check, Gitleaks | Password hashing, rate limiting, vulnerability scanning, secret detection |
 | **CI / CD** | GitHub Actions Workflows | Automated Maven verify, Flutter test/analyze, security scans |

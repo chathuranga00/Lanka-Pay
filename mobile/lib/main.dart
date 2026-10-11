@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 import 'l10n/app_localizations.dart';
 
 void main() {
@@ -21,13 +22,14 @@ class LankaPayApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeControllerProvider);
 
     return MaterialApp.router(
       title: 'Lanka Pay',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
       localizationsDelegates: const [
         AppLocalizations.delegate,

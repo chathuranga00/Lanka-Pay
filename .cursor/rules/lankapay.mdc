@@ -6,8 +6,14 @@ alwaysApply: true
 
 ## Stack
 - **Backend:** Java 21, Spring Boot 3.x, Spring Security, Spring Data JPA, Flyway, MySQL
-- **Mobile:** Flutter / Dart
+- **Mobile:** Flutter / Dart (Neo-Banking Violet Design System)
 - **Admin Web:** Flutter Web (or React – confirm before starting)
+
+## Mobile Design System & Theme
+- Palette is **Neo-Banking Violet** (Primary ~#7B5CFA, Light ~#A592FF). Previous emerald green/gold is replaced.
+- **ALL** colors, radii, spacing, and typography come strictly from `lib/core/theme/app_tokens.dart`.
+- Hard-coded colors, arbitrary pixel dimensions, and custom Color literals are forbidden across feature code.
+- Dynamic theme switching (Light / Dark) must adhere to WCAG AA contrast ratios (>= 4.5:1).
 
 ## Architecture
 - Modular monolith: organise backend code by module (e.g. `com.lankapay.user`, `com.lankapay.payment`, `com.lankapay.account`).

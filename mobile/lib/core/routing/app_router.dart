@@ -20,6 +20,7 @@ import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/privacy_settings_screen.dart';
 import '../../features/settings/presentation/security_settings_screen.dart';
+import '../widgets/dev_design_system_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -107,6 +108,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings/security',
         builder: (context, state) => const SecuritySettingsScreen(),
+      ),
+      GoRoute(
+        path: '/dev/design-system',
+        builder: (context, state) => const DevDesignSystemScreen(),
       ),
     ],
   );
