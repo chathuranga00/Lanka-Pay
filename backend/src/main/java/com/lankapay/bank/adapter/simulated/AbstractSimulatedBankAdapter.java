@@ -65,8 +65,8 @@ public abstract class AbstractSimulatedBankAdapter implements BankAdapter {
 
     @Override
     public AdapterResponse resolveAccountReference(AccountReferenceRequest request) {
-        log.info("[SIMULATED][{}] resolveAccountReference identifier={}",
-                getInstitutionCode(), request.identifier());
+        log.info("[SIMULATED][{}] resolveAccountReference identifier=****{}",
+                getInstitutionCode(), last4(request.identifier()));
 
         // In the simulated adapter, identifiers are account numbers directly
         return store.find(getInstitutionCode(), request.identifier())

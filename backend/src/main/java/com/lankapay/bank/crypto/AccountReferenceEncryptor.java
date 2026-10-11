@@ -42,8 +42,21 @@ public class AccountReferenceEncryptor {
 
     private final SecretKey secretKey;
 
+    public AccountReferenceEncryptor(String base64Key) {
+        this(base64Key, "");
+    }
+
     public AccountReferenceEncryptor(
-            @Value("${app.encryption.bank-account-key}") String base64Key) {
+            @Value("${app.encryption.bank-account-key}") String base64Key,
+            @Value("${spring.profiles.active:}") String activeProfile) {
+
+        if (activeProfile.contains("prod") && "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".equals(base64Key.trim())) {
+            throw new IllegalStateException(
+                    "Default all-zero bank account encryption key is forbidden in production! Set BANK_ACCOUNT_ENCRYPTION_KEY.");
+        }
+        if ("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=".equals(base64Key.trim())) {
+            log.warn("DEVELOPMENT NOTICE: Using default dummy key for bank account encryption. Override with BANK_ACCOUNT_ENCRYPTION_KEY.");
+        }
 
         byte[] keyBytes = Base64.getUrlDecoder().decode(base64Key);
         if (keyBytes.length != 32) {

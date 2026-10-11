@@ -35,9 +35,22 @@ public class JwtService {
     private final SecretKey signingKey;
     private final long expiryMinutes;
 
+    public JwtService(String secret, long expiryMinutes) {
+        this(secret, expiryMinutes, "");
+    }
+
     public JwtService(
             @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.expiry-minutes:30}") long expiryMinutes) {
+            @Value("${app.jwt.expiry-minutes:30}") long expiryMinutes,
+            @Value("${spring.profiles.active:}") String activeProfile) {
+
+        if (activeProfile.contains("prod") && secret.contains("dev-secret-replace-in-production")) {
+            throw new IllegalStateException(
+                    "Default development JWT secret is forbidden in production! Set JWT_SECRET.");
+        }
+        if (secret.contains("dev-secret-replace-in-production")) {
+            log.warn("DEVELOPMENT NOTICE: Using default dev JWT secret. Override with JWT_SECRET in production.");
+        }
 
         if (secret.length() < 32) {
             throw new IllegalArgumentException(

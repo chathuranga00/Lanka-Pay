@@ -185,8 +185,10 @@ public class TransferController {
                      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping("/{id}/reconcile")
-    public ResponseEntity<ReconcileResultResponse> reconcileTransfer(@PathVariable Long id) {
-        ReconcileResultResponse result = reconciliationService.reconcileTransfer(id);
+    public ResponseEntity<ReconcileResultResponse> reconcileTransfer(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Long userId) {
+        ReconcileResultResponse result = reconciliationService.reconcileTransfer(id, userId);
         return ResponseEntity.ok(result);
     }
 

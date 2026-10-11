@@ -288,12 +288,24 @@ class TransferControllerTest {
                 100L, "uuid-ref-1", TransactionStatus.REQUIRES_RECONCILIATION,
                 TransactionStatus.COMPLETED, true, "Reconciled successfully to COMPLETED");
 
-        when(reconciliationService.reconcileTransfer(100L)).thenReturn(result);
+        when(reconciliationService.reconcileTransfer(100L, USER_ID)).thenReturn(result);
 
         mockMvc.perform(post("/api/v1/transfers/100/reconcile"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.resolved").value(true))
                 .andExpect(jsonPath("$.resolvedStatus").value("COMPLETED"));
+    }
+
+    @Test
+    @DisplayName("POST /transfers/{id}/reconcile returns 403 Forbidden for non-party user")
+    void testReconcileTransferForbidden() throws Exception {
+        when(reconciliationService.reconcileTransfer(100L, USER_ID))
+                .thenThrow(new com.lankapay.common.exception.AuthorizationException(
+                        "FORBIDDEN", "You do not have permission to reconcile transfer id: 100"));
+
+        mockMvc.perform(post("/api/v1/transfers/100/reconcile"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
 
     @Test

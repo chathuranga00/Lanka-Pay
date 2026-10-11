@@ -8,6 +8,7 @@ import com.lankapay.bank.adapter.TransferStatusRequest;
 import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.bank.domain.BankAccountStatus;
 import com.lankapay.bank.repository.BankAccountRepository;
+import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.transfer.domain.TransactionEvent;
 import com.lankapay.transfer.domain.TransactionStatus;
@@ -60,12 +61,31 @@ public class ReconciliationService {
 
     /**
      * Reconcile a single transfer by querying the BankAdapter.
+     * System or admin entry point without user-level scoping.
      */
     @Transactional
     public ReconcileResultResponse reconcileTransfer(Long transferId) {
+        return reconcileTransfer(transferId, null);
+    }
+
+    /**
+     * Reconcile a single transfer by querying the BankAdapter.
+     * If authenticatedUserId is non-null, validates that user is party to transfer (IDOR protection).
+     */
+    @Transactional
+    public ReconcileResultResponse reconcileTransfer(Long transferId, Long authenticatedUserId) {
         Transfer transfer = transferRepository.findById(transferId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND",
                         "Transfer not found with id: " + transferId));
+
+        if (authenticatedUserId != null) {
+            boolean isSender = transfer.getSender() != null && transfer.getSender().getId().equals(authenticatedUserId);
+            boolean isReceiver = transfer.getReceiver() != null && transfer.getReceiver().getId().equals(authenticatedUserId);
+            if (!isSender && !isReceiver) {
+                throw new AuthorizationException("FORBIDDEN",
+                        "You do not have permission to reconcile transfer id: " + transferId);
+            }
+        }
 
         TransactionStatus prevStatus = transfer.getStatus();
 
