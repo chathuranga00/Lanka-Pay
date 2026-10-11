@@ -1,7 +1,7 @@
 package com.lankapay.bank.web;
 
 import com.lankapay.bank.domain.BankAccount;
-import com.lankapay.bank.repository.BankInstitutionRepository;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.bank.service.BankAccountService;
 import com.lankapay.common.web.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -33,13 +33,13 @@ import java.util.List;
 @Tag(name = "Bank Accounts", description = "Link, list, update, and remove bank accounts")
 public class BankAccountController {
 
-    private final BankAccountService      bankAccountService;
-    private final BankInstitutionRepository institutionRepository;
+    private final BankAccountService  bankAccountService;
+    private final LinkedAccountStore  linkedAccountStore;
 
     public BankAccountController(BankAccountService bankAccountService,
-                                  BankInstitutionRepository institutionRepository) {
-        this.bankAccountService    = bankAccountService;
-        this.institutionRepository = institutionRepository;
+                                  LinkedAccountStore linkedAccountStore) {
+        this.bankAccountService  = bankAccountService;
+        this.linkedAccountStore  = linkedAccountStore;
     }
 
     // ── GET /bank-institutions ─────────────────────────────────
@@ -50,8 +50,8 @@ public class BankAccountController {
     @ApiResponse(responseCode = "200", description = "List of institutions")
     @GetMapping("/bank-institutions")
     public ResponseEntity<List<BankInstitutionResponse>> listInstitutions() {
-        List<BankInstitutionResponse> list = institutionRepository.findAll().stream()
-                .filter(i -> i.isActive())
+        List<BankInstitutionResponse> list = linkedAccountStore.findAllInstitutions().stream()
+                .filter(i -> i.active())
                 .map(BankInstitutionResponse::from)
                 .toList();
         return ResponseEntity.ok(list);

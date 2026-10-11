@@ -1,6 +1,7 @@
 package com.lankapay.transfer.web.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -60,6 +61,30 @@ public record TransferResponse(
         @Schema(description = "Last update timestamp")
         Instant updatedAt
 ) {
+
+    public static TransferResponse from(TransactionRecord transfer) {
+        String receiverName = transfer.receiverFullName();
+        String senderPhoneMasked = transfer.senderPhone() != null ? maskPhone(transfer.senderPhone()) : null;
+
+        return new TransferResponse(
+                transfer.id(),
+                transfer.reference(),
+                transfer.status(),
+                transfer.amount(),
+                transfer.currency(),
+                transfer.senderId(),
+                senderPhoneMasked,
+                transfer.receiverId(),
+                receiverName,
+                transfer.bankTxRef(),
+                transfer.providerReference(),
+                transfer.note(),
+                transfer.failureReason(),
+                transfer.simulated(),
+                transfer.createdAt(),
+                transfer.updatedAt()
+        );
+    }
 
     public static TransferResponse from(Transfer transfer) {
         String receiverName = transfer.getReceiver() != null ? transfer.getReceiver().getFullName() : null;

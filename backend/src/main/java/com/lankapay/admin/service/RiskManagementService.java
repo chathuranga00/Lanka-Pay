@@ -1,8 +1,6 @@
 package com.lankapay.admin.service;
 
 import com.lankapay.admin.domain.*;
-import com.lankapay.admin.repository.FraudAlertRepository;
-import com.lankapay.admin.repository.RiskRulesRepository;
 import com.lankapay.admin.web.dto.FraudAlertResponse;
 import com.lankapay.admin.web.dto.RiskRulesResponse;
 import com.lankapay.admin.web.dto.UpdateFraudAlertStatusRequest;
@@ -11,10 +9,9 @@ import com.lankapay.audit.service.AuditService;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.UnprocessableEntityException;
 import com.lankapay.identity.domain.User;
-import com.lankapay.transfer.domain.DailyLimit;
+import com.lankapay.transfer.domain.DailyLimitRecord;
+import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.domain.Transfer;
-import com.lankapay.transfer.repository.DailyLimitRepository;
-import com.lankapay.transfer.repository.TransferRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -32,21 +29,15 @@ public class RiskManagementService {
 
     private static final Logger log = LoggerFactory.getLogger(RiskManagementService.class);
 
-    private final RiskRulesRepository riskRulesRepository;
-    private final FraudAlertRepository fraudAlertRepository;
-    private final TransferRepository transferRepository;
-    private final DailyLimitRepository dailyLimitRepository;
+    private final AdminStore adminStore;
+    private final TransactionStore transactionStore;
     private final AuditService auditService;
 
-    public RiskManagementService(RiskRulesRepository riskRulesRepository,
-                                 FraudAlertRepository fraudAlertRepository,
-                                 TransferRepository transferRepository,
-                                 DailyLimitRepository dailyLimitRepository,
+    public RiskManagementService(AdminStore adminStore,
+                                 TransactionStore transactionStore,
                                  AuditService auditService) {
-        this.riskRulesRepository = riskRulesRepository;
-        this.fraudAlertRepository = fraudAlertRepository;
-        this.transferRepository = transferRepository;
-        this.dailyLimitRepository = dailyLimitRepository;
+        this.adminStore = adminStore;
+        this.transactionStore = transactionStore;
         this.auditService = auditService;
     }
 
@@ -55,19 +46,26 @@ public class RiskManagementService {
      */
     @Transactional(readOnly = true)
     public RiskRules getActiveRules() {
-        return riskRulesRepository.findById(1L)
-                .orElseGet(() -> {
-                    RiskRules defaults = new RiskRules();
-                    defaults.setId(1L);
-                    return riskRulesRepository.save(defaults);
-                });
+        RiskRulesRecord rec = adminStore.findRiskRules()
+                .orElseGet(() -> adminStore.saveRiskRules(RiskRulesRecord.defaultRules()));
+        RiskRules rules = new RiskRules();
+        rules.setId(rec.id());
+        rules.setMaxTransactionAmount(rec.maxTransactionAmount());
+        rules.setMaxDailyAmount(rec.maxDailyAmount());
+        rules.setMaxVelocityCountPerHour(rec.maxVelocityCountPerHour());
+        rules.setNewAccountAgeHours(rec.newAccountAgeHours());
+        rules.setNewAccountMaxTransactionAmount(rec.newAccountMaxTransactionAmount());
+        rules.setNewAccountMaxDailyAmount(rec.newAccountMaxDailyAmount());
+        rules.setVelocityWindowMinutes(rec.velocityWindowMinutes());
+        rules.setEnabled(rec.enabled());
+        rules.setCreatedAt(rec.createdAt());
+        rules.setUpdatedAt(rec.updatedAt());
+        rules.setUpdatedBy(rec.updatedBy());
+        return rules;
     }
 
     /**
-     * Evaluate transfer risk against configurable rules:
-     * 1. Per-transaction limit
-     * 2. New-account limits (per-transaction & daily)
-     * 3. Velocity checks (max transfers in recent window)
+     * Evaluate transfer risk against configurable rules.
      */
     @Transactional
     public void evaluateTransferRisk(User sender, BigDecimal amount) {
@@ -98,7 +96,7 @@ public class RiskManagementService {
                 String desc = "New account (<%d hours old) transfer of %s LKR exceeds new-account transaction limit of %s LKR"
                         .formatted(rules.getNewAccountAgeHours(), amount, rules.getNewAccountMaxTransactionAmount());
                 log.warn("[RISK] New account id={} breached transaction limit: amount={}, max={}",
-                        sender.getId(), amount, rules.getNewAccountMaxTransactionAmount());
+                    sender.getId(), amount, rules.getNewAccountMaxTransactionAmount());
 
                 raiseAlert(sender, null, FraudAlertType.NEW_ACCOUNT_LIMIT_EXCEEDED,
                         FraudAlertSeverity.HIGH, desc,
@@ -110,9 +108,9 @@ public class RiskManagementService {
 
             // New account daily cap check
             LocalDate today = LocalDate.now();
-            BigDecimal todaySent = dailyLimitRepository.findByUserIdAndLimitDate(sender.getId(), today)
-                    .map(DailyLimit::getTotalSent)
-                    .orElse(BigDecimal.ZERO);
+            BigDecimal todaySent = transactionStore != null ? transactionStore.findDailyLimit(sender.getId(), today)
+                    .map(DailyLimitRecord::totalSent)
+                    .orElse(BigDecimal.ZERO) : BigDecimal.ZERO;
             BigDecimal projectedDaily = todaySent.add(amount);
 
             if (projectedDaily.compareTo(rules.getNewAccountMaxDailyAmount()) > 0) {
@@ -132,7 +130,8 @@ public class RiskManagementService {
 
         // 3. Velocity checks
         Instant velocitySince = Instant.now().minus(rules.getVelocityWindowMinutes(), ChronoUnit.MINUTES);
-        long recentTransferCount = transferRepository.countBySenderIdAndCreatedAtAfter(sender.getId(), velocitySince);
+        long recentTransferCount = transactionStore != null ?
+                transactionStore.countTransfersBySenderIdAndCreatedAtAfter(sender.getId(), velocitySince) : 0L;
 
         if (recentTransferCount >= rules.getMaxVelocityCountPerHour()) {
             String desc = "Velocity check failed: user initiated %d transfers in the last %d minutes (limit: %d)"
@@ -150,61 +149,70 @@ public class RiskManagementService {
     }
 
     /**
-     * Raise a fraud alert and persist it to the database.
+     * Raise a fraud alert and persist it in Firestore.
      */
     @Transactional
     public FraudAlert raiseAlert(User user, Transfer transfer, FraudAlertType alertType,
                                  FraudAlertSeverity severity, String description, String metadataJson) {
-        FraudAlert alert = new FraudAlert(user, transfer, alertType, severity, description, metadataJson);
-        FraudAlert saved = fraudAlertRepository.save(alert);
+        FraudAlertRecord record = new FraudAlertRecord(
+                null,
+                user.getId(),
+                user.getPhone(),
+                user.getFullName(),
+                transfer != null ? transfer.getId() : null,
+                transfer != null ? transfer.getReference() : null,
+                alertType,
+                severity,
+                FraudAlertStatus.OPEN,
+                description,
+                metadataJson,
+                Instant.now(),
+                null,
+                null,
+                null
+        );
+        FraudAlertRecord saved = adminStore.saveFraudAlert(record);
         log.info("[FRAUD ALERT] Raised alert id={} type={} severity={} for user id={}",
-                saved.getId(), alertType, severity, user.getId());
+                saved.id(), alertType, severity, user.getId());
 
-        auditService.log(user.getId(), "FRAUD_ALERT_RAISED", "FRAUD_ALERT", saved.getId(),
+        auditService.log(user.getId(), "FRAUD_ALERT_RAISED", "FRAUD_ALERT", saved.id(),
                 "{\"alertType\":\"%s\",\"severity\":\"%s\"}".formatted(alertType, severity), "SYSTEM");
 
-        return saved;
+        FraudAlert alert = new FraudAlert(user, transfer, alertType, severity, description, metadataJson);
+        alert.setId(saved.id());
+        return alert;
     }
 
     @Transactional(readOnly = true)
     public RiskRulesResponse getRiskRules() {
-        return RiskRulesResponse.from(getActiveRules());
+        RiskRulesRecord rec = adminStore.findRiskRules()
+                .orElseGet(() -> adminStore.saveRiskRules(RiskRulesRecord.defaultRules()));
+        return RiskRulesResponse.from(rec);
     }
 
     @Transactional
     public RiskRulesResponse updateRiskRules(UpdateRiskRulesRequest req, Long adminUserId, String clientIp) {
-        RiskRules rules = getActiveRules();
+        RiskRulesRecord current = adminStore.findRiskRules()
+                .orElseGet(RiskRulesRecord::defaultRules);
 
-        if (req.maxTransactionAmount() != null) {
-            rules.setMaxTransactionAmount(req.maxTransactionAmount());
-        }
-        if (req.maxDailyAmount() != null) {
-            rules.setMaxDailyAmount(req.maxDailyAmount());
-        }
-        if (req.maxVelocityCountPerHour() != null) {
-            rules.setMaxVelocityCountPerHour(req.maxVelocityCountPerHour());
-        }
-        if (req.newAccountAgeHours() != null) {
-            rules.setNewAccountAgeHours(req.newAccountAgeHours());
-        }
-        if (req.newAccountMaxTransactionAmount() != null) {
-            rules.setNewAccountMaxTransactionAmount(req.newAccountMaxTransactionAmount());
-        }
-        if (req.newAccountMaxDailyAmount() != null) {
-            rules.setNewAccountMaxDailyAmount(req.newAccountMaxDailyAmount());
-        }
-        if (req.velocityWindowMinutes() != null) {
-            rules.setVelocityWindowMinutes(req.velocityWindowMinutes());
-        }
-        if (req.enabled() != null) {
-            rules.setEnabled(req.enabled());
-        }
-        rules.setUpdatedBy(adminUserId);
+        RiskRulesRecord updated = new RiskRulesRecord(
+                current.id(),
+                req.maxTransactionAmount() != null ? req.maxTransactionAmount() : current.maxTransactionAmount(),
+                req.maxDailyAmount() != null ? req.maxDailyAmount() : current.maxDailyAmount(),
+                req.maxVelocityCountPerHour() != null ? req.maxVelocityCountPerHour() : current.maxVelocityCountPerHour(),
+                req.newAccountAgeHours() != null ? req.newAccountAgeHours() : current.newAccountAgeHours(),
+                req.newAccountMaxTransactionAmount() != null ? req.newAccountMaxTransactionAmount() : current.newAccountMaxTransactionAmount(),
+                req.newAccountMaxDailyAmount() != null ? req.newAccountMaxDailyAmount() : current.newAccountMaxDailyAmount(),
+                req.velocityWindowMinutes() != null ? req.velocityWindowMinutes() : current.velocityWindowMinutes(),
+                req.enabled() != null ? req.enabled() : current.enabled(),
+                current.createdAt(),
+                Instant.now(),
+                adminUserId
+        );
+        RiskRulesRecord saved = adminStore.saveRiskRules(updated);
 
-        RiskRules saved = riskRulesRepository.save(rules);
-
-        auditService.log(adminUserId, "ADMIN_UPDATE_RISK_RULES", "RISK_RULES", saved.getId(),
-                "{\"enabled\":%b,\"maxTx\":\"%s\"}".formatted(saved.isEnabled(), saved.getMaxTransactionAmount()), clientIp);
+        auditService.log(adminUserId, "ADMIN_UPDATE_RISK_RULES", "RISK_RULES", saved.id(),
+                "{\"enabled\":%b,\"maxTx\":\"%s\"}".formatted(saved.enabled(), saved.maxTransactionAmount()), clientIp);
 
         return RiskRulesResponse.from(saved);
     }
@@ -212,34 +220,50 @@ public class RiskManagementService {
     @Transactional(readOnly = true)
     public Page<FraudAlertResponse> getFraudAlerts(FraudAlertStatus status, FraudAlertSeverity severity, Long userId, Pageable pageable) {
         if (userId != null) {
-            return fraudAlertRepository.findByUserId(userId, pageable).map(FraudAlertResponse::from);
+            return adminStore.findFraudAlertsByUserId(userId, pageable).map(FraudAlertResponse::from);
         }
         if (status != null && severity != null) {
-            return fraudAlertRepository.findByStatusAndSeverity(status, severity, pageable).map(FraudAlertResponse::from);
+            return adminStore.findFraudAlertsByStatusAndSeverity(status, severity, pageable).map(FraudAlertResponse::from);
         }
         if (status != null) {
-            return fraudAlertRepository.findByStatus(status, pageable).map(FraudAlertResponse::from);
+            return adminStore.findFraudAlertsByStatus(status, pageable).map(FraudAlertResponse::from);
         }
-        return fraudAlertRepository.findAll(pageable).map(FraudAlertResponse::from);
+        return adminStore.findAllFraudAlerts(pageable).map(FraudAlertResponse::from);
     }
 
     @Transactional(readOnly = true)
     public FraudAlertResponse getFraudAlert(Long id) {
-        FraudAlert alert = fraudAlertRepository.findById(id)
+        FraudAlertRecord alert = adminStore.findFraudAlertById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("FRAUD_ALERT_NOT_FOUND", "Fraud alert not found with id: " + id));
         return FraudAlertResponse.from(alert);
     }
 
     @Transactional
     public FraudAlertResponse updateFraudAlertStatus(Long id, UpdateFraudAlertStatusRequest req, Long adminUserId, String clientIp) {
-        FraudAlert alert = fraudAlertRepository.findById(id)
+        FraudAlertRecord alert = adminStore.findFraudAlertById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("FRAUD_ALERT_NOT_FOUND", "Fraud alert not found with id: " + id));
 
-        alert.updateStatus(req.status(), adminUserId, req.resolutionNotes());
-        FraudAlert saved = fraudAlertRepository.save(alert);
+        FraudAlertRecord updated = new FraudAlertRecord(
+                alert.id(),
+                alert.userId(),
+                alert.userPhone(),
+                alert.userFullName(),
+                alert.transferId(),
+                alert.transferReference(),
+                alert.alertType(),
+                alert.severity(),
+                req.status(),
+                alert.description(),
+                alert.metadataJson(),
+                alert.createdAt(),
+                Instant.now(),
+                adminUserId,
+                req.resolutionNotes()
+        );
+        FraudAlertRecord saved = adminStore.saveFraudAlert(updated);
 
-        auditService.log(adminUserId, "ADMIN_UPDATE_FRAUD_ALERT_STATUS", "FRAUD_ALERT", saved.getId(),
-                "{\"newStatus\":\"%s\"}".formatted(saved.getStatus()), clientIp);
+        auditService.log(adminUserId, "ADMIN_UPDATE_FRAUD_ALERT_STATUS", "FRAUD_ALERT", saved.id(),
+                "{\"newStatus\":\"%s\"}".formatted(saved.status()), clientIp);
 
         return FraudAlertResponse.from(saved);
     }

@@ -66,4 +66,19 @@ public record BankAccountResponse(
                 simulated,
                 a.getLinkedAt());
     }
+
+    public static BankAccountResponse from(com.lankapay.bank.domain.LinkedAccount a, boolean simulated) {
+        return new BankAccountResponse(
+                a.id(),
+                a.bankCode(),
+                a.accountName(),
+                a.maskedNumber(),
+                a.label(),
+                a.status().name(),
+                a.isDefault(),
+                a.discoverable(),
+                a.receivingEnabled(),
+                simulated,
+                a.linkedAt());
+    }
 }

@@ -1,36 +1,32 @@
 package com.lankapay.bank.adapter.simulated;
 
+import com.google.cloud.firestore.DocumentReference;
+import com.google.cloud.firestore.DocumentSnapshot;
+import com.google.cloud.firestore.FieldValue;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.QuerySnapshot;
+import com.google.cloud.firestore.WriteBatch;
+import com.lankapay.common.util.MoneyHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * In-memory store of simulated test bank accounts.
+ * Store of simulated test bank accounts, backed by in-memory cache and
+ * Firestore collection "simulatedBankAccounts" when running in firestore mode.
  *
  * ⚠ SIMULATED ONLY — active when {@code app.bank-adapter.mode=SIMULATED}.
- *
- * Accounts are seeded at construction time with a fixed set of test accounts
- * across all three simulated banks.  Account numbers follow a simple convention:
- *
- *   Bank A accounts:  10xxxx
- *   Bank B accounts:  20xxxx
- *   Bank C accounts:  30xxxx
- *
- * Special scenario accounts (one per bank):
- *   x00100  → INSUFFICIENT_FUNDS override
- *   x00200  → TIMEOUT_SUCCEEDED override
- *   x00300  → DELAYED_CONFIRMATION override
- *   x00400  → HARD_FAILURE override
- *   x00500  → LATER_REVERSAL override
- *
- * All other accounts trigger scenario resolution by amount (magic amounts).
  */
 @Component
 @ConditionalOnProperty(name = "app.bank-adapter.mode", havingValue = "SIMULATED",
@@ -38,25 +34,135 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SimulatedAccountStore {
 
     private static final Logger log = LoggerFactory.getLogger(SimulatedAccountStore.class);
+    public static final String SIMULATED_ACCOUNTS_COLLECTION = "simulatedBankAccounts";
 
     /** Key: "INSTITUTION_CODE:accountNumber" */
     private final Map<String, SimulatedTestAccount> accounts = new ConcurrentHashMap<>();
 
+    private final Firestore firestore;
+    private final boolean firestoreMode;
+
     public SimulatedAccountStore() {
+        this(null);
+    }
+
+    @Autowired
+    public SimulatedAccountStore(@Autowired(required = false) Firestore firestore) {
+        this.firestore = firestore;
+        this.firestoreMode = firestore != null;
         seed();
-        log.info("[SIMULATED] SimulatedAccountStore seeded with {} test accounts", accounts.size());
+        if (firestoreMode) {
+            syncToFirestore();
+        }
+        log.info("[SIMULATED] SimulatedAccountStore seeded with {} test accounts (firestoreMode={})",
+                accounts.size(), firestoreMode);
+    }
+
+    public void syncToFirestore() {
+        if (firestore == null) return;
+        try {
+            WriteBatch batch = firestore.batch();
+            boolean hasWrites = false;
+            for (SimulatedTestAccount a : accounts.values()) {
+                String docId = a.institutionCode() + "_" + a.accountNumber();
+                DocumentReference ref = firestore.collection(SIMULATED_ACCOUNTS_COLLECTION).document(docId);
+                DocumentSnapshot snap = ref.get().get();
+                if (!snap.exists()) {
+                    Map<String, Object> data = new HashMap<>();
+                    data.put("institutionCode", a.institutionCode());
+                    data.put("accountNumber", a.accountNumber());
+                    data.put("maskedNumber", a.maskedNumber());
+                    data.put("holderName", a.holderName());
+                    data.put("balanceMinor", MoneyHelper.toMinorUnits(a.balance()));
+                    data.put("balance", a.balance().toPlainString());
+                    data.put("scenario", a.scenarioOverride() != null ? a.scenarioOverride().name() : null);
+                    data.put("active", a.active());
+                    data.put("updatedAt", FieldValue.serverTimestamp());
+                    batch.set(ref, data);
+                    hasWrites = true;
+                }
+            }
+            if (hasWrites) {
+                batch.commit().get();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to sync simulatedBankAccounts to Firestore", e);
+        }
     }
 
     // ── Lookup ─────────────────────────────────────────────────
 
     public Optional<SimulatedTestAccount> find(String institutionCode, String accountNumber) {
+        if (firestoreMode) {
+            String docId = institutionCode + "_" + accountNumber;
+            try {
+                DocumentSnapshot snap = firestore.collection(SIMULATED_ACCOUNTS_COLLECTION).document(docId).get().get();
+                if (snap.exists()) {
+                    return Optional.of(mapFromFirestore(snap));
+                }
+            } catch (Exception e) {
+                log.warn("Failed to read simulated account from Firestore: {}", docId, e);
+            }
+        }
         return Optional.ofNullable(accounts.get(key(institutionCode, accountNumber)));
     }
 
     public Collection<SimulatedTestAccount> allForInstitution(String institutionCode) {
+        if (firestoreMode) {
+            try {
+                QuerySnapshot snap = firestore.collection(SIMULATED_ACCOUNTS_COLLECTION)
+                        .whereEqualTo("institutionCode", institutionCode)
+                        .get().get();
+                if (!snap.isEmpty()) {
+                    return snap.getDocuments().stream().map(this::mapFromFirestore).toList();
+                }
+            } catch (Exception e) {
+                log.warn("Failed to query simulated accounts from Firestore: {}", institutionCode, e);
+            }
+        }
         return accounts.values().stream()
                 .filter(a -> a.institutionCode().equals(institutionCode))
                 .toList();
+    }
+
+    public void save(SimulatedTestAccount account) {
+        accounts.put(key(account.institutionCode(), account.accountNumber()), account);
+        if (firestoreMode) {
+            try {
+                String docId = account.institutionCode() + "_" + account.accountNumber();
+                DocumentReference ref = firestore.collection(SIMULATED_ACCOUNTS_COLLECTION).document(docId);
+                Map<String, Object> data = new HashMap<>();
+                data.put("institutionCode", account.institutionCode());
+                data.put("accountNumber", account.accountNumber());
+                data.put("maskedNumber", account.maskedNumber());
+                data.put("holderName", account.holderName());
+                data.put("balanceMinor", MoneyHelper.toMinorUnits(account.balance()));
+                data.put("balance", account.balance().toPlainString());
+                data.put("scenario", account.scenarioOverride() != null ? account.scenarioOverride().name() : null);
+                data.put("active", account.active());
+                data.put("updatedAt", FieldValue.serverTimestamp());
+                ref.set(data).get();
+            } catch (Exception e) {
+                log.warn("Failed to save simulated account to Firestore", e);
+            }
+        }
+    }
+
+    private SimulatedTestAccount mapFromFirestore(DocumentSnapshot snap) {
+        String instCode = snap.getString("institutionCode");
+        String accNum = snap.getString("accountNumber");
+        String holder = snap.getString("holderName");
+        String balStr = snap.getString("balance");
+        Long balMinor = snap.getLong("balanceMinor");
+        BigDecimal balance = balStr != null ? new BigDecimal(balStr) : (balMinor != null ? MoneyHelper.toBigDecimal(balMinor) : BigDecimal.ZERO);
+        String scenarioStr = snap.getString("scenario");
+        TransferScenario scenario = scenarioStr != null ? TransferScenario.valueOf(scenarioStr) : null;
+        Boolean active = snap.getBoolean("active");
+        String masked = snap.getString("maskedNumber");
+        if (masked == null && accNum != null) {
+            masked = "****" + accNum.substring(Math.max(0, accNum.length() - 4));
+        }
+        return new SimulatedTestAccount(instCode, accNum, masked, holder, balance, scenario, active == null || active);
     }
 
     // ── Seed ───────────────────────────────────────────────────

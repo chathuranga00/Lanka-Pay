@@ -3,13 +3,7 @@ package com.lankapay.admin.service;
 import com.lankapay.admin.web.dto.AdminTransferDetailResponse;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.common.exception.ValidationException;
-import com.lankapay.identity.domain.User;
-import com.lankapay.transfer.domain.TransactionEvent;
-import com.lankapay.transfer.domain.TransactionStatus;
-import com.lankapay.transfer.domain.Transfer;
-import com.lankapay.transfer.domain.TransferInitiatedVia;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
+import com.lankapay.transfer.domain.*;
 import com.lankapay.transfer.service.ReconciliationService;
 import com.lankapay.transfer.web.dto.ReconcileResultResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -33,41 +26,38 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class AdminTransferServiceTest {
 
-    @Mock TransferRepository transferRepository;
-    @Mock TransactionEventRepository transactionEventRepository;
+    @Mock TransactionStore transactionStore;
     @Mock ReconciliationService reconciliationService;
     @Mock AuditService auditService;
 
     AdminTransferService service;
-    Transfer transfer;
-    User sender;
-    User receiver;
+    TransactionRecord transfer;
 
     @BeforeEach
     void setUp() {
         service = new AdminTransferService(
-                transferRepository,
-                transactionEventRepository,
+                transactionStore,
                 reconciliationService,
                 auditService
         );
 
-        sender = new User("+94771111111", "Sender", "199011111111", "hash");
-        ReflectionTestUtils.setField(sender, "id", 1L);
-
-        receiver = new User("+94772222222", "Receiver", "199022222222", "hash");
-        ReflectionTestUtils.setField(receiver, "id", 2L);
-
-        transfer = new Transfer("TX-UUID-1", sender, receiver, new BigDecimal("1000.00"), "LKR", TransferInitiatedVia.APP);
-        ReflectionTestUtils.setField(transfer, "id", 100L);
-        ReflectionTestUtils.setField(transfer, "status", TransactionStatus.REQUIRES_RECONCILIATION);
-        ReflectionTestUtils.setField(transfer, "createdAt", Instant.now());
+        transfer = new TransactionRecord(
+                100L, "TX-UUID-1", "IDEM-1",
+                1L, "+94771111111", "Sender",
+                2L, "+94772222222", "Receiver",
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B",
+                new BigDecimal("1000.00"), "LKR",
+                TransactionStatus.REQUIRES_RECONCILIATION,
+                null, null, null, null, false,
+                TransferInitiatedVia.APP, null, 1L,
+                Instant.now(), Instant.now()
+        );
     }
 
     @Test
     @DisplayName("Admin triggering reconciliation executes service and logs audit event")
     void triggerReconciliationAuditsAction() {
-        when(transferRepository.findById(100L)).thenReturn(Optional.of(transfer));
+        when(transactionStore.findTransferById(100L)).thenReturn(Optional.of(transfer));
         when(reconciliationService.reconcileTransfer(100L)).thenReturn(new ReconcileResultResponse(
                 100L, "TX-UUID-1", TransactionStatus.REQUIRES_RECONCILIATION, TransactionStatus.COMPLETED, true, "OK"));
 
@@ -95,8 +85,18 @@ class AdminTransferServiceTest {
     @Test
     @DisplayName("Admin cannot edit COMPLETED bank-confirmed transaction")
     void cannotEditCompletedTransaction() {
-        ReflectionTestUtils.setField(transfer, "status", TransactionStatus.COMPLETED);
-        when(transferRepository.findById(100L)).thenReturn(Optional.of(transfer));
+        TransactionRecord completedTx = new TransactionRecord(
+                100L, "TX-UUID-1", "IDEM-1",
+                1L, "+94771111111", "Sender",
+                2L, "+94772222222", "Receiver",
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B",
+                new BigDecimal("1000.00"), "LKR",
+                TransactionStatus.COMPLETED,
+                null, null, null, null, false,
+                TransferInitiatedVia.APP, null, 1L,
+                Instant.now(), Instant.now()
+        );
+        when(transactionStore.findTransferById(100L)).thenReturn(Optional.of(completedTx));
 
         assertThatThrownBy(() -> service.validateNotBankConfirmed(100L))
                 .isInstanceOf(ValidationException.class)
@@ -106,8 +106,18 @@ class AdminTransferServiceTest {
     @Test
     @DisplayName("Admin cannot edit REVERSED bank-confirmed transaction")
     void cannotEditReversedTransaction() {
-        ReflectionTestUtils.setField(transfer, "status", TransactionStatus.REVERSED);
-        when(transferRepository.findById(100L)).thenReturn(Optional.of(transfer));
+        TransactionRecord reversedTx = new TransactionRecord(
+                100L, "TX-UUID-1", "IDEM-1",
+                1L, "+94771111111", "Sender",
+                2L, "+94772222222", "Receiver",
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B",
+                new BigDecimal("1000.00"), "LKR",
+                TransactionStatus.REVERSED,
+                null, null, null, null, false,
+                TransferInitiatedVia.APP, null, 1L,
+                Instant.now(), Instant.now()
+        );
+        when(transactionStore.findTransferById(100L)).thenReturn(Optional.of(reversedTx));
 
         assertThatThrownBy(() -> service.validateNotBankConfirmed(100L))
                 .isInstanceOf(ValidationException.class)
@@ -117,11 +127,12 @@ class AdminTransferServiceTest {
     @Test
     @DisplayName("Get transfer detail returns events history")
     void getTransferDetailReturnsEvents() {
-        TransactionEvent ev = new TransactionEvent(transfer, null, TransactionStatus.PENDING, "INITIATED", null);
-        ReflectionTestUtils.setField(ev, "id", 10L);
+        TransactionEventRecord ev = new TransactionEventRecord(
+                10L, 100L, null, TransactionStatus.PENDING, "INITIATED", null, Instant.now()
+        );
 
-        when(transferRepository.findById(100L)).thenReturn(Optional.of(transfer));
-        when(transactionEventRepository.findByTransferIdOrderByOccurredAtAsc(100L)).thenReturn(List.of(ev));
+        when(transactionStore.findTransferById(100L)).thenReturn(Optional.of(transfer));
+        when(transactionStore.findEventsByTransferId(100L)).thenReturn(List.of(ev));
 
         AdminTransferDetailResponse detail = service.getTransferDetail(100L);
 

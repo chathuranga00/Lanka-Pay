@@ -26,6 +26,7 @@ public record AdminUserDetailResponse(
         Instant updatedAt
 ) {
     public static AdminUserDetailResponse from(User user, List<AdminBankAccountSummary> accounts) {
+        if (user == null) return null;
         return new AdminUserDetailResponse(
                 user.getId(),
                 user.getFullName(),
@@ -38,6 +39,23 @@ public record AdminUserDetailResponse(
                 accounts != null ? accounts : List.of(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
+        );
+    }
+
+    public static AdminUserDetailResponse from(com.lankapay.identity.domain.UserAccount user, List<AdminBankAccountSummary> accounts) {
+        if (user == null) return null;
+        return new AdminUserDetailResponse(
+                user.id(),
+                user.fullName(),
+                PhoneNumberNormalizer.mask(user.phone()),
+                maskNic(user.nicNumber()),
+                user.status(),
+                user.role(),
+                user.failedLoginAttempts(),
+                user.lockedUntil(),
+                accounts != null ? accounts : List.of(),
+                user.createdAt(),
+                user.updatedAt()
         );
     }
 

@@ -6,7 +6,8 @@ import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.ValidationException;
 import com.lankapay.common.web.GlobalExceptionHandler;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserAccount;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.qr.domain.QrStatus;
 import com.lankapay.qr.domain.QrType;
 import com.lankapay.qr.service.QrService;
@@ -46,7 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class QrControllerTest {
 
     @Mock QrService qrService;
-    @Mock UserRepository userRepository;
+    @Mock UserStore userStore;
 
     MockMvc mockMvc;
     ObjectMapper objectMapper;
@@ -62,7 +63,7 @@ class QrControllerTest {
         merchant = new User("+94771234567", "Kamal Perera", "199012345678", "$2a$12$hash");
         ReflectionTestUtils.setField(merchant, "id", USER_ID);
 
-        QrController controller = new QrController(qrService, userRepository);
+        QrController controller = new QrController(qrService, userStore);
 
         HandlerMethodArgumentResolver authPrincipalResolver = new HandlerMethodArgumentResolver() {
             @Override
@@ -88,7 +89,7 @@ class QrControllerTest {
     @Test
     @DisplayName("POST /api/v1/qr/references creates opaque QR reference")
     void testCreateQrReference() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(merchant));
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(UserAccount.fromUser(merchant)));
 
         QrReferenceResponse response = new QrReferenceResponse(
                 "QREF-1234-abcd", QrType.DYNAMIC, "LANKAPAY:QR:QREF-1234-abcd",

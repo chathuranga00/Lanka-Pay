@@ -4,27 +4,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.bank.adapter.*;
 import com.lankapay.bank.adapter.simulated.*;
-import com.lankapay.bank.crypto.AccountReferenceEncryptor;
-import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.domain.BankInstitution;
-import com.lankapay.bank.repository.BankAccountRepository;
-import com.lankapay.bank.repository.BankInstitutionRepository;
+import com.lankapay.bank.domain.LinkedAccount;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
 import com.lankapay.identity.domain.UserRole;
 import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.UserRepository;
-import com.lankapay.registry.domain.Registry;
-import com.lankapay.registry.repository.LookupAbuseCounterRepository;
-import com.lankapay.registry.repository.RegistryRepository;
+import com.lankapay.identity.domain.UserStore;
+import com.lankapay.registry.domain.PhoneIdentity;
+import com.lankapay.registry.domain.PhoneIdentityStore;
+import com.lankapay.registry.domain.RegistryAccountRecord;
 import com.lankapay.registry.service.LookupRateLimiter;
 import com.lankapay.registry.service.LookupService;
 import com.lankapay.registry.web.LookupResponse;
 import com.lankapay.transfer.domain.*;
-import com.lankapay.transfer.repository.DailyLimitRepository;
-import com.lankapay.transfer.repository.IdempotencyRecordRepository;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
 import com.lankapay.transfer.service.*;
 import com.lankapay.transfer.web.dto.InitiateTransferRequest;
 import com.lankapay.transfer.web.dto.QuoteRequest;
@@ -48,7 +42,7 @@ import java.time.Instant;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -68,15 +62,10 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 public class DemoScenarioE2ETest {
 
-    @Mock TransferRepository transferRepository;
-    @Mock TransactionEventRepository transactionEventRepository;
-    @Mock BankAccountRepository bankAccountRepository;
-    @Mock BankInstitutionRepository institutionRepository;
-    @Mock UserRepository userRepository;
-    @Mock RegistryRepository registryRepository;
-    @Mock DailyLimitRepository dailyLimitRepository;
-    @Mock IdempotencyRecordRepository idempotencyRecordRepository;
-    @Mock LookupAbuseCounterRepository abuseCounterRepository;
+    @Mock TransactionStore transactionStore;
+    @Mock LinkedAccountStore linkedAccountStore;
+    @Mock UserStore userStore;
+    @Mock PhoneIdentityStore phoneIdentityStore;
     @Mock AuditService auditService;
 
     private PasswordEncoder passwordEncoder;
@@ -94,10 +83,10 @@ public class DemoScenarioE2ETest {
     // Test Personas
     private User kasun;
     private User nimal;
-    private BankAccount kasunAccountA;
-    private BankAccount kasunAccountB;
-    private BankAccount kasunAccountC;
-    private BankAccount nimalAccountA;
+    private LinkedAccount kasunAccountA;
+    private LinkedAccount kasunAccountB;
+    private LinkedAccount kasunAccountC;
+    private LinkedAccount nimalAccountA;
 
     @BeforeEach
     void setUp() {
@@ -114,21 +103,20 @@ public class DemoScenarioE2ETest {
         );
         bankAdapterRegistry = new BankAdapterRegistry(adapters);
 
-        dailyLimitService = new DailyLimitService(dailyLimitRepository);
+        dailyLimitService = new DailyLimitService(transactionStore);
         transferProcessor = new TransferProcessor(
-                transferRepository, transactionEventRepository, bankAdapterRegistry, dailyLimitService, auditService);
-        idempotencyService = new IdempotencyService(idempotencyRecordRepository, objectMapper);
+                transactionStore, bankAdapterRegistry, dailyLimitService, auditService, null);
+        idempotencyService = new IdempotencyService(transactionStore, objectMapper);
         reconciliationService = new ReconciliationService(
-                transferRepository, transactionEventRepository, bankAccountRepository, bankAdapterRegistry, dailyLimitService, auditService);
-        reversalService = new ReversalService(
-                transferRepository, transactionEventRepository, auditService);
+                transactionStore, linkedAccountStore, bankAdapterRegistry, dailyLimitService, auditService);
+        reversalService = new ReversalService(transactionStore, auditService);
 
         transferService = new TransferService(
-                transferRepository, bankAccountRepository, userRepository,
-                transferProcessor, dailyLimitService, idempotencyService, passwordEncoder);
+                transactionStore, userStore, linkedAccountStore,
+                transferProcessor, dailyLimitService, idempotencyService, passwordEncoder, null);
 
         lookupService = new LookupService(
-                registryRepository, bankAccountRepository, institutionRepository, abuseCounterRepository,
+                phoneIdentityStore,
                 new LookupRateLimiter(100, 100), auditService, 50);
 
         // 1. Kasun Perera [TEST]
@@ -138,23 +126,20 @@ public class DemoScenarioE2ETest {
         ReflectionTestUtils.setField(kasun, "id", 101L);
 
         // Kasun's 3 Accounts (Default is Bank B)
-        kasunAccountA = new BankAccount(kasun, "SIMULATED_BANK_A", "hashA", "****1001", "Kasun Perera [TEST]", "encRefA");
-        kasunAccountA.setLabel("Savings Account A [TEST]");
-        kasunAccountA.setDefault(false);
-        kasunAccountA.setStatus(BankAccountStatus.ACTIVE);
-        ReflectionTestUtils.setField(kasunAccountA, "id", 201L);
+        kasunAccountA = new LinkedAccount(
+                201L, 101L, "SIMULATED_BANK_A", "hashA", "****1001", "Kasun Perera [TEST]",
+                "Savings Account A [TEST]", true, true, "encRefA",
+                BankAccountStatus.ACTIVE, false, Instant.now(), Instant.now());
 
-        kasunAccountB = new BankAccount(kasun, "SIMULATED_BANK_B", "hashB", "****1001", "Kasun Perera [TEST]", "encRefB");
-        kasunAccountB.setLabel("Salary Account B [TEST]");
-        kasunAccountB.setDefault(true); // Default Bank B
-        kasunAccountB.setStatus(BankAccountStatus.ACTIVE);
-        ReflectionTestUtils.setField(kasunAccountB, "id", 202L);
+        kasunAccountB = new LinkedAccount(
+                202L, 101L, "SIMULATED_BANK_B", "hashB", "****1001", "Kasun Perera [TEST]",
+                "Salary Account B [TEST]", true, true, "encRefB",
+                BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now()); // Default Bank B
 
-        kasunAccountC = new BankAccount(kasun, "SIMULATED_BANK_C", "hashC", "****1001", "Kasun Perera [TEST]", "encRefC");
-        kasunAccountC.setLabel("Investment Account C [TEST]");
-        kasunAccountC.setDefault(false);
-        kasunAccountC.setStatus(BankAccountStatus.ACTIVE);
-        ReflectionTestUtils.setField(kasunAccountC, "id", 203L);
+        kasunAccountC = new LinkedAccount(
+                203L, 101L, "SIMULATED_BANK_C", "hashC", "****1001", "Kasun Perera [TEST]",
+                "Investment Account C [TEST]", true, true, "encRefC",
+                BankAccountStatus.ACTIVE, false, Instant.now(), Instant.now());
 
         // 2. Nimal Silva [TEST]
         nimal = new User("+94771000002", "Nimal Silva [TEST]", "199010000002", passwordEncoder.encode("123456"));
@@ -163,11 +148,10 @@ public class DemoScenarioE2ETest {
         ReflectionTestUtils.setField(nimal, "id", 102L);
 
         // Nimal's 1 Account (Bank A)
-        nimalAccountA = new BankAccount(nimal, "SIMULATED_BANK_A", "hashNimalA", "****1002", "Nimal Silva [TEST]", "encRefNimalA");
-        nimalAccountA.setLabel("Primary Account [TEST]");
-        nimalAccountA.setDefault(true);
-        nimalAccountA.setStatus(BankAccountStatus.ACTIVE);
-        ReflectionTestUtils.setField(nimalAccountA, "id", 204L);
+        nimalAccountA = new LinkedAccount(
+                204L, 102L, "SIMULATED_BANK_A", "hashNimalA", "****1002", "Nimal Silva [TEST]",
+                "Primary Account [TEST]", true, true, "encRefNimalA",
+                BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now());
     }
 
     @Test
@@ -175,30 +159,28 @@ public class DemoScenarioE2ETest {
     void testDemoStep1_verifySeededPersonasAndAccounts() {
         assertThat(kasun.getFullName()).contains("[TEST]");
         assertThat(kasunAccountB.isDefault()).isTrue();
-        assertThat(kasunAccountB.getBankCode()).isEqualTo("SIMULATED_BANK_B");
+        assertThat(kasunAccountB.bankCode()).isEqualTo("SIMULATED_BANK_B");
 
         assertThat(kasunAccountA.isDefault()).isFalse();
-        assertThat(kasunAccountA.getBankCode()).isEqualTo("SIMULATED_BANK_A");
+        assertThat(kasunAccountA.bankCode()).isEqualTo("SIMULATED_BANK_A");
 
         assertThat(kasunAccountC.isDefault()).isFalse();
-        assertThat(kasunAccountC.getBankCode()).isEqualTo("SIMULATED_BANK_C");
+        assertThat(kasunAccountC.bankCode()).isEqualTo("SIMULATED_BANK_C");
 
         assertThat(nimal.getFullName()).contains("[TEST]");
         assertThat(nimalAccountA.isDefault()).isTrue();
-        assertThat(nimalAccountA.getBankCode()).isEqualTo("SIMULATED_BANK_A");
+        assertThat(nimalAccountA.bankCode()).isEqualTo("SIMULATED_BANK_A");
     }
 
     @Test
     @DisplayName("Demo Step 2: Kasun searches for Nimal in registry and verifies payee identity")
     void testDemoStep2_registryLookupForPayee() {
-        Registry nimalRegistry = new Registry(nimal, "+94771000002");
-        when(registryRepository.findByUserId_Phone("+94771000002")).thenReturn(Optional.of(nimalRegistry));
-        when(bankAccountRepository.findByUserIdAndStatus(102L, BankAccountStatus.ACTIVE))
-                .thenReturn(List.of(nimalAccountA));
-        when(abuseCounterRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        PhoneIdentity nimalIdentity = new PhoneIdentity(1L, 102L, "+94771000002", true, "Nimal Silva [TEST]", Instant.now());
+        when(phoneIdentityStore.findByPhone("+94771000002")).thenReturn(Optional.of(nimalIdentity));
 
-        BankInstitution instA = new BankInstitution("SIMULATED_BANK_A", "Simulated Bank A [SIMULATED]", true, true);
-        when(institutionRepository.findByBankCodeAndActiveTrue("SIMULATED_BANK_A")).thenReturn(Optional.of(instA));
+        RegistryAccountRecord nimalAcc = new RegistryAccountRecord(
+                204L, "SIMULATED_BANK_A", "Simulated Bank A [SIMULATED]", "****1002", true, true, true, "ACTIVE");
+        when(phoneIdentityStore.findAccountsInRegistry("+94771000002")).thenReturn(List.of(nimalAcc));
 
         LookupResponse lookupResponse = lookupService.lookup("+94771000002", 101L, "127.0.0.1");
 
@@ -211,12 +193,11 @@ public class DemoScenarioE2ETest {
     @Test
     @DisplayName("Demo Step 3 & 4: Happy path transfer from Kasun (Bank B) to Nimal (Bank A)")
     void testDemoStep3And4_transferQuoteAndExecutionHappyPath() {
-        when(userRepository.findById(102L)).thenReturn(Optional.of(nimal));
-        when(userRepository.findByPhone("+94771000002")).thenReturn(Optional.of(nimal));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(101L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(kasunAccountB)); // Auto-picks default Bank B
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(102L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(nimalAccountA)); // Auto-picks Nimal's Bank A
+        when(userStore.findUserById(102L)).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(userStore.findUserByPhone("+94771000002")).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(linkedAccountStore.findActiveDefaultAccount(101L)).thenReturn(Optional.of(kasunAccountB));
+        when(linkedAccountStore.findActiveDefaultAccount(102L)).thenReturn(Optional.of(nimalAccountA));
+        when(transactionStore.findDailyLimit(any(), any())).thenReturn(Optional.empty());
 
         // 3. Transfer Quote
         QuoteResponse quote = transferService.getQuote(
@@ -226,13 +207,35 @@ public class DemoScenarioE2ETest {
         assertThat(quote.quoteReference()).startsWith("QUO-");
 
         // 4. Initiate Transfer
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> {
-            Transfer t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                ReflectionTestUtils.setField(t, "id", 501L);
-            }
-            return t;
-        });
+        when(transactionStore.createTransferWithIdempotency(any(TransactionRecord.class), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    TransactionRecord r = invocation.getArgument(0);
+                    return new TransactionRecord(
+                            501L, r.reference(), r.idempotencyKey(),
+                            r.senderId(), r.senderPhone(), r.senderFullName(),
+                            r.receiverId(), r.receiverPhone(), r.receiverFullName(),
+                            r.senderBankCode(), r.receiverBankCode(),
+                            r.amount(), r.currency(), TransactionStatus.PENDING,
+                            null, null, null, r.note(), true, r.initiatedVia(),
+                            null, 1L, Instant.now(), Instant.now()
+                    );
+                });
+
+        when(transactionStore.transitionTransferStatus(eq(501L), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(invocation -> {
+                    TransactionStatus status = invocation.getArgument(1);
+                    String bankTxRef = invocation.getArgument(4);
+                    String provRef = invocation.getArgument(5);
+                    return new TransactionRecord(
+                            501L, "ref-501", "key-501",
+                            101L, "+94771000001", "Kasun Perera [TEST]",
+                            102L, "+94771000002", "Nimal Silva [TEST]",
+                            "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                            new BigDecimal("500.00"), "LKR", status,
+                            null, bankTxRef != null ? bankTxRef : "SIM-TX-501", provRef, "Dinner split [TEST]", true, TransferInitiatedVia.APP,
+                            null, 2L, Instant.now(), Instant.now()
+                    );
+                });
 
         InitiateTransferRequest request = new InitiateTransferRequest(
                 102L, null, new BigDecimal("500.00"), "LKR",
@@ -240,7 +243,7 @@ public class DemoScenarioE2ETest {
 
         String idempotencyKey = UUID.randomUUID().toString();
         TransferResponse response = transferService.initiateTransfer(
-                idempotencyKey, null, request, kasun, "127.0.0.1");
+                idempotencyKey, "123456", request, kasun, "127.0.0.1");
 
         assertThat(response.status()).isEqualTo(TransactionStatus.COMPLETED);
         assertThat(response.amount()).isEqualByComparingTo("500.00");
@@ -250,17 +253,41 @@ public class DemoScenarioE2ETest {
     @Test
     @DisplayName("Demo Step 5: Idempotency protection prevents duplicate transfers")
     void testDemoStep5_idempotencyReplayProtection() {
-        when(userRepository.findById(102L)).thenReturn(Optional.of(nimal));
-        when(userRepository.findByPhone("+94771000002")).thenReturn(Optional.of(nimal));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(101L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(kasunAccountB));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(102L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(nimalAccountA));
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> {
-            Transfer t = invocation.getArgument(0);
-            ReflectionTestUtils.setField(t, "id", 601L);
-            return t;
-        });
+        when(userStore.findUserById(102L)).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(userStore.findUserByPhone("+94771000002")).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(linkedAccountStore.findActiveDefaultAccount(101L)).thenReturn(Optional.of(kasunAccountB));
+        when(linkedAccountStore.findActiveDefaultAccount(102L)).thenReturn(Optional.of(nimalAccountA));
+        when(transactionStore.findDailyLimit(any(), any())).thenReturn(Optional.empty());
+
+        when(transactionStore.createTransferWithIdempotency(any(TransactionRecord.class), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    TransactionRecord r = invocation.getArgument(0);
+                    return new TransactionRecord(
+                            601L, r.reference(), r.idempotencyKey(),
+                            r.senderId(), r.senderPhone(), r.senderFullName(),
+                            r.receiverId(), r.receiverPhone(), r.receiverFullName(),
+                            r.senderBankCode(), r.receiverBankCode(),
+                            r.amount(), r.currency(), TransactionStatus.PENDING,
+                            null, null, null, r.note(), true, r.initiatedVia(),
+                            null, 1L, Instant.now(), Instant.now()
+                    );
+                });
+
+        when(transactionStore.transitionTransferStatus(eq(601L), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(invocation -> {
+                    TransactionStatus status = invocation.getArgument(1);
+                    String bankTxRef = invocation.getArgument(4);
+                    String provRef = invocation.getArgument(5);
+                    return new TransactionRecord(
+                            601L, "ref-601", "key-601",
+                            101L, "+94771000001", "Kasun Perera [TEST]",
+                            102L, "+94771000002", "Nimal Silva [TEST]",
+                            "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                            new BigDecimal("750.00"), "LKR", status,
+                            null, bankTxRef != null ? bankTxRef : "SIM-TX-601", provRef, "Rent contribution [TEST]", true, TransferInitiatedVia.APP,
+                            null, 2L, Instant.now(), Instant.now()
+                    );
+                });
 
         String sharedKey = "IDEM-KEY-DEMO-REPEAT";
         InitiateTransferRequest request = new InitiateTransferRequest(
@@ -269,18 +296,18 @@ public class DemoScenarioE2ETest {
 
         // First attempt -> processes and caches
         TransferResponse firstResp = transferService.initiateTransfer(
-                sharedKey, null, request, kasun, "127.0.0.1");
+                sharedKey, "123456", request, kasun, "127.0.0.1");
         assertThat(firstResp.status()).isEqualTo(TransactionStatus.COMPLETED);
 
-        // Simulate IdempotencyRecord found in repository
+        // Simulate IdempotencyRecordModel found in store
         String payloadHash = idempotencyService.hashPayload(request);
-        IdempotencyRecord cachedRecord = new IdempotencyRecord(
-                sharedKey, payloadHash, 601L, objectMapper.valueToTree(firstResp).toString(), 200);
-        when(idempotencyRecordRepository.findByIdempotencyKey(sharedKey)).thenReturn(Optional.of(cachedRecord));
+        IdempotencyRecordModel cachedRecord = new IdempotencyRecordModel(
+                1L, sharedKey, payloadHash, 601L, objectMapper.valueToTree(firstResp).toString(), 200, Instant.now());
+        when(transactionStore.findIdempotencyRecord(sharedKey)).thenReturn(Optional.of(cachedRecord));
 
         // Replay attempt with same key and payload -> returns cached response directly
         TransferResponse replayResp = transferService.initiateTransfer(
-                sharedKey, null, request, kasun, "127.0.0.1");
+                sharedKey, "123456", request, kasun, "127.0.0.1");
 
         assertThat(replayResp.transferId()).isEqualTo(firstResp.transferId());
         assertThat(replayResp.reference()).isEqualTo(firstResp.reference());
@@ -290,13 +317,39 @@ public class DemoScenarioE2ETest {
     @Test
     @DisplayName("Demo Step 6: Failure scenario triggers FAILED transaction outcome")
     void testDemoStep6_failureScenarioInsufficientFunds() {
-        when(userRepository.findById(102L)).thenReturn(Optional.of(nimal));
-        when(userRepository.findByPhone("+94771000002")).thenReturn(Optional.of(nimal));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(101L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(kasunAccountB));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(102L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(nimalAccountA));
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(userStore.findUserById(102L)).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(userStore.findUserByPhone("+94771000002")).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(linkedAccountStore.findActiveDefaultAccount(101L)).thenReturn(Optional.of(kasunAccountB));
+        when(linkedAccountStore.findActiveDefaultAccount(102L)).thenReturn(Optional.of(nimalAccountA));
+        when(transactionStore.findDailyLimit(any(), any())).thenReturn(Optional.empty());
+
+        when(transactionStore.createTransferWithIdempotency(any(TransactionRecord.class), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    TransactionRecord r = invocation.getArgument(0);
+                    return new TransactionRecord(
+                            602L, r.reference(), r.idempotencyKey(),
+                            r.senderId(), r.senderPhone(), r.senderFullName(),
+                            r.receiverId(), r.receiverPhone(), r.receiverFullName(),
+                            r.senderBankCode(), r.receiverBankCode(),
+                            r.amount(), r.currency(), TransactionStatus.PENDING,
+                            null, null, null, r.note(), true, r.initiatedVia(),
+                            null, 1L, Instant.now(), Instant.now()
+                    );
+                });
+
+        when(transactionStore.transitionTransferStatus(eq(602L), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(invocation -> {
+                    TransactionStatus status = invocation.getArgument(1);
+                    return new TransactionRecord(
+                            602L, "ref-602", "key-602",
+                            101L, "+94771000001", "Kasun Perera [TEST]",
+                            102L, "+94771000002", "Nimal Silva [TEST]",
+                            "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                            new BigDecimal("10000.00"), "LKR", status,
+                            "INSUFFICIENT_FUNDS", null, null, "High value test [TEST]", true, TransferInitiatedVia.APP,
+                            null, 2L, Instant.now(), Instant.now()
+                    );
+                });
 
         // Magic amount 10000.00 LKR triggers INSUFFICIENT_FUNDS in SimulatedBankAdapter
         InitiateTransferRequest request = new InitiateTransferRequest(
@@ -304,7 +357,7 @@ public class DemoScenarioE2ETest {
                 null, "High value test [TEST]", "123456");
 
         TransferResponse failResp = transferService.initiateTransfer(
-                UUID.randomUUID().toString(), null, request, kasun, "127.0.0.1");
+                UUID.randomUUID().toString(), "123456", request, kasun, "127.0.0.1");
 
         assertThat(failResp.status()).isEqualTo(TransactionStatus.FAILED);
     }
@@ -312,33 +365,60 @@ public class DemoScenarioE2ETest {
     @Test
     @DisplayName("Demo Step 7: Timeout / delayed confirmation scenario reconciles to COMPLETED")
     void testDemoStep7_timeoutAndReconciliationScenario() {
-        when(userRepository.findById(102L)).thenReturn(Optional.of(nimal));
-        when(userRepository.findByPhone("+94771000002")).thenReturn(Optional.of(nimal));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(101L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(kasunAccountB));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(102L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(nimalAccountA));
+        when(userStore.findUserById(102L)).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(userStore.findUserByPhone("+94771000002")).thenReturn(Optional.of(UserAccount.fromUser(nimal)));
+        when(linkedAccountStore.findActiveDefaultAccount(101L)).thenReturn(Optional.of(kasunAccountB));
+        when(linkedAccountStore.findActiveDefaultAccount(102L)).thenReturn(Optional.of(nimalAccountA));
+        when(transactionStore.findDailyLimit(any(), any())).thenReturn(Optional.empty());
 
-        // Magic amount 30000.00 LKR triggers DELAYED_CONFIRMATION (REQUIRES_RECONCILIATION state)
-        Transfer pendingTransfer = new Transfer(
-                UUID.randomUUID().toString(), kasun, nimal, new BigDecimal("30000.00"), "LKR", TransferInitiatedVia.APP);
-        pendingTransfer.setSenderBankCode("SIMULATED_BANK_B");
-        pendingTransfer.setReceiverBankCode("SIMULATED_BANK_A");
-        ReflectionTestUtils.setField(pendingTransfer, "id", 701L);
+        when(transactionStore.createTransferWithIdempotency(any(TransactionRecord.class), anyString(), anyString()))
+                .thenAnswer(invocation -> {
+                    TransactionRecord r = invocation.getArgument(0);
+                    return new TransactionRecord(
+                            701L, r.reference(), r.idempotencyKey(),
+                            r.senderId(), r.senderPhone(), r.senderFullName(),
+                            r.receiverId(), r.receiverPhone(), r.receiverFullName(),
+                            r.senderBankCode(), r.receiverBankCode(),
+                            r.amount(), r.currency(), TransactionStatus.PENDING,
+                            null, null, null, r.note(), true, r.initiatedVia(),
+                            null, 1L, Instant.now(), Instant.now()
+                    );
+                });
 
-        when(transferRepository.save(any(Transfer.class))).thenReturn(pendingTransfer);
+        when(transactionStore.transitionTransferStatus(eq(701L), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(invocation -> {
+                    TransactionStatus status = invocation.getArgument(1);
+                    return new TransactionRecord(
+                            701L, "ref-701", "key-701",
+                            101L, "+94771000001", "Kasun Perera [TEST]",
+                            102L, "+94771000002", "Nimal Silva [TEST]",
+                            "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                            new BigDecimal("30000.00"), "LKR", status,
+                            null, null, "SIM-PROV-701", "Delayed confirmation [TEST]", true, TransferInitiatedVia.APP,
+                            null, 2L, Instant.now(), Instant.now()
+                    );
+                });
 
         InitiateTransferRequest request = new InitiateTransferRequest(
                 102L, null, new BigDecimal("30000.00"), "LKR",
                 null, "Delayed confirmation [TEST]", "123456");
 
         TransferResponse initialResp = transferService.initiateTransfer(
-                UUID.randomUUID().toString(), null, request, kasun, "127.0.0.1");
+                UUID.randomUUID().toString(), "123456", request, kasun, "127.0.0.1");
 
         assertThat(initialResp.status()).isEqualTo(TransactionStatus.REQUIRES_RECONCILIATION);
 
         // Reconciliation action by Admin/system
-        when(transferRepository.findById(701L)).thenReturn(Optional.of(pendingTransfer));
+        TransactionRecord pendingRecord = new TransactionRecord(
+                701L, "ref-701", "key-701",
+                101L, "+94771000001", "Kasun Perera [TEST]",
+                102L, "+94771000002", "Nimal Silva [TEST]",
+                "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                new BigDecimal("30000.00"), "LKR", TransactionStatus.REQUIRES_RECONCILIATION,
+                null, null, "SIM-PROV-701", "Delayed confirmation [TEST]", true, TransferInitiatedVia.APP,
+                null, 2L, Instant.now(), Instant.now()
+        );
+        when(transactionStore.findTransferById(701L)).thenReturn(Optional.of(pendingRecord));
         ReconcileResultResponse reconcileResp = reconciliationService.reconcileTransfer(701L);
 
         assertThat(reconcileResp.resolvedStatus()).isEqualTo(TransactionStatus.COMPLETED);
@@ -348,20 +428,47 @@ public class DemoScenarioE2ETest {
     @Test
     @DisplayName("Demo Step 8: Reversal flow transitions completed transfer to REVERSED")
     void testDemoStep8_transferReversalFlow() {
-        Transfer completedTransfer = new Transfer(
-                UUID.randomUUID().toString(), kasun, nimal, new BigDecimal("1200.00"), "LKR", TransferInitiatedVia.APP);
-        completedTransfer.startProcessing("SENT_TO_BANK");
-        completedTransfer.complete("BANK-TX-OK", "SIM-PROV-OK");
-        completedTransfer.setSenderBankCode("SIMULATED_BANK_B");
-        completedTransfer.setReceiverBankCode("SIMULATED_BANK_A");
-        ReflectionTestUtils.setField(completedTransfer, "id", 801L);
+        TransactionRecord completedRecord = new TransactionRecord(
+                801L, "ref-801", "key-801",
+                101L, "+94771000001", "Kasun Perera [TEST]",
+                102L, "+94771000002", "Nimal Silva [TEST]",
+                "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                new BigDecimal("1200.00"), "LKR", TransactionStatus.COMPLETED,
+                null, "BANK-TX-OK", "SIM-PROV-OK", "Disputed payment [TEST]", true, TransferInitiatedVia.APP,
+                null, 1L, Instant.now(), Instant.now()
+        );
 
-        when(transferRepository.findById(801L)).thenReturn(Optional.of(completedTransfer));
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionStore.findTransferById(801L)).thenReturn(Optional.of(completedRecord));
+
+        when(transactionStore.transitionTransferStatus(eq(801L), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(invocation -> {
+                    TransactionStatus status = invocation.getArgument(1);
+                    return new TransactionRecord(
+                            801L, "ref-801", "key-801",
+                            101L, "+94771000001", "Kasun Perera [TEST]",
+                            102L, "+94771000002", "Nimal Silva [TEST]",
+                            "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                            new BigDecimal("1200.00"), "LKR", status,
+                            null, "BANK-TX-OK", "SIM-PROV-OK", "Disputed payment [TEST]", true, TransferInitiatedVia.APP,
+                            null, 2L, Instant.now(), Instant.now()
+                    );
+                });
 
         // 1. Request reversal (sender requests reversal)
         Transfer pendingReversal = reversalService.requestReversal(801L, 101L, "Disputed payment [TEST]", "127.0.0.1");
         assertThat(pendingReversal.getStatus()).isEqualTo(TransactionStatus.REVERSAL_PENDING);
+
+        // Update mock for confirmReversal
+        TransactionRecord pendingReversalRecord = new TransactionRecord(
+                801L, "ref-801", "key-801",
+                101L, "+94771000001", "Kasun Perera [TEST]",
+                102L, "+94771000002", "Nimal Silva [TEST]",
+                "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                new BigDecimal("1200.00"), "LKR", TransactionStatus.REVERSAL_PENDING,
+                null, "BANK-TX-OK", "SIM-PROV-OK", "Disputed payment [TEST]", true, TransferInitiatedVia.APP,
+                null, 2L, Instant.now(), Instant.now()
+        );
+        when(transactionStore.findTransferById(801L)).thenReturn(Optional.of(pendingReversalRecord));
 
         // 2. Confirm reversal (bank adapter confirms reversal)
         Transfer confirmedReversed = reversalService.confirmReversal(801L, "SIM-REV-CONFIRM-999", "127.0.0.1");

@@ -173,6 +173,14 @@ public class AuthController {
         return ResponseEntity.ok(new MessageResponse("PIN updated successfully"));
     }
 
+    // ── DELETE /cleanup (Testing / Dev Cleanup) ────────────────
+    @Operation(summary = "Clean up test user by phone", description = "Deletes user and phone identity for re-testing registration.")
+    @DeleteMapping("/cleanup")
+    public ResponseEntity<Void> cleanup(@RequestParam String phone) {
+        authService.deleteUserByPhone(phone);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private String extractIp(HttpServletRequest request) {

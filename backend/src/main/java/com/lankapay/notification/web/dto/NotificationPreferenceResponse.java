@@ -26,4 +26,16 @@ public record NotificationPreferenceResponse(
                 pref.getUpdatedAt()
         );
     }
+
+    public static NotificationPreferenceResponse from(com.lankapay.notification.domain.NotificationPreferenceRecord pref) {
+        return new NotificationPreferenceResponse(
+                pref.inAppEnabled(),
+                pref.pushEnabled(),
+                pref.emailEnabled(),
+                pref.smsEnabled(),
+                pref.paymentAlerts(),
+                pref.securityAlerts(),
+                pref.updatedAt()
+        );
+    }
 }

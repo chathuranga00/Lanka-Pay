@@ -29,6 +29,9 @@ During comprehensive review of the entire `/backend` codebase against the threat
 | **SEC-04** | **Medium** | [`SecurityConfig.java`](file:///q:/MY%20Projects/Lanka%20Pay/backend/src/main/java/com/lankapay/auth/config/SecurityConfig.java) | **Missing Security Headers & CORS Lockdown**: Lack of defensive HTTP response headers (CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy) and permissive default CORS configuration. | Added `corsConfigurationSource()` bean with controlled headers (`Idempotency-Key`, `X-Step-Up-Pin`, etc.) and configured HTTP response headers: `FrameOptions.deny()`, strict Content Security Policy (`default-src 'self'; frame-ancestors 'none'`), HSTS (1 year max-age), Referrer Policy, and Permissions Policy. |
 | **SEC-05** | **High** | [`AccountReferenceEncryptor.java`](file:///q:/MY%20Projects/Lanka%20Pay/backend/src/main/java/com/lankapay/bank/crypto/AccountReferenceEncryptor.java) & [`JwtService.java`](file:///q:/MY%20Projects/Lanka%20Pay/backend/src/main/java/com/lankapay/auth/security/JwtService.java) | **Hardcoded / Default Secrets in Config**: Fallback placeholder secrets in `.env.example` or dev profiles could accidentally be carried over to production deployments without verification. | Implemented fail-fast production checks checking `@Value("${spring.profiles.active:default}")`. If `prod` or `production` profile is active and known dummy/short test keys are detected, startup halts immediately with `IllegalStateException`. |
 | **SEC-06** | **Low** | [`pom.xml`](file:///q:/MY%20Projects/Lanka%20Pay/backend/pom.xml) | **Lack of Automated Vulnerability Scanning**: Maven build had no static software composition analysis (SCA) configured to detect vulnerable third-party dependencies. | Integrated `dependency-check-maven` (v10.0.4) with CVSS score threshold failure (`failBuildOnCVSS = 8.0`) and HTML/JSON report generation. |
+| **SEC-07** | **Critical** | [`firestore.rules`](file:///q:/MY%20Projects/Lanka%20Pay/firestore.rules) & [`firestore.rules.test.ts`](file:///q:/MY%20Projects/Lanka%20Pay/firestore.rules.test.ts) | **Firestore Direct Client Access & Rules Misconfiguration**: Potential for direct client SDK connections from web or mobile apps reading or modifying raw collections (`users`, `linkedBankAccounts`, `transactions`, `idempotencyKeys`, `otpChallenges`, `auditLogs`) bypassing backend API security filters. | Enforced global lockdown rule in `firestore.rules`: `match /{document=**} { allow read, write: if false; }`. All persistence is mediated exclusively by Spring Boot via Firebase Admin SDK. Added automated `@firebase/rules-unit-testing` suite (72 test assertions across unauthenticated, authenticated, and adversarial tokens, 100% passing). |
+| **SEC-08** | **Critical** | `.gitignore`, `.env.example`, [CI Secret Scanner](file:///q:/MY%20Projects/Lanka%20Pay/.github/workflows/security-scan.yml) | **Service Account Key & Secret Exposure in Git**: Risk of GCP service account JSON files or private keys being accidentally committed to version control, granting elevated admin permissions to attackers. | Audited full git history confirming zero secrets or service account keys committed; `.gitignore` rigorously excludes `*.key`, `*.pem`, `*.json`, `*.p12`, `secrets/`, `node_modules/`; `.env.example` provides empty placeholders; automated Gitleaks scanner runs on all pushes/PRs. |
+| **SEC-09** | **High** | [`FirestoreTransactionStore.java`](file:///q:/MY%20Projects/Lanka%20Pay/backend/src/main/java/com/lankapay/transfer/store/firestore/FirestoreTransactionStore.java) & [`FirestoreTransactionHelper.java`](file:///q:/MY%20Projects/Lanka%20Pay/backend/src/main/java/com/lankapay/common/firestore/FirestoreTransactionHelper.java) | **Hot-Document Contention & Non-Atomic Multi-Document Writes**: Firestore documents face a 1 write/sec per document limit; multi-document updates could leave partial state if not wrapped in transactions or batches. | Enforced Firestore `runTransaction` and `WriteBatch` across all multi-document operations (`createTransferWithIdempotency`, `transitionTransferStatus`, `saveTransfer`, `linkAccount`, `setDefaultAccount`, `unlinkAccount`, `saveOtpChallenge`); partitioned daily limits by user and date (`dailyLimits/{userId}_{date}`); distributed ID generation prevents hot counter bottlenecks; in-flight idempotency request coordination prevents concurrent contention. |
 
 ---
 
@@ -73,6 +76,27 @@ Referencing the STRIDE matrix in [`docs/threat-model.md`](file:///q:/MY%20Projec
   - `MaskingUtils`: Masks phone numbers (`+9477***1234`), NIC numbers, and account identifiers (`****1234`).
   - Lock-screen push/SMS notifications contain generic alerts (*"You have received a transfer"*) without revealing amounts, balances, or account numbers.
 
+### 3.9 T-13: Firestore Security Rules Lockdown & Client Bypass Prevention
+- **Mitigation**: Direct Firestore client SDK connections from mobile or web apps are completely locked down.
+  - `firestore.rules`: `match /{document=**} { allow read, write: if false; }`.
+  - All Firestore operations are strictly executed by the trusted Spring Boot backend service with elevated service credentials via the Firebase Admin SDK.
+  - Clients cannot query or mutate `users`, `linkedBankAccounts`, `transactions`, `idempotencyKeys`, `otpChallenges`, or `auditLogs`.
+  - Verified by automated unit tests in `firestore.rules.test.ts` using `@firebase/rules-unit-testing`.
+
+### 3.10 T-14: Leaked Service Account Keys & Elevated Credential Protection
+- **Mitigation**:
+  - Zero static keys committed to version control; verified through full git log commit scanning (`git log --all -p -S "BEGIN PRIVATE KEY"` and `service_account` audits).
+  - Strict `.gitignore` pattern matching blocks `*.key`, `*.pem`, `*.p12`, `*.jks`, `secrets/`, and `node_modules/`.
+  - `.env.example` provides sanitized placeholders (`FIREBASE_CREDENTIALS_PATH=`).
+  - Production deployments use Google Cloud IAM Workload Identity Federation (keyless service account impersonation) instead of long-lived static JSON credentials.
+  - Gitleaks CI action continuously scans all PRs and pushes.
+
+### 3.11 T-15: Hot-Document Contention & Write Atomicity
+- **Mitigation**:
+  - High-concurrency operations avoid single-document bottlenecks: transfer IDs use distributed timestamp-based sequences, and daily limits are partitioned per tenant per day (`dailyLimits/{userId}_{yyyy-MM-dd}`).
+  - In-flight duplicate transfer requests with matching idempotency keys are coordinated in `TransferService` to prevent simultaneous competing writes.
+  - Every multi-document write strictly uses Firestore `runTransaction` (with optimistic concurrency check) or atomic `WriteBatch`. Partial writes are architecturally impossible.
+
 ---
 
 ## 4. Software Composition Analysis (SCA)
@@ -109,8 +133,11 @@ An automated regression suite is maintained in [`SecurityRegressionTest.java`](f
    - `cannotTransitionFromCompletedToPending`: Rejects illegal transition back to pending.
    - `cannotTransitionFromFailedToCompleted`: Rejects reviving failed transaction without reconciliation.
    - `reversalAllowedOnlyFromCompleted`: Ensures refunds can only originate from settled transactions.
+5. **Firestore Security Rules Unit Test Suite (@firebase/rules-unit-testing)**:
+   - Configured in [`firestore.rules.test.ts`](file:///q:/MY%20Projects/Lanka%20Pay/firestore.rules.test.ts) testing `firestore.rules` against the local Firestore Emulator (`localhost:8085`).
+   - 72 automated assertions verifying unauthenticated clients, authenticated user clients, and adversarial clients with forged admin claims cannot read, list, create, update, or delete records in `users`, `linkedBankAccounts`, `transactions`, `idempotencyKeys`, `otpChallenges`, or `auditLogs`.
 
-All 17 security regression tests and 291 existing unit/integration tests pass reliably (`Tests run: 308, Failures: 0, Errors: 0, Skipped: 10`).
+All 17 security regression tests and 407 total backend tests pass reliably (`Tests run: 407, Failures: 0, Errors: 0, Skipped: 0`), alongside 72/72 Firestore rules unit tests (`Tests: 72 passed (72)`).
 
 ---
 

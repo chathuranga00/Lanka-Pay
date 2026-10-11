@@ -1,24 +1,23 @@
 package com.lankapay.admin.service;
 
-import com.lankapay.admin.repository.AdminTransferSpecification;
 import com.lankapay.admin.web.dto.AdminTransactionEventResponse;
 import com.lankapay.admin.web.dto.AdminTransferDetailResponse;
 import com.lankapay.admin.web.dto.AdminTransferSummaryResponse;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.ValidationException;
+import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
-import com.lankapay.transfer.domain.Transfer;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
+import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.service.ReconciliationService;
 import com.lankapay.transfer.web.dto.ReconcileResultResponse;
+import com.lankapay.transfer.web.dto.TransferDirection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -36,22 +35,18 @@ public class AdminTransferService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminTransferService.class);
 
-    private final TransferRepository transferRepository;
-    private final TransactionEventRepository transactionEventRepository;
+    private final TransactionStore transactionStore;
     private final ReconciliationService reconciliationService;
     private final AuditService auditService;
 
-    public AdminTransferService(TransferRepository transferRepository,
-                                TransactionEventRepository transactionEventRepository,
+    public AdminTransferService(TransactionStore transactionStore,
                                 ReconciliationService reconciliationService,
                                 AuditService auditService) {
-        this.transferRepository = transferRepository;
-        this.transactionEventRepository = transactionEventRepository;
+        this.transactionStore = transactionStore;
         this.reconciliationService = reconciliationService;
         this.auditService = auditService;
     }
 
-    @Transactional(readOnly = true)
     public Page<AdminTransferSummaryResponse> searchTransfers(Long userId,
                                                               Long senderId,
                                                               Long receiverId,
@@ -63,25 +58,40 @@ public class AdminTransferService {
                                                               Instant from,
                                                               Instant to,
                                                               Pageable pageable) {
-        return transferRepository.findAll(AdminTransferSpecification.withFilters(
-                userId, senderId, receiverId, status, bankCode, minAmount, maxAmount, reference, from, to), pageable)
-                .map(AdminTransferSummaryResponse::from);
+        if (reference != null && !reference.isBlank()) {
+            return transactionStore.findTransferByReference(reference.trim())
+                    .map(tx -> new PageImpl<>(List.of(AdminTransferSummaryResponse.from(tx)), pageable, 1))
+                    .orElseGet(() -> new PageImpl<>(List.of(), pageable, 0));
+        }
+
+        Long targetUserId = userId != null ? userId : (senderId != null ? senderId : receiverId);
+        TransferDirection direction = senderId != null ? TransferDirection.SENT
+                : (receiverId != null ? TransferDirection.RECEIVED : TransferDirection.ALL);
+
+        return transactionStore.searchTransfers(
+                targetUserId,
+                direction,
+                status,
+                from,
+                to,
+                bankCode,
+                minAmount,
+                maxAmount,
+                pageable
+        ).map(AdminTransferSummaryResponse::from);
     }
 
-    @Transactional(readOnly = true)
     public AdminTransferDetailResponse getTransferDetail(Long transferId) {
-        Transfer transfer = transferRepository.findById(transferId)
+        TransactionRecord transfer = transactionStore.findTransferById(transferId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND", "Transfer not found with id: " + transferId));
 
-        List<AdminTransactionEventResponse> events = transactionEventRepository
-                .findByTransferIdOrderByOccurredAtAsc(transferId).stream()
+        List<AdminTransactionEventResponse> events = transactionStore.findEventsByTransferId(transferId).stream()
                 .map(AdminTransactionEventResponse::from)
                 .toList();
 
         return AdminTransferDetailResponse.from(transfer, events);
     }
 
-    @Transactional(readOnly = true)
     public Page<AdminTransferSummaryResponse> getUncertainQueue(Pageable pageable) {
         List<TransactionStatus> uncertainStatuses = List.of(
                 TransactionStatus.REQUIRES_RECONCILIATION,
@@ -89,25 +99,32 @@ public class AdminTransferService {
                 TransactionStatus.FAILED,
                 TransactionStatus.REVERSAL_PENDING
         );
-        return transferRepository.findAll((root, query, cb) -> root.get("status").in(uncertainStatuses), pageable)
-                .map(AdminTransferSummaryResponse::from);
+        List<TransactionRecord> records = transactionStore.findTransfersByStatusIn(uncertainStatuses);
+        int offset = (int) pageable.getOffset();
+        int limit = pageable.getPageSize();
+        if (offset >= records.size()) {
+            return new PageImpl<>(List.of(), pageable, records.size());
+        }
+        int end = Math.min(offset + limit, records.size());
+        List<AdminTransferSummaryResponse> paged = records.subList(offset, end).stream()
+                .map(AdminTransferSummaryResponse::from)
+                .toList();
+        return new PageImpl<>(paged, pageable, records.size());
     }
 
-    @Transactional
     public ReconcileResultResponse triggerReconciliation(Long transferId, Long adminUserId, String clientIp) {
-        Transfer transfer = transferRepository.findById(transferId)
+        TransactionRecord transfer = transactionStore.findTransferById(transferId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND", "Transfer not found with id: " + transferId));
 
         log.info("[ADMIN] Admin id={} triggered manual reconciliation for transfer id={}, ref={}",
-                adminUserId, transferId, transfer.getReference());
+                adminUserId, transferId, transfer.reference());
 
         auditService.log(adminUserId, "ADMIN_TRIGGER_RECONCILIATION", "TRANSFER", transferId,
-                "{\"reference\":\"%s\",\"status\":\"%s\"}".formatted(transfer.getReference(), transfer.getStatus()), clientIp);
+                "{\"reference\":\"%s\",\"status\":\"%s\"}".formatted(transfer.reference(), transfer.status()), clientIp);
 
         return reconciliationService.reconcileTransfer(transferId);
     }
 
-    @Transactional
     public List<ReconcileResultResponse> triggerReconcileAll(Long adminUserId, String clientIp) {
         log.info("[ADMIN] Admin id={} triggered bulk reconciliation of all pending/uncertain transfers", adminUserId);
 
@@ -121,12 +138,12 @@ public class AdminTransferService {
      * Prohibits admin editing of bank-confirmed transactions per Section 11/13 security constraints.
      */
     public void validateNotBankConfirmed(Long transferId) {
-        Transfer transfer = transferRepository.findById(transferId)
+        TransactionRecord transfer = transactionStore.findTransferById(transferId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND", "Transfer not found with id: " + transferId));
 
-        if (transfer.getStatus() == TransactionStatus.COMPLETED || transfer.getStatus() == TransactionStatus.REVERSED) {
+        if (transfer.status() == TransactionStatus.COMPLETED || transfer.status() == TransactionStatus.REVERSED) {
             throw new ValidationException("CANNOT_EDIT_CONFIRMED_TRANSACTION",
-                    "Bank-confirmed transactions cannot be modified by admins. Status: " + transfer.getStatus());
+                    "Bank-confirmed transactions cannot be modified by admins. Status: " + transfer.status());
         }
     }
 }

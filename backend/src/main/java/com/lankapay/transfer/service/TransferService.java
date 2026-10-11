@@ -1,22 +1,31 @@
 package com.lankapay.transfer.service;
 
+import com.lankapay.admin.service.RiskManagementService;
 import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.repository.BankAccountRepository;
+import com.lankapay.bank.domain.LinkedAccount;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.InvalidCredentialsException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.UnprocessableEntityException;
 import com.lankapay.common.exception.ValidationException;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserStore;
+import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
+import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.domain.TransferInitiatedVia;
-import com.lankapay.transfer.repository.TransferRepository;
-import com.lankapay.transfer.web.dto.*;
+import com.lankapay.transfer.web.dto.InitiateTransferRequest;
+import com.lankapay.transfer.web.dto.QuoteRequest;
+import com.lankapay.transfer.web.dto.QuoteResponse;
+import com.lankapay.transfer.web.dto.ReceiptResponse;
+import com.lankapay.transfer.web.dto.TransferDirection;
+import com.lankapay.transfer.web.dto.TransferResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,7 +34,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,39 +42,27 @@ public class TransferService {
 
     private static final Logger log = LoggerFactory.getLogger(TransferService.class);
 
-    private final TransferRepository transferRepository;
-    private final BankAccountRepository bankAccountRepository;
-    private final UserRepository userRepository;
+    private final TransactionStore transactionStore;
+    private final UserStore userStore;
+    private final LinkedAccountStore linkedAccountStore;
     private final TransferProcessor transferProcessor;
     private final DailyLimitService dailyLimitService;
     private final IdempotencyService idempotencyService;
     private final PasswordEncoder passwordEncoder;
-    private final com.lankapay.admin.service.RiskManagementService riskManagementService;
+    private final RiskManagementService riskManagementService;
 
-    public TransferService(TransferRepository transferRepository,
-                           BankAccountRepository bankAccountRepository,
-                           UserRepository userRepository,
-                           TransferProcessor transferProcessor,
-                           DailyLimitService dailyLimitService,
-                           IdempotencyService idempotencyService,
-                           PasswordEncoder passwordEncoder) {
-        this(transferRepository, bankAccountRepository, userRepository, transferProcessor,
-             dailyLimitService, idempotencyService, passwordEncoder, null);
-    }
-
-    @org.springframework.beans.factory.annotation.Autowired
-    public TransferService(TransferRepository transferRepository,
-                           BankAccountRepository bankAccountRepository,
-                           UserRepository userRepository,
+    @Autowired
+    public TransferService(TransactionStore transactionStore,
+                           UserStore userStore,
+                           LinkedAccountStore linkedAccountStore,
                            TransferProcessor transferProcessor,
                            DailyLimitService dailyLimitService,
                            IdempotencyService idempotencyService,
                            PasswordEncoder passwordEncoder,
-                           @org.springframework.beans.factory.annotation.Autowired(required = false)
-                           com.lankapay.admin.service.RiskManagementService riskManagementService) {
-        this.transferRepository = transferRepository;
-        this.bankAccountRepository = bankAccountRepository;
-        this.userRepository = userRepository;
+                           @Autowired(required = false) RiskManagementService riskManagementService) {
+        this.transactionStore = transactionStore;
+        this.userStore = userStore;
+        this.linkedAccountStore = linkedAccountStore;
         this.transferProcessor = transferProcessor;
         this.dailyLimitService = dailyLimitService;
         this.idempotencyService = idempotencyService;
@@ -80,21 +76,14 @@ public class TransferService {
     @Transactional(readOnly = true)
     public QuoteResponse getQuote(QuoteRequest request, User sender) {
         User payee = resolvePayee(request.payeeId(), request.payeePhone());
-
         if (payee.getId().equals(sender.getId())) {
             throw new ValidationException("CANNOT_TRANSFER_TO_SELF", "Sender and payee cannot be the same user");
         }
 
-        if (riskManagementService != null) {
-            riskManagementService.evaluateTransferRisk(sender, request.amount());
-        }
-
-        dailyLimitService.checkLimit(sender, request.amount());
-
-        BigDecimal fee = BigDecimal.ZERO.setScale(2);
-        BigDecimal total = request.amount().add(fee);
+        BigDecimal fee = BigDecimal.ZERO;
+        BigDecimal totalDebit = request.amount().add(fee);
         String quoteRef = "QUO-" + UUID.randomUUID();
-        Instant expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES);
+        Instant expiresAt = Instant.now().plusSeconds(300);
 
         return new QuoteResponse(
                 quoteRef,
@@ -103,7 +92,7 @@ public class TransferService {
                 maskPhone(payee.getPhone()),
                 request.amount(),
                 fee,
-                total,
+                totalDebit,
                 request.currency() != null ? request.currency() : "LKR",
                 expiresAt,
                 true
@@ -111,29 +100,31 @@ public class TransferService {
     }
 
     /**
-     * Initiate transfer with Idempotency and Step-Up authentication.
+     * Execute transfer with step-up PIN verification, idempotency checking,
+     * daily limit checks, pre-flight checks, and audit events.
      */
     @Transactional
     public TransferResponse initiateTransfer(String idempotencyKey,
-                                             String stepUpPinHeader,
-                                             InitiateTransferRequest request,
-                                             User sender,
-                                             String clientIp) {
+                                            String stepUpPinHeader,
+                                            InitiateTransferRequest request,
+                                            User sender,
+                                            String clientIp) {
+        String pin = (stepUpPinHeader != null && !stepUpPinHeader.isBlank()) ? stepUpPinHeader : request.pin();
+        return initiateTransfer(request, sender, pin, idempotencyKey, clientIp);
+    }
 
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            throw new ValidationException("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key header is required");
-        }
+    @Transactional
+    public TransferResponse initiateTransfer(InitiateTransferRequest request,
+                                            User sender,
+                                            String pin,
+                                            String idempotencyKey,
+                                            String clientIp) {
 
-        // 1. Step-up authentication verification
-        String pin = (stepUpPinHeader != null && !stepUpPinHeader.isBlank())
-                ? stepUpPinHeader
-                : request.pin();
-
+        // 1. Step-up authentication: verify sender PIN before executing financial debit
         if (pin == null || pin.isBlank()) {
-            throw new AuthorizationException("STEP_UP_AUTHENTICATION_REQUIRED",
-                    "Step-up authentication required: provide 6-digit PIN via X-Step-Up-Pin header or request body");
+            log.warn("Step-up authentication failed: PIN is missing for user id={}", sender.getId());
+            throw new AuthorizationException("STEP_UP_AUTH_REQUIRED", "Step-up authentication required: PIN must be provided");
         }
-
         if (!passwordEncoder.matches(pin, sender.getPasswordHash())) {
             log.warn("Step-up authentication failed for user id={}", sender.getId());
             throw new InvalidCredentialsException("INVALID_PIN", "Invalid PIN provided for step-up authentication");
@@ -146,11 +137,17 @@ public class TransferService {
             return existing.get();
         }
 
-        // Also check if transfer already exists with this idempotency key in DB
-        Optional<Transfer> existingTransfer = transferRepository.findByIdempotencyKey(idempotencyKey);
-        if (existingTransfer.isPresent()) {
-            TransferResponse response = TransferResponse.from(existingTransfer.get());
-            idempotencyService.record(idempotencyKey, payloadHash, existingTransfer.get().getId(), response, 200);
+        // Also check if transfer already exists with this idempotency key in Firestore
+        Optional<TransactionRecord> existingTx = transactionStore.findTransferByIdempotencyKey(idempotencyKey);
+        if (existingTx.isPresent()) {
+            TransactionRecord tx = existingTx.get();
+            if (tx.status() == TransactionStatus.PENDING) {
+                tx = awaitTransferCompletion(idempotencyKey, tx);
+            }
+            TransferResponse response = TransferResponse.from(tx);
+            if (tx.status() != TransactionStatus.PENDING) {
+                idempotencyService.record(idempotencyKey, payloadHash, tx.id(), response, 200);
+            }
             return response;
         }
 
@@ -168,21 +165,8 @@ public class TransferService {
         dailyLimitService.checkLimit(sender, request.amount());
 
         // 5. Verify bank accounts
-        BankAccount senderAccount = bankAccountRepository
-                .findByUserIdAndIsDefaultTrueAndStatus(sender.getId(), BankAccountStatus.ACTIVE)
-                .orElseGet(() -> bankAccountRepository
-                        .findByUserIdAndStatus(sender.getId(), BankAccountStatus.ACTIVE)
-                        .stream().findFirst()
-                        .orElseThrow(() -> new UnprocessableEntityException("NO_ACTIVE_BANK_ACCOUNT",
-                                "Sender has no active bank account linked. Please link a bank account first.")));
-
-        BankAccount payeeAccount = bankAccountRepository
-                .findByUserIdAndIsDefaultTrueAndStatus(payee.getId(), BankAccountStatus.ACTIVE)
-                .orElseGet(() -> bankAccountRepository
-                        .findByUserIdAndStatus(payee.getId(), BankAccountStatus.ACTIVE)
-                        .stream().findFirst()
-                        .orElseThrow(() -> new UnprocessableEntityException("PAYEE_NO_ACTIVE_BANK_ACCOUNT",
-                                "Payee has no active bank account to receive funds.")));
+        BankAccount senderAccount = resolveSenderAccount(sender.getId());
+        BankAccount payeeAccount = resolvePayeeAccount(payee.getId());
 
         // 6. Create Transfer entity in PENDING state
         String reference = UUID.randomUUID().toString();
@@ -196,7 +180,57 @@ public class TransferService {
         );
         transfer.setIdempotencyKey(idempotencyKey);
         transfer.setNote(request.note());
-        transfer = transferRepository.save(transfer);
+        transfer.setSenderBankCode(senderAccount.getBankCode());
+        transfer.setReceiverBankCode(payeeAccount.getBankCode());
+
+        var txRecord = new TransactionRecord(
+                null,
+                reference,
+                idempotencyKey,
+                sender.getId(),
+                sender.getPhone(),
+                sender.getFullName(),
+                payee.getId(),
+                payee.getPhone(),
+                payee.getFullName(),
+                senderAccount.getBankCode(),
+                payeeAccount.getBankCode(),
+                request.amount(),
+                request.currency() != null ? request.currency() : "LKR",
+                TransactionStatus.PENDING,
+                null,
+                null,
+                null,
+                request.note(),
+                true,
+                TransferInitiatedVia.APP,
+                null,
+                1L,
+                Instant.now(),
+                Instant.now()
+        );
+        var createdRecord = transactionStore.createTransferWithIdempotency(txRecord, idempotencyKey, payloadHash);
+        transfer.setId(createdRecord.id());
+        transfer.setVersion(createdRecord.version());
+
+        if (createdRecord.reference() != null && !createdRecord.reference().equals(reference)) {
+            // Another thread won the race and created this transfer
+            TransactionRecord tx = createdRecord;
+            if (tx.status() == TransactionStatus.PENDING) {
+                tx = awaitTransferCompletion(idempotencyKey, tx);
+            }
+            TransferResponse response = TransferResponse.from(tx);
+            if (tx.status() != TransactionStatus.PENDING) {
+                idempotencyService.record(idempotencyKey, payloadHash, tx.id(), response, 200);
+            }
+            return response;
+        }
+
+        if (createdRecord.status() == TransactionStatus.COMPLETED) {
+            TransferResponse response = TransferResponse.from(createdRecord);
+            idempotencyService.record(idempotencyKey, payloadHash, createdRecord.id(), response, 200);
+            return response;
+        }
 
         // 7. Process via BankAdapter through TransferProcessor
         transfer = transferProcessor.process(transfer, senderAccount, payeeAccount, request.quoteReference(), clientIp);
@@ -208,24 +242,63 @@ public class TransferService {
         return response;
     }
 
+    private BankAccount resolveSenderAccount(Long senderId) {
+        var activeDefault = linkedAccountStore.findActiveDefaultAccount(senderId);
+        if (activeDefault.isPresent()) {
+            return toBankAccountEntity(activeDefault.get());
+        }
+        var allActive = linkedAccountStore.findAccountsByUserIdAndStatus(senderId, BankAccountStatus.ACTIVE);
+        if (!allActive.isEmpty()) {
+            return toBankAccountEntity(allActive.get(0));
+        }
+        throw new UnprocessableEntityException("NO_ACTIVE_BANK_ACCOUNT",
+                "Sender has no active bank account linked. Please link a bank account first.");
+    }
+
+    private BankAccount resolvePayeeAccount(Long payeeId) {
+        var activeDefault = linkedAccountStore.findActiveDefaultAccount(payeeId);
+        if (activeDefault.isPresent()) {
+            return toBankAccountEntity(activeDefault.get());
+        }
+        var allActive = linkedAccountStore.findAccountsByUserIdAndStatus(payeeId, BankAccountStatus.ACTIVE);
+        if (!allActive.isEmpty()) {
+            return toBankAccountEntity(allActive.get(0));
+        }
+        throw new UnprocessableEntityException("PAYEE_NO_ACTIVE_BANK_ACCOUNT",
+                "Payee has no active bank account to receive funds.");
+    }
+
+    private BankAccount toBankAccountEntity(LinkedAccount la) {
+        User u = new User();
+        u.setId(la.userId());
+        BankAccount ba = new BankAccount(u, la.bankCode(), la.accountNumberHash(),
+                la.maskedNumber(), la.accountName(), la.encryptedAccountReference());
+        ba.setId(la.id());
+        ba.setStatus(la.status());
+        ba.setDefault(la.isDefault());
+        ba.setReceivingEnabled(la.receivingEnabled());
+        ba.setDiscoverable(la.discoverable());
+        return ba;
+    }
+
     /**
      * Get transfer details by ID with object-level security.
      */
     @Transactional(readOnly = true)
     public TransferResponse getTransferById(Long id, Long authenticatedUserId) {
-        Transfer transfer = transferRepository.findById(id)
+        var tx = transactionStore.findTransferById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND",
                         "Transfer not found with id: " + id));
 
-        boolean isSender = transfer.getSender().getId().equals(authenticatedUserId);
-        boolean isReceiver = transfer.getReceiver().getId().equals(authenticatedUserId);
+        boolean isSender = tx.senderId().equals(authenticatedUserId);
+        boolean isReceiver = tx.receiverId().equals(authenticatedUserId);
 
         if (!isSender && !isReceiver) {
             throw new AuthorizationException("FORBIDDEN",
                     "You do not have permission to access transfer id: " + id);
         }
 
-        return TransferResponse.from(transfer);
+        return TransferResponse.from(tx);
     }
 
     /**
@@ -233,19 +306,19 @@ public class TransferService {
      */
     @Transactional(readOnly = true)
     public ReceiptResponse getTransferReceipt(Long id, Long authenticatedUserId) {
-        Transfer transfer = transferRepository.findById(id)
+        var tx = transactionStore.findTransferById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND",
                         "Transfer not found with id: " + id));
 
-        boolean isSender = transfer.getSender().getId().equals(authenticatedUserId);
-        boolean isReceiver = transfer.getReceiver().getId().equals(authenticatedUserId);
+        boolean isSender = tx.senderId().equals(authenticatedUserId);
+        boolean isReceiver = tx.receiverId().equals(authenticatedUserId);
 
         if (!isSender && !isReceiver) {
             throw new AuthorizationException("FORBIDDEN",
                     "You do not have permission to view receipt for transfer id: " + id);
         }
 
-        return ReceiptResponse.from(transfer);
+        return ReceiptResponse.from(tx);
     }
 
     /**
@@ -262,11 +335,8 @@ public class TransferService {
                                                           BigDecimal maxAmount,
                                                           Pageable pageable) {
 
-        org.springframework.data.jpa.domain.Specification<Transfer> spec =
-                com.lankapay.transfer.repository.TransferSpecification.withFilters(
-                        authenticatedUserId, direction, status, fromTime, toTime, bank, minAmount, maxAmount);
-
-        Page<Transfer> page = transferRepository.findAll(spec, pageable);
+        Page<TransactionRecord> page = transactionStore.searchTransfers(
+                authenticatedUserId, direction, status, fromTime, toTime, bank, minAmount, maxAmount, pageable);
         return page.map(TransferResponse::from);
     }
 
@@ -285,14 +355,26 @@ public class TransferService {
 
     private User resolvePayee(Long payeeId, String payeePhone) {
         if (payeeId != null) {
-            return userRepository.findById(payeeId)
+            var u = userStore.findUserById(payeeId)
                     .orElseThrow(() -> new ResourceNotFoundException("PAYEE_NOT_FOUND",
                             "Payee user not found with id: " + payeeId));
+            User user = new User();
+            user.setId(u.id());
+            user.setPhone(u.phone());
+            user.setFullName(u.fullName());
+            user.setPasswordHash(u.passwordHash());
+            return user;
         }
         if (payeePhone != null && !payeePhone.isBlank()) {
-            return userRepository.findByPhone(payeePhone)
+            var u = userStore.findUserByPhone(payeePhone)
                     .orElseThrow(() -> new ResourceNotFoundException("PAYEE_NOT_FOUND",
                             "Payee user not found with phone: " + payeePhone));
+            User user = new User();
+            user.setId(u.id());
+            user.setPhone(u.phone());
+            user.setFullName(u.fullName());
+            user.setPasswordHash(u.passwordHash());
+            return user;
         }
         throw new ValidationException("PAYEE_IDENTIFIER_REQUIRED", "Either payeeId or payeePhone must be provided");
     }
@@ -301,5 +383,23 @@ public class TransferService {
         if (phone == null || phone.length() < 7) return "***";
         int len = phone.length();
         return phone.substring(0, 6) + "***" + phone.substring(len - 4);
+    }
+
+    private TransactionRecord awaitTransferCompletion(String idempotencyKey, TransactionRecord current) {
+        long deadline = System.currentTimeMillis() + 8000;
+        TransactionRecord latest = current;
+        while (latest.status() == TransactionStatus.PENDING && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(15);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            Optional<TransactionRecord> updated = transactionStore.findTransferByIdempotencyKey(idempotencyKey);
+            if (updated.isPresent()) {
+                latest = updated.get();
+            }
+        }
+        return latest;
     }
 }

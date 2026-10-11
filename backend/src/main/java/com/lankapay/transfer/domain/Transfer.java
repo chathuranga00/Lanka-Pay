@@ -2,15 +2,11 @@ package com.lankapay.transfer.domain;
 
 import com.lankapay.identity.domain.User;
 import com.lankapay.qr.domain.QrCode;
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * JPA entity for trf_transfers.
+ * Domain entity for transfers.
  *
  * Rules per section 9:
  * - status is managed via {@link #transitionTo(TransactionStatus, String, String)}
@@ -19,95 +15,60 @@ import java.time.Instant;
  * - Timeouts move to REQUIRES_RECONCILIATION, NEVER to FAILED.
  * - amount uses BigDecimal – never double or float.
  * - simulated is always true in this prototype.
- * - @Version enables optimistic locking to prevent concurrent status changes.
- * - idempotencyKey is a unique DB constraint to prevent double submissions.
+ * - version enables optimistic locking / concurrency control.
+ * - idempotencyKey prevents double submissions.
  */
-@Entity
-@Table(name = "trf_transfers",
-       indexes = {
-           @Index(name = "idx_trf_transfers_sender",   columnList = "sender_id, created_at"),
-           @Index(name = "idx_trf_transfers_receiver", columnList = "receiver_id, created_at"),
-           @Index(name = "idx_trf_transfers_status",   columnList = "status")
-       })
 public class Transfer {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** UUID – used as an external reference. Unique constraint in DB. */
-    @Column(nullable = false, unique = true, length = 36)
+    /** UUID – used as an external reference. */
     private String reference;
 
-    /** Client-provided idempotency key. Unique DB constraint. */
-    @Column(name = "idempotency_key", unique = true, length = 64)
+    /** Client-provided idempotency key. */
     private String idempotencyKey;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sender_id", nullable = false)
     private User sender;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "receiver_id", nullable = false)
     private User receiver;
 
-    @Column(name = "sender_bank_code", length = 20)
     private String senderBankCode;
 
-    @Column(name = "receiver_bank_code", length = 20)
     private String receiverBankCode;
 
     /** DECIMAL(15,2) – BigDecimal with scale 2. */
-    @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
-    @Column(nullable = false, length = 3)
     private String currency = "LKR";
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
     private TransactionStatus status = TransactionStatus.PENDING;
 
-    @Column(name = "failure_reason", length = 255)
     private String failureReason;
 
     /** Transaction reference returned by BankAdapter (always SIMULATED in prototype). */
-    @Column(name = "bank_tx_ref", length = 100)
     private String bankTxRef;
 
     /** Provider reference from the bank for reconciliation queries. */
-    @Column(name = "provider_reference", length = 100)
     private String providerReference;
 
     /** Optional note from sender. */
-    @Column(name = "note", length = 255)
     private String note;
 
     /** Always true in this prototype. */
-    @Column(nullable = false)
     private boolean simulated = true;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "initiated_via", nullable = false, length = 10)
     private TransferInitiatedVia initiatedVia = TransferInitiatedVia.APP;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "qr_id")
     private QrCode qrCode;
 
-    /** Optimistic locking – prevents concurrent status changes. */
-    @Version
+    /** Optimistic locking / version control. */
     private Long version;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    private Instant createdAt = Instant.now();
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    private Instant updatedAt = Instant.now();
 
-    protected Transfer() {}
+    public Transfer() {}
 
     public Transfer(String reference, User sender, User receiver,
                     BigDecimal amount, String currency, TransferInitiatedVia initiatedVia) {
@@ -143,8 +104,7 @@ public class Transfer {
     public Instant getCreatedAt()                 { return createdAt; }
     public Instant getUpdatedAt()                 { return updatedAt; }
 
-    // ── Setters ────────────────────────────────────────────────
-
+    public void setId(Long id)                           { this.id = id; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
     public void setSenderBankCode(String code)           { this.senderBankCode = code; }
     public void setReceiverBankCode(String code)         { this.receiverBankCode = code; }
@@ -152,6 +112,11 @@ public class Transfer {
     public void setQrCode(QrCode qrCode)                 { this.qrCode = qrCode; }
     public void setProviderReference(String ref)         { this.providerReference = ref; }
     public void setBankTxRef(String ref)                 { this.bankTxRef = ref; }
+    public void setStatus(TransactionStatus status)      { this.status = status; }
+    public void setFailureReason(String failureReason)    { this.failureReason = failureReason; }
+    public void setVersion(Long version)                 { this.version = version; }
+    public void setCreatedAt(Instant createdAt)          { this.createdAt = createdAt; }
+    public void setUpdatedAt(Instant updatedAt)          { this.updatedAt = updatedAt; }
 
     // ── State Machine transitions ─────────────────────────────
 

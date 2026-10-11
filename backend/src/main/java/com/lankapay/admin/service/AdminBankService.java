@@ -7,13 +7,12 @@ import com.lankapay.admin.web.dto.UpdateBankConfigRequest;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.bank.adapter.BankAdapter;
 import com.lankapay.bank.adapter.BankAdapterRegistry;
-import com.lankapay.bank.domain.BankInstitution;
-import com.lankapay.bank.repository.BankInstitutionRepository;
+import com.lankapay.bank.domain.BankInstitutionRecord;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,73 +23,76 @@ public class AdminBankService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminBankService.class);
 
-    private final BankInstitutionRepository bankInstitutionRepository;
+    private final LinkedAccountStore linkedAccountStore;
     private final BankAdapterRegistry bankAdapterRegistry;
     private final AuditService auditService;
 
-    public AdminBankService(BankInstitutionRepository bankInstitutionRepository,
+    public AdminBankService(LinkedAccountStore linkedAccountStore,
                             BankAdapterRegistry bankAdapterRegistry,
                             AuditService auditService) {
-        this.bankInstitutionRepository = bankInstitutionRepository;
+        this.linkedAccountStore = linkedAccountStore;
         this.bankAdapterRegistry = bankAdapterRegistry;
         this.auditService = auditService;
     }
 
-    @Transactional(readOnly = true)
     public List<BankConfigResponse> getAllBanks() {
-        return bankInstitutionRepository.findAll().stream()
+        return linkedAccountStore.findAllInstitutions().stream()
                 .map(BankConfigResponse::from)
                 .toList();
     }
 
-    @Transactional
     public BankConfigResponse updateBankConfig(String bankCode, UpdateBankConfigRequest request, Long adminUserId, String clientIp) {
-        BankInstitution inst = bankInstitutionRepository.findByBankCode(bankCode)
+        BankInstitutionRecord inst = linkedAccountStore.findInstitutionByBankCode(bankCode)
                 .orElseThrow(() -> new ResourceNotFoundException("BANK_NOT_FOUND", "Bank not found with code: " + bankCode));
 
-        if (request.displayName() != null && !request.displayName().isBlank()) {
-            inst.setDisplayName(request.displayName().trim());
-        }
-        if (request.active() != null) {
-            inst.setActive(request.active());
-        }
+        String newDisplayName = (request.displayName() != null && !request.displayName().isBlank())
+                ? request.displayName().trim() : inst.displayName();
+        boolean newActive = request.active() != null ? request.active() : inst.active();
 
-        BankInstitution saved = bankInstitutionRepository.save(inst);
+        BankInstitutionRecord updated = new BankInstitutionRecord(
+                inst.id(),
+                inst.bankCode(),
+                newDisplayName,
+                inst.simulated(),
+                newActive,
+                inst.createdAt()
+        );
+
+        BankInstitutionRecord saved = linkedAccountStore.saveInstitution(updated);
         log.info("[ADMIN] Bank code={} config updated by admin id={}", bankCode, adminUserId);
 
-        auditService.log(adminUserId, "ADMIN_BANK_CONFIG_UPDATE", "BANK_INSTITUTION", saved.getId(),
-                "{\"bankCode\":\"%s\",\"active\":%b}".formatted(saved.getBankCode(), saved.isActive()), clientIp);
+        auditService.log(adminUserId, "ADMIN_BANK_CONFIG_UPDATE", "BANK_INSTITUTION", saved.id(),
+                "{\"bankCode\":\"%s\",\"active\":%b}".formatted(saved.bankCode(), saved.active()), clientIp);
 
         return BankConfigResponse.from(saved);
     }
 
-    @Transactional(readOnly = true)
     public IntegrationHealthResponse getIntegrationHealth() {
         List<ComponentHealthResponse> components = new ArrayList<>();
-        List<BankInstitution> banks = bankInstitutionRepository.findAll();
+        List<BankInstitutionRecord> banks = linkedAccountStore.findAllInstitutions();
 
         boolean allHealthy = true;
 
-        for (BankInstitution bank : banks) {
+        for (BankInstitutionRecord bank : banks) {
             long start = System.currentTimeMillis();
             try {
-                BankAdapter adapter = bankAdapterRegistry.get(bank.getBankCode());
+                BankAdapter adapter = bankAdapterRegistry.get(bank.bankCode());
                 long latency = Math.max(1, System.currentTimeMillis() - start);
-                String status = bank.isActive() ? "UP" : "INACTIVE";
+                String status = bank.active() ? "UP" : "INACTIVE";
                 components.add(new ComponentHealthResponse(
-                        bank.getDisplayName(),
+                        bank.displayName(),
                         status,
-                        bank.isSimulated(),
+                        bank.simulated(),
                         latency,
-                        bank.isActive() ? "Simulated bank adapter responsive" : "Bank is deactivated by admin"
+                        bank.active() ? "Simulated bank adapter responsive" : "Bank is deactivated by admin"
                 ));
             } catch (Exception e) {
                 allHealthy = false;
                 long latency = System.currentTimeMillis() - start;
                 components.add(new ComponentHealthResponse(
-                        bank.getDisplayName(),
+                        bank.displayName(),
                         "DOWN",
-                        bank.isSimulated(),
+                        bank.simulated(),
                         latency,
                         "Error checking adapter: " + e.getMessage()
                 ));
@@ -99,7 +101,7 @@ public class AdminBankService {
 
         // Database component
         components.add(new ComponentHealthResponse(
-                "Primary Database (MySQL)",
+                "Primary Database (Firestore)",
                 "UP",
                 false,
                 1L,

@@ -69,6 +69,24 @@ public record ResolvedQrRecipientResponse(
         );
     }
 
+    public static ResolvedQrRecipientResponse from(com.lankapay.qr.domain.QrCodeRecord qr, String name, String phone) {
+        String phoneMasked = maskPhone(phone);
+        return new ResolvedQrRecipientResponse(
+                qr.reference(),
+                qr.qrType(),
+                qr.merchantId(),
+                name,
+                phoneMasked,
+                qr.amount(),
+                qr.currency(),
+                qr.note(),
+                qr.expiresAt(),
+                qr.status(),
+                qr.oneTimeUse(),
+                "Recipient resolved successfully. Proceed with transfer confirmation and authorization."
+        );
+    }
+
     private static String maskPhone(String phone) {
         if (phone == null || phone.length() < 7) return "***";
         int len = phone.length();

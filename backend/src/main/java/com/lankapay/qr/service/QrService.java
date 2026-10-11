@@ -4,10 +4,12 @@ import com.lankapay.common.exception.ConflictException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.ValidationException;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.qr.domain.QrCode;
+import com.lankapay.qr.domain.QrCodeRecord;
 import com.lankapay.qr.domain.QrStatus;
+import com.lankapay.qr.domain.QrStore;
 import com.lankapay.qr.domain.QrType;
-import com.lankapay.qr.repository.QrCodeRepository;
 import com.lankapay.qr.web.dto.CreateQrReferenceRequest;
 import com.lankapay.qr.web.dto.QrReferenceResponse;
 import com.lankapay.qr.web.dto.ResolvedQrRecipientResponse;
@@ -34,10 +36,12 @@ public class QrService {
 
     private static final Logger log = LoggerFactory.getLogger(QrService.class);
 
-    private final QrCodeRepository qrCodeRepository;
+    private final QrStore qrStore;
+    private final UserStore userStore;
 
-    public QrService(QrCodeRepository qrCodeRepository) {
-        this.qrCodeRepository = qrCodeRepository;
+    public QrService(QrStore qrStore, UserStore userStore) {
+        this.qrStore = qrStore;
+        this.userStore = userStore;
     }
 
     /**
@@ -61,8 +65,23 @@ public class QrService {
                     qr.getReference(), merchant.getId(), request.amount(), expiresAt);
         }
 
-        qr = qrCodeRepository.save(qr);
-        return QrReferenceResponse.from(qr);
+        QrCodeRecord record = new QrCodeRecord(
+                null,
+                merchant.getId(),
+                qr.getQrId(),
+                qr.getReference(),
+                qr.getQrType(),
+                qr.getAmount(),
+                qr.getCurrency(),
+                qr.getNote(),
+                qr.getStatus(),
+                qr.isOneTimeUse(),
+                qr.getPayload(),
+                qr.getExpiresAt(),
+                qr.getCreatedAt()
+        );
+        record = qrStore.saveQr(record);
+        return QrReferenceResponse.from(record, merchant);
     }
 
     /**
@@ -70,12 +89,6 @@ public class QrService {
      *
      * IMPORTANT: A scan only RESOLVES the recipient profile and parameters.
      * It does NOT perform or complete a financial transfer.
-     *
-     * @param reference The opaque reference scanned from the QR code
-     * @return Resolved recipient information for transfer confirmation
-     * @throws ResourceNotFoundException if reference does not exist
-     * @throws ValidationException       if expired or cancelled
-     * @throws ConflictException         if dynamic QR was already used
      */
     @Transactional
     public ResolvedQrRecipientResponse resolveQrReference(String reference) {
@@ -83,32 +96,41 @@ public class QrService {
             throw new ValidationException("INVALID_REFERENCE", "QR reference cannot be blank");
         }
 
-        QrCode qr = qrCodeRepository.findByReferenceOrQrId(reference)
+        QrCodeRecord qr = qrStore.findQrByReferenceOrQrId(reference)
                 .orElseThrow(() -> new ResourceNotFoundException("QR_NOT_FOUND",
                         "QR reference is invalid or unknown: " + reference));
 
-        // Enforce lifecycle and status checks
-        if (qr.getStatus() == QrStatus.CANCELLED) {
+        if (qr.status() == QrStatus.CANCELLED) {
             log.warn("Scanned cancelled QR reference='{}'", reference);
             throw new ValidationException("QR_CANCELLED", "This QR code has been cancelled");
         }
 
-        if (qr.getStatus() == QrStatus.USED) {
+        if (qr.status() == QrStatus.USED) {
             log.warn("Scanned already-used dynamic QR reference='{}'", reference);
             throw new ConflictException("QR_ALREADY_USED", "This one-time QR code has already been used");
         }
 
         if (qr.isExpired()) {
-            log.warn("Scanned expired dynamic QR reference='{}', expiredAt={}", reference, qr.getExpiresAt());
-            qr.markExpired();
-            qrCodeRepository.save(qr);
+            log.warn("Scanned expired dynamic QR reference='{}', expiredAt={}", reference, qr.expiresAt());
+            qr = qr.markExpired();
+            qrStore.saveQr(qr);
             throw new ValidationException("QR_EXPIRED", "This QR code has expired");
         }
 
-        log.info("Resolved QR reference='{}': type={}, recipientId={}, amount={}",
-                reference, qr.getQrType(), qr.getMerchant().getId(), qr.getAmount());
+        String merchantName = "Merchant";
+        String merchantPhone = "+94770000000";
+        if (qr.merchantId() != null && userStore != null) {
+            var uOpt = userStore.findUserById(qr.merchantId());
+            if (uOpt.isPresent()) {
+                merchantName = uOpt.get().fullName();
+                merchantPhone = uOpt.get().phone();
+            }
+        }
 
-        return ResolvedQrRecipientResponse.from(qr);
+        log.info("Resolved QR reference='{}': type={}, recipientId={}, amount={}",
+                reference, qr.qrType(), qr.merchantId(), qr.amount());
+
+        return ResolvedQrRecipientResponse.from(qr, merchantName, merchantPhone);
     }
 
     /**
@@ -116,10 +138,10 @@ public class QrService {
      */
     @Transactional
     public void markQrUsed(String reference) {
-        qrCodeRepository.findByReferenceOrQrId(reference).ifPresent(qr -> {
-            if (qr.isOneTimeUse()) {
-                qr.markUsed();
-                qrCodeRepository.save(qr);
+        qrStore.findQrByReferenceOrQrId(reference).ifPresent(qr -> {
+            if (qr.oneTimeUse()) {
+                qr = qr.markUsed();
+                qrStore.saveQr(qr);
                 log.info("Marked dynamic QR reference='{}' as USED", reference);
             }
         });

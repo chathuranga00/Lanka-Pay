@@ -1,0 +1,15 @@
+{
+  "name": "lankapay-firestore-rules-test",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run firestore.rules.test.ts",
+    "test:rules": "vitest run firestore.rules.test.ts"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.14.1",
+    "vitest": "^3.0.8"
+  }
+}

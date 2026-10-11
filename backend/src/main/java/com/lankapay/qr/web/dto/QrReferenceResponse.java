@@ -73,6 +73,27 @@ public record QrReferenceResponse(
         );
     }
 
+    public static QrReferenceResponse from(com.lankapay.qr.domain.QrCodeRecord qr, com.lankapay.identity.domain.User merchant) {
+        String name = merchant != null ? merchant.getFullName() : null;
+        String phoneMasked = merchant != null ? maskPhone(merchant.getPhone()) : null;
+
+        return new QrReferenceResponse(
+                qr.reference(),
+                qr.qrType(),
+                qr.payload(),
+                merchant != null ? merchant.getId() : qr.merchantId(),
+                name,
+                phoneMasked,
+                qr.amount(),
+                qr.currency(),
+                qr.note(),
+                qr.expiresAt(),
+                qr.oneTimeUse(),
+                qr.status(),
+                qr.createdAt()
+        );
+    }
+
     private static String maskPhone(String phone) {
         if (phone == null || phone.length() < 7) return "***";
         int len = phone.length();

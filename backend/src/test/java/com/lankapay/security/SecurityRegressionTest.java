@@ -1,10 +1,8 @@
 package com.lankapay.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.repository.BankAccountRepository;
-import com.lankapay.bank.repository.BankInstitutionRepository;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.bank.service.BankAccountService;
 import com.lankapay.bank.web.BankAccountController;
 import com.lankapay.bank.web.RemoveBankAccountRequest;
@@ -14,7 +12,7 @@ import com.lankapay.common.exception.RateLimitException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.web.GlobalExceptionHandler;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.notification.service.NotificationService;
 import com.lankapay.notification.web.NotificationController;
 import com.lankapay.qr.service.PaymentRequestService;
@@ -23,7 +21,6 @@ import com.lankapay.registry.service.LookupService;
 import com.lankapay.registry.web.LookupResponse;
 import com.lankapay.registry.web.PaymentIdentityController;
 import com.lankapay.transfer.domain.*;
-import com.lankapay.transfer.repository.IdempotencyRecordRepository;
 import com.lankapay.transfer.service.IdempotencyService;
 import com.lankapay.transfer.service.ReconciliationService;
 import com.lankapay.transfer.service.ReversalService;
@@ -84,9 +81,9 @@ public class SecurityRegressionTest {
         @Mock TransferService transferService;
         @Mock ReconciliationService reconciliationService;
         @Mock ReversalService reversalService;
-        @Mock UserRepository userRepository;
+        @Mock UserStore userStore;
         @Mock BankAccountService bankAccountService;
-        @Mock BankInstitutionRepository bankInstitutionRepository;
+        @Mock LinkedAccountStore linkedAccountStore;
         @Mock PaymentRequestService paymentRequestService;
         @Mock NotificationService notificationService;
 
@@ -119,19 +116,19 @@ public class SecurityRegressionTest {
             };
 
             transferMvc = MockMvcBuilders.standaloneSetup(new TransferController(
-                            transferService, reconciliationService, reversalService, userRepository))
+                            transferService, reconciliationService, reversalService, userStore))
                     .setControllerAdvice(new GlobalExceptionHandler())
                     .setCustomArgumentResolvers(authResolver, new PageableHandlerMethodArgumentResolver())
                     .build();
 
             bankMvc = MockMvcBuilders.standaloneSetup(new BankAccountController(
-                            bankAccountService, bankInstitutionRepository))
+                            bankAccountService, linkedAccountStore))
                     .setControllerAdvice(new GlobalExceptionHandler())
                     .setCustomArgumentResolvers(authResolver)
                     .build();
 
             paymentRequestMvc = MockMvcBuilders.standaloneSetup(new PaymentRequestController(
-                            paymentRequestService, userRepository))
+                            paymentRequestService, userStore))
                     .setControllerAdvice(new GlobalExceptionHandler())
                     .setCustomArgumentResolvers(authResolver)
                     .build();
@@ -318,12 +315,12 @@ public class SecurityRegressionTest {
     @DisplayName("3. Replay Attack & Idempotency Tampering Protection")
     class ReplayTests {
 
-        @Mock IdempotencyRecordRepository idempotencyRecordRepository;
+        @Mock TransactionStore transactionStore;
         IdempotencyService idempotencyService;
 
         @BeforeEach
         void setUp() {
-            idempotencyService = new IdempotencyService(idempotencyRecordRepository, objectMapper);
+            idempotencyService = new IdempotencyService(transactionStore, objectMapper);
         }
 
         @Test
@@ -345,8 +342,8 @@ public class SecurityRegressionTest {
             TransferResponse resp = TransferResponse.from(transfer);
             String cachedJson = objectMapper.writeValueAsString(resp);
 
-            IdempotencyRecord record = new IdempotencyRecord(key, hash, 10L, cachedJson, 200);
-            when(idempotencyRecordRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(record));
+            IdempotencyRecordModel record = new IdempotencyRecordModel(1L, key, hash, 10L, cachedJson, 200, Instant.now());
+            when(transactionStore.findIdempotencyRecord(key)).thenReturn(Optional.of(record));
 
             Optional<TransferResponse> result = idempotencyService.findExistingResponse(key, hash);
             assertThat(result).isPresent();
@@ -362,8 +359,8 @@ public class SecurityRegressionTest {
                     2L, null, new BigDecimal("1000.00"), "LKR", null, "Lunch", "123456");
             String originalHash = idempotencyService.hashPayload(originalPayload);
 
-            IdempotencyRecord existingRecord = new IdempotencyRecord(key, originalHash, 10L, "{}", 200);
-            when(idempotencyRecordRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(existingRecord));
+            IdempotencyRecordModel existingRecord = new IdempotencyRecordModel(1L, key, originalHash, 10L, "{}", 200, Instant.now());
+            when(transactionStore.findIdempotencyRecord(key)).thenReturn(Optional.of(existingRecord));
 
             // Attacker modifies amount from 1000.00 to 50000.00
             InitiateTransferRequest tamperedPayload = new InitiateTransferRequest(

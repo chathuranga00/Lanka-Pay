@@ -3,7 +3,8 @@ package com.lankapay.qr.web;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.web.ErrorResponse;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserAccount;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.qr.service.QrService;
 import com.lankapay.qr.web.dto.CreateQrReferenceRequest;
 import com.lankapay.qr.web.dto.QrReferenceResponse;
@@ -28,23 +29,16 @@ import org.springframework.web.bind.annotation.*;
 public class QrController {
 
     private final QrService qrService;
-    private final UserRepository userRepository;
+    private final UserStore userStore;
 
-    public QrController(QrService qrService, UserRepository userRepository) {
+    public QrController(QrService qrService, UserStore userStore) {
         this.qrService = qrService;
-        this.userRepository = userRepository;
+        this.userStore = userStore;
     }
 
     // ── POST /qr/references ────────────────────────────────────
 
-    @Operation(summary = "Generate an opaque QR reference",
-               description = """
-                   Creates an opaque, unguessable QR reference.
-                   Supports:
-                   - STATIC QR: Reusable profile/merchant QR without fixed amount or expiry.
-                   - DYNAMIC QR: Preset amount + expiry + unique one-time reference.
-                   No account numbers, PII, or auth tokens are embedded in the QR payload.
-                   """)
+    @Operation(summary = "Generate an opaque QR reference")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "QR reference created successfully"),
         @ApiResponse(responseCode = "400", description = "Validation error",
@@ -62,12 +56,7 @@ public class QrController {
 
     // ── GET /qr/references/{reference} ─────────────────────────
 
-    @Operation(summary = "Scan and resolve QR reference",
-               description = """
-                   Resolves the recipient profile and payment parameters from an opaque QR reference.
-                   IMPORTANT: A scan only RESOLVES the recipient. It does not perform the transfer.
-                   The payer must submit confirmation and authorization via the normal transfer flow.
-                   """)
+    @Operation(summary = "Scan and resolve QR reference")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Recipient resolved successfully"),
         @ApiResponse(responseCode = "400", description = "QR code expired or cancelled",
@@ -86,7 +75,12 @@ public class QrController {
     }
 
     private User getUser(Long userId) {
-        return userRepository.findById(userId)
+        UserAccount acc = userStore.findUserById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND", "User not found with id: " + userId));
+        User u = new User(acc.phone(), acc.fullName(), acc.nicNumber(), acc.passwordHash());
+        u.setId(acc.id());
+        u.setRole(acc.role());
+        u.setStatus(acc.status());
+        return u;
     }
 }

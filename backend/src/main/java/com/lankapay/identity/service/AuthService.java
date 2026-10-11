@@ -8,12 +8,12 @@ import com.lankapay.common.exception.InvalidCredentialsException;
 import com.lankapay.common.exception.TokenExpiredException;
 import com.lankapay.common.exception.ValidationException;
 import com.lankapay.identity.domain.OtpPurpose;
-import com.lankapay.identity.domain.RefreshToken;
+import com.lankapay.identity.domain.RefreshTokenRecord;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
 import com.lankapay.identity.domain.UserRole;
 import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.RefreshTokenRepository;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.identity.security.JwtService;
 import com.lankapay.identity.web.RegisterRequest;
 import com.lankapay.identity.web.RegisterResponse;
@@ -32,6 +32,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Optional;
 
 /**
  * Core authentication service.
@@ -50,8 +51,7 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
-    private final UserRepository       userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final UserStore            userStore;
     private final PasswordEncoder      passwordEncoder;
     private final JwtService           jwtService;
     private final OtpService           otpService;
@@ -63,8 +63,7 @@ public class AuthService {
     private final long jwtExpiryMinutes;
 
     public AuthService(
-            UserRepository userRepository,
-            RefreshTokenRepository refreshTokenRepository,
+            UserStore userStore,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             OtpService otpService,
@@ -74,8 +73,7 @@ public class AuthService {
             @Value("${app.refresh-token.expiry-days:7}") long refreshTokenExpiryDays,
             @Value("${app.jwt.expiry-minutes:30}")       long jwtExpiryMinutes) {
 
-        this.userRepository          = userRepository;
-        this.refreshTokenRepository  = refreshTokenRepository;
+        this.userStore               = userStore;
         this.passwordEncoder         = passwordEncoder;
         this.jwtService              = jwtService;
         this.otpService              = otpService;
@@ -94,31 +92,57 @@ public class AuthService {
      */
     @Transactional
     public RegisterResponse register(RegisterRequest request, String ipAddress) {
-        if (userRepository.existsByPhone(request.phone())) {
-            throw new ConflictException("PHONE_ALREADY_REGISTERED",
-                    "An account with this phone number already exists");
+        Optional<UserAccount> existingPhoneUser = userStore.findUserByPhone(request.phone());
+        if (existingPhoneUser.isPresent()) {
+            UserAccount existing = existingPhoneUser.get();
+            if (existing.status() != UserStatus.PENDING_VERIFICATION) {
+                throw new ConflictException("PHONE_ALREADY_REGISTERED",
+                        "An account with this phone number already exists");
+            }
         }
-        if (userRepository.existsByNicNumber(request.nic())) {
-            throw new ConflictException("NIC_ALREADY_REGISTERED",
-                    "An account with this NIC number already exists");
+        Optional<UserAccount> existingNicUser = userStore.findUserByNicNumber(request.nic());
+        if (existingNicUser.isPresent()) {
+            UserAccount existing = existingNicUser.get();
+            if (existing.status() != UserStatus.PENDING_VERIFICATION || !existing.phone().equals(request.phone())) {
+                throw new ConflictException("NIC_ALREADY_REGISTERED",
+                        "An account with this NIC number already exists");
+            }
         }
 
+        Long existingId = existingPhoneUser.map(UserAccount::id).orElse(null);
         String hashedPin = passwordEncoder.encode(request.pin());
-        User user = new User(request.phone(), request.fullName(), request.nic(), hashedPin);
-
         UserRole role = request.roleOrDefault().equals("MERCHANT")
                 ? UserRole.MERCHANT : UserRole.CUSTOMER;
-        user.setRole(role);
 
-        User saved = userRepository.save(user);
+        UserAccount user = new UserAccount(
+                existingId,
+                request.phone(),
+                request.fullName(),
+                request.nic(),
+                hashedPin,
+                UserStatus.PENDING_VERIFICATION,
+                role,
+                0,
+                null,
+                Instant.now(),
+                Instant.now()
+        );
 
-        Instant otpExpiresAt = otpService.generateAndSend(saved, OtpPurpose.REGISTRATION);
+        UserAccount saved = userStore.saveUser(user);
 
-        auditService.log(saved.getId(), "REGISTER_INITIATED", "USER",
-                saved.getId(), "{\"role\":\"" + role + "\"}", ipAddress);
+        // Create temporary User entity for OTP service signature compatibility
+        User tempUser = new User(saved.phone(), saved.fullName(), saved.nicNumber(), saved.passwordHash());
+        tempUser.setId(saved.id());
+        tempUser.setRole(saved.role());
+        tempUser.setStatus(saved.status());
 
-        log.info("Registration initiated userId={} role={}", saved.getId(), role);
-        return new RegisterResponse(saved.getId(), otpExpiresAt);
+        Instant otpExpiresAt = otpService.generateAndSend(tempUser, OtpPurpose.REGISTRATION);
+
+        auditService.log(saved.id(), "REGISTER_INITIATED", "USER",
+                saved.id(), "{\"role\":\"" + role + "\"}", ipAddress);
+
+        log.info("Registration initiated userId={} role={}", saved.id(), role);
+        return new RegisterResponse(saved.id(), otpExpiresAt);
     }
 
     // ── Verify OTP (activates account after registration) ──────
@@ -128,24 +152,29 @@ public class AuthService {
      */
     @Transactional
     public TokenResponse verifyOtp(Long userId, String otp, String ipAddress) {
-        User user = userRepository.findById(userId)
+        UserAccount user = userStore.findUserById(userId)
                 .orElseThrow(() -> new ValidationException("USER_NOT_FOUND", "User not found"));
 
-        if (user.getStatus() != UserStatus.PENDING_VERIFICATION) {
+        if (user.status() != UserStatus.PENDING_VERIFICATION) {
             throw new ValidationException("ALREADY_VERIFIED", "Account is already active");
         }
 
-        otpService.verify(user, OtpPurpose.REGISTRATION, otp);
+        User tempUser = new User(user.phone(), user.fullName(), user.nicNumber(), user.passwordHash());
+        tempUser.setId(user.id());
+        tempUser.setRole(user.role());
+        tempUser.setStatus(user.status());
 
-        user.setStatus(UserStatus.ACTIVE);
-        userRepository.save(user);
+        otpService.verify(tempUser, OtpPurpose.REGISTRATION, otp);
 
-        TokenResponse tokens = issueTokenPair(user);
+        UserAccount updated = user.withStatus(UserStatus.ACTIVE);
+        userStore.saveUser(updated);
 
-        auditService.log(user.getId(), "REGISTER_COMPLETED", "USER",
-                user.getId(), null, ipAddress);
+        TokenResponse tokens = issueTokenPair(updated);
 
-        log.info("Account activated userId={}", user.getId());
+        auditService.log(user.id(), "REGISTER_COMPLETED", "USER",
+                user.id(), null, ipAddress);
+
+        log.info("Account activated userId={}", user.id());
         return tokens;
     }
 
@@ -157,68 +186,60 @@ public class AuthService {
      */
     @Transactional
     public TokenResponse login(String phone, String pin, String ipAddress) {
-
-        // Look up user — use a constant-time path regardless of whether user exists
-        User user = userRepository.findByPhone(phone).orElse(null);
+        UserAccount user = userStore.findUserByPhone(phone).orElse(null);
 
         if (user == null) {
-            // Don't reveal that the phone isn't registered
             auditService.log(null, "LOGIN_FAILURE", "USER", null,
                     "{\"reason\":\"phone_not_found\"}", ipAddress);
             throw new InvalidCredentialsException();
         }
 
-        // Check lockout before PIN verification
-        if (user.isLockedOut()) {
-            auditService.log(user.getId(), "LOGIN_BLOCKED", "USER",
-                    user.getId(), "{\"reason\":\"account_locked\"}", ipAddress);
-            throw new AccountLockedException(user.getLockedUntil());
+        if (user.isLocked()) {
+            auditService.log(user.id(), "LOGIN_BLOCKED", "USER",
+                    user.id(), "{\"reason\":\"account_locked\"}", ipAddress);
+            throw new AccountLockedException(user.lockedUntil());
         }
 
-        if (user.isFrozen()) {
-            auditService.log(user.getId(), "LOGIN_FAILURE", "USER",
-                    user.getId(), "{\"reason\":\"account_frozen\"}", ipAddress);
+        if (user.status() == UserStatus.FROZEN) {
+            auditService.log(user.id(), "LOGIN_FAILURE", "USER",
+                    user.id(), "{\"reason\":\"account_frozen\"}", ipAddress);
             throw new AuthorizationException("ACCOUNT_FROZEN",
                     "Your account has been frozen. Contact support.");
         }
 
-        if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
-            auditService.log(user.getId(), "LOGIN_FAILURE", "USER",
-                    user.getId(), "{\"reason\":\"not_verified\"}", ipAddress);
+        if (user.status() == UserStatus.PENDING_VERIFICATION) {
+            auditService.log(user.id(), "LOGIN_FAILURE", "USER",
+                    user.id(), "{\"reason\":\"not_verified\"}", ipAddress);
             throw new AuthorizationException("ACCOUNT_NOT_VERIFIED",
                     "Please verify your phone number before logging in.");
         }
 
-        // PIN check — passwordEncoder.matches never logs the raw pin
-        if (!passwordEncoder.matches(pin, user.getPasswordHash())) {
-            int attempts = user.incrementFailedAttempts();
-            if (attempts >= loginMaxAttempts) {
-                Instant lockUntil = Instant.now().plus(loginLockoutMinutes, ChronoUnit.MINUTES);
-                user.lockUntil(lockUntil);
-                userRepository.save(user);
-                auditService.log(user.getId(), "LOGIN_LOCKED", "USER",
-                        user.getId(),
-                        "{\"attempts\":" + attempts + "}",
+        if (!passwordEncoder.matches(pin, user.passwordHash())) {
+            Instant lockUntil = Instant.now().plus(loginLockoutMinutes, ChronoUnit.MINUTES);
+            UserAccount updated = userStore.incrementFailedLoginAttempts(user.id(), loginMaxAttempts, lockUntil);
+            if (updated.isLocked()) {
+                auditService.log(user.id(), "LOGIN_LOCKED", "USER",
+                        user.id(),
+                        "{\"attempts\":" + updated.failedLoginAttempts() + "}",
                         ipAddress);
-                throw new AccountLockedException(lockUntil);
+                throw new AccountLockedException(updated.lockedUntil());
             }
-            userRepository.save(user);
-            auditService.log(user.getId(), "LOGIN_FAILURE", "USER",
-                    user.getId(),
-                    "{\"attempts\":" + attempts + "}",
+            auditService.log(user.id(), "LOGIN_FAILURE", "USER",
+                    user.id(),
+                    "{\"attempts\":" + updated.failedLoginAttempts() + "}",
                     ipAddress);
             throw new InvalidCredentialsException();
         }
 
-        // Success — reset counter and issue tokens
-        user.resetLoginAttempts();
-        userRepository.save(user);
+        // Success — reset counter transactionally and issue tokens
+        userStore.resetFailedLoginAttempts(user.id());
+        UserAccount reset = user.withFailedLoginAttempts(0).withLockedUntil(null);
 
-        TokenResponse tokens = issueTokenPair(user);
+        TokenResponse tokens = issueTokenPair(reset);
 
-        auditService.log(user.getId(), "LOGIN_SUCCESS", "USER",
-                user.getId(), null, ipAddress);
-        log.info("Login success userId={}", user.getId());
+        auditService.log(user.id(), "LOGIN_SUCCESS", "USER",
+                user.id(), null, ipAddress);
+        log.info("Login success userId={}", user.id());
         return tokens;
     }
 
@@ -232,27 +253,24 @@ public class AuthService {
     public TokenResponse refresh(String rawRefreshToken, String ipAddress) {
         String tokenHash = sha256(rawRefreshToken);
 
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
+        var stored = userStore.findRefreshTokenByHash(tokenHash)
                 .orElseThrow(TokenExpiredException::new);
 
         if (!stored.isValid()) {
-            // Token already revoked or expired — revoke all tokens for this user
-            // as a precaution against token reuse attacks
-            refreshTokenRepository.revokeAllForUser(stored.getUser().getId());
-            auditService.log(stored.getUser().getId(), "TOKEN_REUSE_DETECTED", "USER",
-                    stored.getUser().getId(), null, ipAddress);
+            userStore.revokeAllRefreshTokensForUser(stored.userId());
+            auditService.log(stored.userId(), "TOKEN_REUSE_DETECTED", "USER",
+                    stored.userId(), null, ipAddress);
             throw new TokenExpiredException();
         }
 
-        // Revoke the used token and issue a new pair
-        stored.revoke();
-        refreshTokenRepository.save(stored);
+        userStore.saveRefreshToken(stored.revoke());
 
-        User user = stored.getUser();
+        UserAccount user = userStore.findUserById(stored.userId())
+                .orElseThrow(TokenExpiredException::new);
         TokenResponse tokens = issueTokenPair(user);
 
-        auditService.log(user.getId(), "TOKEN_REFRESHED", "USER",
-                user.getId(), null, ipAddress);
+        auditService.log(user.id(), "TOKEN_REFRESHED", "USER",
+                user.id(), null, ipAddress);
         return tokens;
     }
 
@@ -264,13 +282,13 @@ public class AuthService {
      */
     @Transactional
     public void logout(String rawRefreshToken, Long actorId, String ipAddress) {
-        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
-            String tokenHash = sha256(rawRefreshToken);
-            refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(t -> {
-                t.revoke();
-                refreshTokenRepository.save(t);
-            });
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            return;
         }
+        String tokenHash = sha256(rawRefreshToken);
+        userStore.findRefreshTokenByHash(tokenHash).ifPresent(t -> {
+            userStore.saveRefreshToken(t.revoke());
+        });
         auditService.log(actorId, "LOGOUT", "USER", actorId, null, ipAddress);
         log.info("Logout userId={}", actorId);
     }
@@ -284,24 +302,22 @@ public class AuthService {
      */
     @Transactional
     public void changePin(Long userId, String currentPin, String newPin, String ipAddress) {
-        User user = userRepository.findById(userId)
+        UserAccount user = userStore.findUserById(userId)
                 .orElseThrow(() -> new ValidationException("USER_NOT_FOUND", "User not found"));
 
-        if (!passwordEncoder.matches(currentPin, user.getPasswordHash())) {
+        if (!passwordEncoder.matches(currentPin, user.passwordHash())) {
             auditService.log(userId, "CHANGE_PIN_FAILURE", "USER", userId,
                     "{\"reason\":\"wrong_current_pin\"}", ipAddress);
             throw new InvalidCredentialsException();
         }
 
-        if (passwordEncoder.matches(newPin, user.getPasswordHash())) {
+        if (passwordEncoder.matches(newPin, user.passwordHash())) {
             throw new ValidationException("PIN_SAME_AS_CURRENT",
                     "New PIN must be different from the current PIN");
         }
 
-        user.setPasswordHash(passwordEncoder.encode(newPin));
-        // Revoke all refresh tokens — forces re-login on all sessions
-        refreshTokenRepository.revokeAllForUser(userId);
-        userRepository.save(user);
+        userStore.saveUser(user.withPasswordHash(passwordEncoder.encode(newPin)));
+        userStore.revokeAllRefreshTokensForUser(userId);
 
         auditService.log(userId, "CHANGE_PIN_SUCCESS", "USER", userId, null, ipAddress);
         log.info("PIN changed userId={}", userId);
@@ -314,13 +330,13 @@ public class AuthService {
      * The raw refresh token is returned to the caller once only.
      * Only its SHA-256 hash is stored in the database.
      */
-    private TokenResponse issueTokenPair(User user) {
-        String accessToken  = jwtService.generateToken(user.getId(), user.getRole().name());
+    private TokenResponse issueTokenPair(UserAccount user) {
+        String accessToken  = jwtService.generateToken(user.id(), user.role().name());
         String rawRefresh   = generateRawRefreshToken();
         String refreshHash  = sha256(rawRefresh);
         Instant refreshExpiry = Instant.now().plus(refreshTokenExpiryDays, ChronoUnit.DAYS);
 
-        refreshTokenRepository.save(new RefreshToken(user, refreshHash, refreshExpiry));
+        userStore.saveRefreshToken(new RefreshTokenRecord(user.id(), refreshHash, refreshExpiry));
 
         long expiresIn = jwtExpiryMinutes * 60;
         return TokenResponse.full(accessToken, rawRefresh, expiresIn);
@@ -336,7 +352,7 @@ public class AuthService {
      * SHA-256 hash of a string, Base64-URL encoded.
      * Used to hash refresh tokens before storage.
      */
-    static String sha256(String input) {
+    public static String sha256(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
@@ -344,5 +360,9 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
         }
+    }
+
+    public void deleteUserByPhone(String phone) {
+        userStore.deleteUserByPhone(phone);
     }
 }

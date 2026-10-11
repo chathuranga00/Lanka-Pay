@@ -13,6 +13,7 @@
 *.jks
 secrets/
 config/secrets/
+node_modules/
 
 # ------ Java / Maven ----------------------------------------
 target/

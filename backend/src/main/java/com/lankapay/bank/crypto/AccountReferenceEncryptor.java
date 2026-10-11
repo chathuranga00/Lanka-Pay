@@ -46,6 +46,7 @@ public class AccountReferenceEncryptor {
         this(base64Key, "");
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AccountReferenceEncryptor(
             @Value("${app.encryption.bank-account-key}") String base64Key,
             @Value("${spring.profiles.active:}") String activeProfile) {

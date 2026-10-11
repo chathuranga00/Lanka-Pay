@@ -3,25 +3,26 @@ package com.lankapay.notification.channel;
 import com.lankapay.identity.domain.User;
 import com.lankapay.notification.domain.Notification;
 import com.lankapay.notification.domain.NotificationChannelType;
-import com.lankapay.notification.repository.NotificationRepository;
+import com.lankapay.notification.domain.NotificationRecord;
+import com.lankapay.notification.domain.NotificationStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
  * In-app notification delivery channel.
- * Stores notifications in ntf_notifications for user retrieval via GET /notifications.
+ * Stores notifications in notifications collection for user retrieval via GET /notifications.
  */
 @Component
 public class InAppNotificationChannel implements NotificationChannel {
 
     private static final Logger log = LoggerFactory.getLogger(InAppNotificationChannel.class);
 
-    private final NotificationRepository notificationRepository;
+    private final NotificationStore notificationStore;
     private boolean simulateFailure = false;
 
-    public InAppNotificationChannel(NotificationRepository notificationRepository) {
-        this.notificationRepository = notificationRepository;
+    public InAppNotificationChannel(NotificationStore notificationStore) {
+        this.notificationStore = notificationStore;
     }
 
     @Override
@@ -37,7 +38,23 @@ public class InAppNotificationChannel implements NotificationChannel {
         }
 
         notification.markSent();
-        notificationRepository.save(notification);
+        if (notificationStore != null) {
+            notificationStore.saveNotification(new NotificationRecord(
+                    notification.getId(),
+                    recipient.getId(),
+                    notification.getChannel(),
+                    notification.getType(),
+                    notification.getTitle(),
+                    notification.getMessage(),
+                    notification.getStatus(),
+                    notification.getFailureReason(),
+                    notification.isRead(),
+                    notification.getReadAt(),
+                    notification.getCreatedAt() != null ? notification.getCreatedAt() : java.time.Instant.now(),
+                    notification.isSimulated()
+            ));
+        }
+
         log.info("[IN-APP CHANNEL] Delivered notification id={} to user id={}",
                 notification.getId(), recipient.getId());
     }

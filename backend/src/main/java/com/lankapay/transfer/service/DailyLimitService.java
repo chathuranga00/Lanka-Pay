@@ -2,8 +2,8 @@ package com.lankapay.transfer.service;
 
 import com.lankapay.common.exception.UnprocessableEntityException;
 import com.lankapay.identity.domain.User;
-import com.lankapay.transfer.domain.DailyLimit;
-import com.lankapay.transfer.repository.DailyLimitRepository;
+import com.lankapay.transfer.domain.DailyLimitRecord;
+import com.lankapay.transfer.domain.TransactionStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -18,10 +18,10 @@ public class DailyLimitService {
     private static final Logger log = LoggerFactory.getLogger(DailyLimitService.class);
     private static final BigDecimal DEFAULT_DAILY_CAP = new BigDecimal("100000.00");
 
-    private final DailyLimitRepository dailyLimitRepository;
+    private final TransactionStore transactionStore;
 
-    public DailyLimitService(DailyLimitRepository dailyLimitRepository) {
-        this.dailyLimitRepository = dailyLimitRepository;
+    public DailyLimitService(TransactionStore transactionStore) {
+        this.transactionStore = transactionStore;
     }
 
     /**
@@ -32,11 +32,15 @@ public class DailyLimitService {
     @Transactional(readOnly = true)
     public void checkLimit(User user, BigDecimal amount) {
         LocalDate today = LocalDate.now();
-        DailyLimit limit = dailyLimitRepository.findByUserIdAndLimitDate(user.getId(), today)
-                .orElse(null);
+        BigDecimal currentTotal = BigDecimal.ZERO;
+        BigDecimal dailyCap = DEFAULT_DAILY_CAP;
 
-        BigDecimal currentTotal = limit != null ? limit.getTotalSent() : BigDecimal.ZERO;
-        BigDecimal dailyCap = limit != null ? limit.getDailyCap() : DEFAULT_DAILY_CAP;
+        var limitOpt = transactionStore.findDailyLimit(user.getId(), today);
+        if (limitOpt.isPresent()) {
+            currentTotal = limitOpt.get().totalSent() != null ? limitOpt.get().totalSent() : BigDecimal.ZERO;
+            dailyCap = limitOpt.get().dailyCap() != null ? limitOpt.get().dailyCap() : DEFAULT_DAILY_CAP;
+        }
+
         BigDecimal projectedTotal = currentTotal.add(amount);
 
         if (projectedTotal.compareTo(dailyCap) > 0) {
@@ -54,12 +58,18 @@ public class DailyLimitService {
     @Transactional
     public void recordSpend(User user, BigDecimal amount) {
         LocalDate today = LocalDate.now();
-        DailyLimit limit = dailyLimitRepository.findByUserIdAndLimitDate(user.getId(), today)
-                .orElseGet(() -> new DailyLimit(user, today, DEFAULT_DAILY_CAP));
-
-        limit.addSent(amount);
-        dailyLimitRepository.save(limit);
+        var existing = transactionStore.findDailyLimit(user.getId(), today).orElse(null);
+        BigDecimal currentTotal = existing != null && existing.totalSent() != null ? existing.totalSent() : BigDecimal.ZERO;
+        BigDecimal cap = existing != null && existing.dailyCap() != null ? existing.dailyCap() : DEFAULT_DAILY_CAP;
+        BigDecimal newTotal = currentTotal.add(amount);
+        transactionStore.saveDailyLimit(new DailyLimitRecord(
+                existing != null ? existing.id() : null,
+                user.getId(),
+                today,
+                newTotal,
+                cap
+        ));
         log.info("Recorded daily spend of {} LKR for user id={}, new total={}",
-                amount, user.getId(), limit.getTotalSent());
+                amount, user.getId(), newTotal);
     }
 }

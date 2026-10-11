@@ -33,6 +33,7 @@ public record AdminTransferDetailResponse(
         Instant updatedAt
 ) {
     public static AdminTransferDetailResponse from(Transfer transfer, List<AdminTransactionEventResponse> events) {
+        if (transfer == null) return null;
         return new AdminTransferDetailResponse(
                 transfer.getId(),
                 transfer.getReference(),
@@ -58,4 +59,33 @@ public record AdminTransferDetailResponse(
                 transfer.getUpdatedAt()
         );
     }
+
+    public static AdminTransferDetailResponse from(com.lankapay.transfer.domain.TransactionRecord tx, List<AdminTransactionEventResponse> events) {
+        if (tx == null) return null;
+        return new AdminTransferDetailResponse(
+                tx.id(),
+                tx.reference(),
+                tx.idempotencyKey(),
+                tx.senderId(),
+                tx.senderFullName(),
+                PhoneNumberNormalizer.mask(tx.senderPhone()),
+                tx.receiverId(),
+                tx.receiverFullName(),
+                PhoneNumberNormalizer.mask(tx.receiverPhone()),
+                tx.amount(),
+                tx.currency(),
+                tx.status(),
+                tx.failureReason(),
+                tx.senderBankCode(),
+                tx.receiverBankCode(),
+                tx.bankTxRef(),
+                tx.providerReference(),
+                tx.note(),
+                tx.simulated(),
+                events != null ? events : List.of(),
+                tx.createdAt(),
+                tx.updatedAt()
+        );
+    }
 }
+

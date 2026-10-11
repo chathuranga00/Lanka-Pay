@@ -1,5 +1,6 @@
 package com.lankapay.transfer.web.dto;
 
+import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.domain.TransferInitiatedVia;
@@ -72,6 +73,58 @@ public record ReceiptResponse(
             String bankCode
     ) {}
 
+    public static ReceiptResponse from(TransactionRecord transfer) {
+        String receiptNum = "REC-" + (transfer.reference() != null && transfer.reference().length() >= 8
+                ? transfer.reference().substring(0, 8).toUpperCase()
+                : "TX" + transfer.id());
+
+        String maskedSenderPhone = transfer.senderPhone() != null && transfer.senderPhone().length() >= 7
+                ? transfer.senderPhone().substring(0, 6) + "***" + transfer.senderPhone().substring(transfer.senderPhone().length() - 4)
+                : "***";
+        String maskedReceiverPhone = transfer.receiverPhone() != null && transfer.receiverPhone().length() >= 7
+                ? transfer.receiverPhone().substring(0, 6) + "***" + transfer.receiverPhone().substring(transfer.receiverPhone().length() - 4)
+                : "***";
+
+        ReceiptParty senderParty = new ReceiptParty(
+                transfer.senderId(),
+                transfer.senderFullName(),
+                maskedSenderPhone,
+                transfer.senderBankCode()
+        );
+
+        ReceiptParty receiverParty = new ReceiptParty(
+                transfer.receiverId(),
+                transfer.receiverFullName(),
+                maskedReceiverPhone,
+                transfer.receiverBankCode()
+        );
+
+        BigDecimal fee = BigDecimal.ZERO.setScale(2);
+        BigDecimal total = transfer.amount().add(fee);
+
+        String signature = computeSignature(transfer.reference(), transfer.amount(), transfer.status(), transfer.createdAt());
+
+        return new ReceiptResponse(
+                receiptNum,
+                transfer.id(),
+                transfer.reference(),
+                transfer.bankTxRef(),
+                transfer.status(),
+                transfer.amount(),
+                transfer.currency(),
+                fee,
+                total,
+                senderParty,
+                receiverParty,
+                transfer.initiatedVia(),
+                transfer.note(),
+                transfer.createdAt(),
+                transfer.updatedAt(),
+                transfer.simulated(),
+                signature
+        );
+    }
+
     public static ReceiptResponse from(Transfer transfer) {
         String receiptNum = "REC-" + (transfer.getReference() != null && transfer.getReference().length() >= 8
                 ? transfer.getReference().substring(0, 8).toUpperCase()
@@ -118,9 +171,12 @@ public record ReceiptResponse(
     }
 
     private static String computeSignature(Transfer transfer) {
+        return computeSignature(transfer.getReference(), transfer.getAmount(), transfer.getStatus(), transfer.getCreatedAt());
+    }
+
+    private static String computeSignature(String reference, BigDecimal amount, TransactionStatus status, Instant createdAt) {
         try {
-            String raw = transfer.getReference() + ":" + transfer.getAmount() + ":" +
-                    transfer.getStatus() + ":" + transfer.getCreatedAt();
+            String raw = reference + ":" + amount + ":" + status + ":" + createdAt;
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);

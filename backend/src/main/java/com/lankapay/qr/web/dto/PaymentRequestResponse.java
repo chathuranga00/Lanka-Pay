@@ -81,4 +81,28 @@ public record PaymentRequestResponse(
                 pr.getCreatedAt()
         );
     }
+
+    public static PaymentRequestResponse from(com.lankapay.qr.domain.PaymentRequestRecord pr,
+                                              String requesterName,
+                                              String payerName,
+                                              String qrReference,
+                                              String qrPayload) {
+        return new PaymentRequestResponse(
+                pr.id(),
+                pr.reference(),
+                pr.requesterId(),
+                requesterName,
+                pr.payerId(),
+                payerName,
+                pr.amount(),
+                pr.currency(),
+                pr.note(),
+                pr.status(),
+                qrReference,
+                qrPayload,
+                pr.fulfilledTransferId(),
+                pr.expiresAt(),
+                pr.createdAt()
+        );
+    }
 }

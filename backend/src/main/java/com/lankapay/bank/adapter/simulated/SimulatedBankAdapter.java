@@ -15,9 +15,6 @@ import org.springframework.stereotype.Component;
  *
  * Active when: app.bank-adapter.mode=SIMULATED (default).
  */
-@Component
-@ConditionalOnProperty(name = "app.bank-adapter.mode", havingValue = "SIMULATED",
-        matchIfMissing = true)
 public class SimulatedBankAdapter extends AbstractSimulatedBankAdapter {
 
     public SimulatedBankAdapter(SimulatedAccountStore store) {

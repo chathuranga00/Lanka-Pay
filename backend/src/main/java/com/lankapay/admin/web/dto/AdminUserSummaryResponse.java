@@ -21,6 +21,7 @@ public record AdminUserSummaryResponse(
         Instant createdAt
 ) {
     public static AdminUserSummaryResponse from(User user) {
+        if (user == null) return null;
         return new AdminUserSummaryResponse(
                 user.getId(),
                 user.getFullName(),
@@ -29,6 +30,19 @@ public record AdminUserSummaryResponse(
                 user.getStatus(),
                 user.getRole(),
                 user.getCreatedAt()
+        );
+    }
+
+    public static AdminUserSummaryResponse from(com.lankapay.identity.domain.UserAccount user) {
+        if (user == null) return null;
+        return new AdminUserSummaryResponse(
+                user.id(),
+                user.fullName(),
+                PhoneNumberNormalizer.mask(user.phone()),
+                maskNic(user.nicNumber()),
+                user.status(),
+                user.role(),
+                user.createdAt()
         );
     }
 

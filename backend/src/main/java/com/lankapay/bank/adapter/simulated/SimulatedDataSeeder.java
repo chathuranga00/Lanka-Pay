@@ -1,19 +1,10 @@
 package com.lankapay.bank.adapter.simulated;
 
 import com.lankapay.bank.crypto.AccountReferenceEncryptor;
-import com.lankapay.bank.domain.AccountConsent;
-import com.lankapay.bank.domain.BankAccount;
-import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.domain.ConsentType;
-import com.lankapay.bank.repository.AccountConsentRepository;
-import com.lankapay.bank.repository.BankAccountRepository;
-import com.lankapay.bank.repository.BankInstitutionRepository;
-import com.lankapay.identity.domain.User;
-import com.lankapay.identity.domain.UserRole;
-import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.UserRepository;
-import com.lankapay.registry.domain.Registry;
-import com.lankapay.registry.repository.RegistryRepository;
+import com.lankapay.bank.domain.*;
+import com.lankapay.identity.domain.*;
+import com.lankapay.registry.domain.PhoneIdentity;
+import com.lankapay.registry.domain.PhoneIdentityStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -21,7 +12,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -29,7 +19,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 
 /**
- * Automatically seeds standard test users and bank accounts when running in SIMULATED mode.
+ * Automatically seeds standard test users and bank accounts in Firestore when running in SIMULATED mode.
  *
  * ⚠ SIMULATED ONLY — deactivated if app.bank-adapter.mode != SIMULATED.
  *
@@ -49,32 +39,25 @@ public class SimulatedDataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SimulatedDataSeeder.class);
 
-    private final UserRepository userRepository;
-    private final RegistryRepository registryRepository;
-    private final BankAccountRepository bankAccountRepository;
-    private final AccountConsentRepository consentRepository;
-    private final BankInstitutionRepository institutionRepository;
+    private final UserStore userStore;
+    private final PhoneIdentityStore phoneIdentityStore;
+    private final LinkedAccountStore linkedAccountStore;
     private final AccountReferenceEncryptor encryptor;
     private final PasswordEncoder passwordEncoder;
 
-    public SimulatedDataSeeder(UserRepository userRepository,
-                               RegistryRepository registryRepository,
-                               BankAccountRepository bankAccountRepository,
-                               AccountConsentRepository consentRepository,
-                               BankInstitutionRepository institutionRepository,
+    public SimulatedDataSeeder(UserStore userStore,
+                               PhoneIdentityStore phoneIdentityStore,
+                               LinkedAccountStore linkedAccountStore,
                                AccountReferenceEncryptor encryptor,
                                PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.registryRepository = registryRepository;
-        this.bankAccountRepository = bankAccountRepository;
-        this.consentRepository = consentRepository;
-        this.institutionRepository = institutionRepository;
+        this.userStore = userStore;
+        this.phoneIdentityStore = phoneIdentityStore;
+        this.linkedAccountStore = linkedAccountStore;
         this.encryptor = encryptor;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Override
-    @Transactional
     public void run(ApplicationArguments args) {
         log.info("[SIMULATED] Checking database for simulated demo test accounts...");
 
@@ -82,7 +65,7 @@ public class SimulatedDataSeeder implements ApplicationRunner {
         seedUserIfAbsent("+94770000001", "Operations Administrator [TEST]", "198000000001", UserRole.ADMIN, null);
 
         // 1. Kasun Perera [TEST] – 3 accounts at Banks A/B/C, default B
-        User kasun = seedUserIfAbsent("+94771000001", "Kasun Perera [TEST]", "199010000001", UserRole.CUSTOMER, user -> {
+        seedUserIfAbsent("+94771000001", "Kasun Perera [TEST]", "199010000001", UserRole.CUSTOMER, user -> {
             linkAccount(user, "SIMULATED_BANK_A", "101001", "Kasun Perera [TEST]", "Savings Account A [TEST]", false);
             linkAccount(user, "SIMULATED_BANK_B", "201001", "Kasun Perera [TEST]", "Salary Account B [TEST]", true); // Default B
             linkAccount(user, "SIMULATED_BANK_C", "301001", "Kasun Perera [TEST]", "Investment Account C [TEST]", false);
@@ -111,18 +94,17 @@ public class SimulatedDataSeeder implements ApplicationRunner {
         log.info("[SIMULATED] Demo test accounts verification completed successfully.");
     }
 
-    private User seedUserIfAbsent(String phone, String fullName, String nic, UserRole role, AccountInitializer onInit) {
-        return userRepository.findByPhone(phone).orElseGet(() -> {
-            User newUser = new User(phone, fullName, nic, passwordEncoder.encode("123456"));
-            newUser.setStatus(UserStatus.ACTIVE);
-            newUser.setRole(role);
-            User saved = userRepository.save(newUser);
+    private UserAccount seedUserIfAbsent(String phone, String fullName, String nic, UserRole role, AccountInitializer onInit) {
+        return userStore.findUserByPhone(phone).orElseGet(() -> {
+            UserAccount newUser = new UserAccount(phone, fullName, nic, passwordEncoder.encode("123456"))
+                    .withStatus(UserStatus.ACTIVE)
+                    .withRole(role);
+            UserAccount saved = userStore.saveUser(newUser);
 
             // Register in registry if CUSTOMER
             if (role == UserRole.CUSTOMER) {
-                Registry reg = new Registry(saved, phone);
-                reg.setDiscoverable(true);
-                registryRepository.save(reg);
+                PhoneIdentity reg = new PhoneIdentity(saved.id(), phone, true, fullName);
+                phoneIdentityStore.save(reg);
             }
 
             if (onInit != null) {
@@ -134,31 +116,30 @@ public class SimulatedDataSeeder implements ApplicationRunner {
         });
     }
 
-    private void linkAccount(User user, String bankCode, String accountNumber,
+    private void linkAccount(UserAccount user, String bankCode, String accountNumber,
                              String accountName, String label, boolean isDefault) {
         String hash = sha256(bankCode + accountNumber);
-        if (bankAccountRepository.findByAccountNumberHash(hash).isPresent()) {
+        if (linkedAccountStore.findAccountByAccountNumberHash(hash).isPresent()) {
             return;
         }
 
         String masked = maskAccountNumber(accountNumber);
         String encryptedRef = encryptor.encrypt(accountNumber);
 
-        BankAccount account = new BankAccount(user, bankCode, hash, masked, accountName, encryptedRef);
-        account.setLabel(label);
-        account.setDefault(isDefault);
-        account.setDiscoverable(true);
-        account.setReceivingEnabled(true);
-        account.setStatus(BankAccountStatus.ACTIVE);
+        LinkedAccount account = new LinkedAccount(
+                null, user.id(), bankCode, hash, masked, accountName,
+                label, true, true, encryptedRef, BankAccountStatus.ACTIVE,
+                isDefault, null, null
+        );
 
-        BankAccount saved = bankAccountRepository.save(account);
+        LinkedAccount saved = linkedAccountStore.saveAccount(account);
 
-        AccountConsent consent = new AccountConsent(
-                user, saved, ConsentType.LINK_ACCOUNT, true, "127.0.0.1");
-        consentRepository.save(consent);
+        AccountConsentRecord consent = new AccountConsentRecord(
+                user.id(), saved.id(), ConsentType.LINK_ACCOUNT, true, "127.0.0.1");
+        linkedAccountStore.saveConsent(consent);
 
         log.info("[SIMULATED] Linked test bank account: user={}, bank={}, masked={}, default={}",
-                user.getId(), bankCode, masked, isDefault);
+                user.id(), bankCode, masked, isDefault);
     }
 
     private static String maskAccountNumber(String acc) {
@@ -170,7 +151,7 @@ public class SimulatedDataSeeder implements ApplicationRunner {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
         }
@@ -178,6 +159,6 @@ public class SimulatedDataSeeder implements ApplicationRunner {
 
     @FunctionalInterface
     private interface AccountInitializer {
-        void initialize(User user);
+        void initialize(UserAccount user);
     }
 }

@@ -21,10 +21,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
 
 import java.time.Instant;
 
@@ -38,34 +34,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * Uses @SpringBootTest so the real Security filter chain is active.
  * AuthService is mocked — no business logic runs here.
- * JwtService is mocked — we control token validation.
+ * Real JwtService is wired to validate real test tokens.
  *
- * Requires Docker for Testcontainers MySQL (schema + Flyway bootstrap).
- * Skipped automatically when Docker is unavailable.
+ * Runs against the Firestore Emulator (FIRESTORE_EMULATOR_HOST).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers(disabledWithoutDocker = true)
 @ActiveProfiles("test")
 class AuthControllerTest {
-
-    @Container
-    static MySQLContainer<?> mysql = new MySQLContainer<>(DockerImageName.parse("mysql:8.0"))
-            .withDatabaseName("lankapay_test")
-            .withUsername("test")
-            .withPassword("test")
-            .withCommand("--character-set-server=utf8mb4",
-                         "--collation-server=utf8mb4_unicode_ci",
-                         "--default-time-zone=+00:00");
-
-    @DynamicPropertySource
-    static void mysqlProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url",      mysql::getJdbcUrl);
-        registry.add("spring.datasource.username", mysql::getUsername);
-        registry.add("spring.datasource.password", mysql::getPassword);
-        registry.add("spring.datasource.driver-class-name",
-                     () -> "com.mysql.cj.jdbc.Driver");
-    }
 
     @Autowired MockMvc       mockMvc;
     @Autowired ObjectMapper  objectMapper;

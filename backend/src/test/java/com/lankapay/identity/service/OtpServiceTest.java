@@ -3,17 +3,10 @@ package com.lankapay.identity.service;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.common.exception.OtpException;
 import com.lankapay.common.exception.ValidationException;
-import com.lankapay.identity.domain.Otp;
-import com.lankapay.identity.domain.OtpMetadata;
-import com.lankapay.identity.domain.OtpPurpose;
-import com.lankapay.identity.domain.User;
-import com.lankapay.identity.domain.UserRole;
-import com.lankapay.identity.domain.UserStatus;
+import com.lankapay.identity.domain.*;
 import com.lankapay.identity.otp.OtpProvider;
-import com.lankapay.identity.repository.OtpMetadataRepository;
-import com.lankapay.identity.repository.OtpRepository;
-import com.lankapay.notification.domain.Notification;
-import com.lankapay.notification.repository.NotificationRepository;
+import com.lankapay.notification.domain.NotificationRecord;
+import com.lankapay.notification.domain.NotificationStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -22,10 +15,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -39,16 +33,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class OtpServiceTest {
 
-    @Mock OtpRepository        otpRepository;
-    @Mock OtpMetadataRepository metadataRepository;
-    @Mock NotificationRepository notificationRepository;
+    @Mock UserStore            userStore;
+    @Mock NotificationStore    notificationStore;
     @Mock OtpProvider          otpProvider;
     @Mock AuditService         auditService;
 
     OtpService otpService;
-
-    // Real encoder so we can produce + verify real hashes in tests
-    private final BCryptPasswordEncoder realEncoder = new BCryptPasswordEncoder(10);
 
     static final String PHONE  = "+94771234567";
     static final long   EXPIRY = 300L;   // seconds
@@ -59,7 +49,7 @@ class OtpServiceTest {
     @BeforeEach
     void setUp() {
         otpService = new OtpService(
-                otpRepository, metadataRepository, notificationRepository,
+                userStore, notificationStore,
                 otpProvider, auditService,
                 EXPIRY, MAX, COOLDOWN, CAP);
     }
@@ -74,16 +64,13 @@ class OtpServiceTest {
         return u;
     }
 
-    OtpMetadata freshMeta(User user) {
-        OtpMetadata m = new OtpMetadata(user, OtpPurpose.PHONE_VERIFY);
-        ReflectionTestUtils.setField(m, "id", 10L);
-        return m;
+    OtpMetadataRecord freshMeta(Long userId) {
+        return new OtpMetadataRecord(userId, OtpPurpose.PHONE_VERIFY);
     }
 
-    Otp validOtp(User user, String plainCode) {
-        String hash = realEncoder.encode(plainCode);
-        return new Otp(user, hash, OtpPurpose.PHONE_VERIFY,
-                       Instant.now().plusSeconds(300));
+    OtpRecord validOtpRecord(Long userId, String plainCode) {
+        return new OtpRecord(10L, userId, "$2a$10$dummyhash", OtpPurpose.PHONE_VERIFY,
+                false, Instant.now().plusSeconds(300), Instant.now());
     }
 
     // ── generateAndSend() ──────────────────────────────────────
@@ -95,52 +82,49 @@ class OtpServiceTest {
         @DisplayName("success – persists OTP, fires provider, saves notification SENT")
         void success() {
             User user = activeUser();
-            OtpMetadata meta = freshMeta(user);
+            OtpMetadataRecord meta = freshMeta(1L);
 
-            when(metadataRepository.findByUserIdAndPurpose(1L, OtpPurpose.PHONE_VERIFY))
+            when(userStore.findOtpMetadata(1L, OtpPurpose.PHONE_VERIFY))
                     .thenReturn(Optional.of(meta));
-            when(otpRepository.save(any(Otp.class))).thenAnswer(i -> i.getArgument(0));
-            when(notificationRepository.save(any(Notification.class)))
+            when(userStore.saveOtp(any(OtpRecord.class))).thenAnswer(i -> i.getArgument(0));
+            when(notificationStore.saveNotification(any(NotificationRecord.class)))
                     .thenAnswer(i -> i.getArgument(0));
-            when(metadataRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+            when(userStore.saveOtpMetadata(any())).thenAnswer(i -> i.getArgument(0));
             doNothing().when(otpProvider).send(any(), any(), any(), any(), anyLong());
 
             Instant expiry = otpService.generateAndSend(user, OtpPurpose.PHONE_VERIFY);
 
             assertThat(expiry).isAfter(Instant.now());
-            verify(otpRepository).save(any(Otp.class));
+            verify(userStore).saveOtp(any(OtpRecord.class));
             verify(otpProvider).send(eq(PHONE), contains("***"), any(), eq(OtpPurpose.PHONE_VERIFY), anyLong());
-            // notification should be saved (markSent was called in the success path)
-            ArgumentCaptor<Notification> notifCaptor = ArgumentCaptor.forClass(Notification.class);
-            verify(notificationRepository).save(notifCaptor.capture());
+
+            ArgumentCaptor<NotificationRecord> notifCaptor = ArgumentCaptor.forClass(NotificationRecord.class);
+            verify(notificationStore).saveNotification(notifCaptor.capture());
         }
 
         @Test
         @DisplayName("creates new metadata if none exists")
         void createsMetadataOnFirstSend() {
             User user = activeUser();
-            OtpMetadata newMeta = freshMeta(user);
 
-            when(metadataRepository.findByUserIdAndPurpose(1L, OtpPurpose.PHONE_VERIFY))
+            when(userStore.findOtpMetadata(1L, OtpPurpose.PHONE_VERIFY))
                     .thenReturn(Optional.empty());
-            when(metadataRepository.save(any())).thenReturn(newMeta);
-            when(otpRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-            when(notificationRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+            when(userStore.saveOtpMetadata(any())).thenAnswer(i -> i.getArgument(0));
+            when(userStore.saveOtp(any(OtpRecord.class))).thenAnswer(i -> i.getArgument(0));
+            when(notificationStore.saveNotification(any(NotificationRecord.class))).thenAnswer(i -> i.getArgument(0));
             doNothing().when(otpProvider).send(any(), any(), any(), any(), anyLong());
 
             otpService.generateAndSend(user, OtpPurpose.PHONE_VERIFY);
 
-            // save called twice: once to create metadata, once to update cooldown
-            verify(metadataRepository, atLeast(2)).save(any());
+            verify(userStore).saveOtpMetadata(any());
         }
 
         @Test
         @DisplayName("OTP_RESEND_TOO_SOON when cooldown is active")
         void cooldownBlocks() {
             User user = activeUser();
-            OtpMetadata meta = freshMeta(user);
-            meta.setCooldownUntil(Instant.now().plusSeconds(30));
-            when(metadataRepository.findByUserIdAndPurpose(1L, OtpPurpose.PHONE_VERIFY))
+            OtpMetadataRecord meta = freshMeta(1L).withCooldownUntil(Instant.now().plusSeconds(30));
+            when(userStore.findOtpMetadata(1L, OtpPurpose.PHONE_VERIFY))
                     .thenReturn(Optional.of(meta));
 
             assertThatThrownBy(() -> otpService.generateAndSend(user, OtpPurpose.PHONE_VERIFY))
@@ -154,14 +138,10 @@ class OtpServiceTest {
         @DisplayName("OTP_DAILY_CAP_REACHED when daily limit exceeded")
         void dailyCapBlocks() {
             User user = activeUser();
-            OtpMetadata meta = freshMeta(user);
+            OtpMetadataRecord meta = new OtpMetadataRecord(
+                    null, 1L, OtpPurpose.PHONE_VERIFY, null, CAP, LocalDate.now(ZoneOffset.UTC));
 
-            // Simulate count already at the cap value
-            for (int i = 0; i < CAP; i++) {
-                meta.incrementDailyCount(java.time.LocalDate.now(java.time.ZoneOffset.UTC));
-            }
-
-            when(metadataRepository.findByUserIdAndPurpose(1L, OtpPurpose.PHONE_VERIFY))
+            when(userStore.findOtpMetadata(1L, OtpPurpose.PHONE_VERIFY))
                     .thenReturn(Optional.of(meta));
 
             assertThatThrownBy(() -> otpService.generateAndSend(user, OtpPurpose.PHONE_VERIFY))
@@ -175,21 +155,20 @@ class OtpServiceTest {
         @DisplayName("notification saved as FAILED when provider throws")
         void notificationFailedOnProviderError() {
             User user = activeUser();
-            OtpMetadata meta = freshMeta(user);
+            OtpMetadataRecord meta = freshMeta(1L);
 
-            when(metadataRepository.findByUserIdAndPurpose(1L, OtpPurpose.PHONE_VERIFY))
+            when(userStore.findOtpMetadata(1L, OtpPurpose.PHONE_VERIFY))
                     .thenReturn(Optional.of(meta));
-            when(metadataRepository.save(any())).thenReturn(meta);
-            when(otpRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-            when(notificationRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+            when(userStore.saveOtpMetadata(any())).thenAnswer(i -> i.getArgument(0));
+            when(userStore.saveOtp(any(OtpRecord.class))).thenAnswer(i -> i.getArgument(0));
+            when(notificationStore.saveNotification(any(NotificationRecord.class))).thenAnswer(i -> i.getArgument(0));
             doThrow(new RuntimeException("SMS gateway down"))
                     .when(otpProvider).send(any(), any(), any(), any(), anyLong());
 
             assertThatThrownBy(() -> otpService.generateAndSend(user, OtpPurpose.PHONE_VERIFY))
                     .isInstanceOf(RuntimeException.class);
 
-            // Notification must still be saved (in finally block) even on failure
-            verify(notificationRepository).save(any(Notification.class));
+            verify(notificationStore).saveNotification(any(NotificationRecord.class));
         }
     }
 
@@ -203,14 +182,14 @@ class OtpServiceTest {
         void success() {
             User user = activeUser();
             String code = "847291";
-            Otp otp = validOtp(user, code);
+            OtpRecord otp = validOtpRecord(1L, code);
 
-            when(otpRepository.findLatestValid(eq(1L), eq(OtpPurpose.PHONE_VERIFY), any()))
+            when(userStore.findLatestValidOtp(eq(1L), eq(OtpPurpose.PHONE_VERIFY), any()))
                     .thenReturn(Optional.of(otp));
+            when(userStore.verifyAndConsumeOtp(eq(10L), eq(code), any(), eq(MAX))).thenReturn(true);
 
             otpService.verify(user, OtpPurpose.PHONE_VERIFY, code);
 
-            assertThat(otp.isUsed()).isTrue();
             assertThat(user.getFailedLoginAttempts()).isZero();
             verify(auditService).log(eq(1L), eq("OTP_VERIFIED"), any(), any(), any(), isNull());
         }
@@ -219,7 +198,7 @@ class OtpServiceTest {
         @DisplayName("OTP_EXPIRED when no valid OTP in DB")
         void noValidOtp() {
             User user = activeUser();
-            when(otpRepository.findLatestValid(any(), any(), any()))
+            when(userStore.findLatestValidOtp(any(), any(), any()))
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> otpService.verify(user, OtpPurpose.PHONE_VERIFY, "123456"))
@@ -231,17 +210,17 @@ class OtpServiceTest {
         @DisplayName("OTP_INVALID on wrong code, increments attempt counter")
         void wrongCode() {
             User user = activeUser();
-            Otp otp = validOtp(user, "847291");
+            OtpRecord otp = validOtpRecord(1L, "847291");
 
-            when(otpRepository.findLatestValid(any(), any(), any()))
+            when(userStore.findLatestValidOtp(any(), any(), any()))
                     .thenReturn(Optional.of(otp));
+            doThrow(OtpException.invalid()).when(userStore).verifyAndConsumeOtp(eq(10L), eq("000000"), any(), eq(MAX));
 
             assertThatThrownBy(() -> otpService.verify(user, OtpPurpose.PHONE_VERIFY, "000000"))
                     .isInstanceOf(OtpException.class)
                     .extracting("errorCode").isEqualTo("OTP_INVALID");
 
             assertThat(user.getFailedLoginAttempts()).isEqualTo(1);
-            assertThat(otp.isUsed()).isFalse();
         }
 
         @Test
@@ -249,11 +228,8 @@ class OtpServiceTest {
         void replayUsedOtp() {
             User user = activeUser();
             String code = "847291";
-            Otp otp = validOtp(user, code);
-            otp.markUsed();  // simulate already-used
 
-            // findLatestValid filters used=false, so it returns empty for a used OTP
-            when(otpRepository.findLatestValid(any(), any(), any()))
+            when(userStore.findLatestValidOtp(any(), any(), any()))
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> otpService.verify(user, OtpPurpose.PHONE_VERIFY, code))
@@ -265,12 +241,12 @@ class OtpServiceTest {
         @DisplayName("OTP_MAX_ATTEMPTS on 5th wrong attempt – locks user")
         void maxAttempts() {
             User user = activeUser();
-            // Simulate 4 prior failures
             for (int i = 0; i < 4; i++) user.incrementFailedAttempts();
 
-            Otp otp = validOtp(user, "847291");
-            when(otpRepository.findLatestValid(any(), any(), any()))
+            OtpRecord otp = validOtpRecord(1L, "847291");
+            when(userStore.findLatestValidOtp(any(), any(), any()))
                     .thenReturn(Optional.of(otp));
+            doThrow(OtpException.maxAttemptsReached()).when(userStore).verifyAndConsumeOtp(eq(10L), eq("000000"), any(), eq(MAX));
 
             assertThatThrownBy(() -> otpService.verify(user, OtpPurpose.PHONE_VERIFY, "000000"))
                     .isInstanceOf(OtpException.class)
@@ -284,12 +260,12 @@ class OtpServiceTest {
         @DisplayName("4 wrong attempts does NOT lock – only increments counter")
         void fourWrongAttemptsNoLock() {
             User user = activeUser();
-            // Simulate 3 prior failures
             for (int i = 0; i < 3; i++) user.incrementFailedAttempts();
 
-            Otp otp = validOtp(user, "847291");
-            when(otpRepository.findLatestValid(any(), any(), any()))
+            OtpRecord otp = validOtpRecord(1L, "847291");
+            when(userStore.findLatestValidOtp(any(), any(), any()))
                     .thenReturn(Optional.of(otp));
+            doThrow(OtpException.invalid()).when(userStore).verifyAndConsumeOtp(eq(10L), eq("000000"), any(), eq(MAX));
 
             assertThatThrownBy(() -> otpService.verify(user, OtpPurpose.PHONE_VERIFY, "000000"))
                     .isInstanceOf(OtpException.class)

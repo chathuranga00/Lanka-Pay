@@ -1,21 +1,10 @@
 package com.lankapay.registry.service;
 
 import com.lankapay.audit.service.AuditService;
-import com.lankapay.bank.domain.BankAccount;
-import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.repository.BankAccountRepository;
-import com.lankapay.bank.repository.BankInstitutionRepository;
 import com.lankapay.common.exception.RateLimitException;
 import com.lankapay.common.exception.ValidationException;
-import com.lankapay.registry.domain.LookupAbuseCounter;
-import com.lankapay.registry.domain.LookupResultType;
-import com.lankapay.registry.domain.Registry;
-import com.lankapay.registry.repository.LookupAbuseCounterRepository;
-import com.lankapay.registry.repository.RegistryRepository;
+import com.lankapay.registry.domain.*;
 import com.lankapay.registry.web.LookupResponse;
-import com.lankapay.identity.domain.User;
-import com.lankapay.identity.domain.UserRole;
-import com.lankapay.identity.domain.UserStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,8 +14,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -41,12 +32,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class LookupServiceTest {
 
-    @Mock RegistryRepository           registryRepository;
-    @Mock BankAccountRepository        bankAccountRepository;
-    @Mock BankInstitutionRepository    institutionRepository;
-    @Mock LookupAbuseCounterRepository abuseCounterRepository;
-    @Mock LookupRateLimiter            rateLimiter;
-    @Mock AuditService                 auditService;
+    @Mock PhoneIdentityStore phoneIdentityStore;
+    @Mock LookupRateLimiter  rateLimiter;
+    @Mock AuditService       auditService;
 
     LookupService service;
 
@@ -57,52 +45,29 @@ class LookupServiceTest {
     @BeforeEach
     void setUp() {
         service = new LookupService(
-                registryRepository, bankAccountRepository, institutionRepository,
-                abuseCounterRepository, rateLimiter, auditService, 50);
+                phoneIdentityStore, rateLimiter, auditService, 50);
     }
 
     // ── Helpers ────────────────────────────────────────────────
 
-    User user(Long id, String fullName) {
-        User u = new User(PHONE, fullName, "199012345678", "hash");
-        ReflectionTestUtils.setField(u, "id", id);
-        u.setStatus(UserStatus.ACTIVE);
-        u.setRole(UserRole.CUSTOMER);
-        return u;
+    PhoneIdentity identity(Long id, Long userId, String fullName, boolean discoverable) {
+        return new PhoneIdentity(id, userId, PHONE, discoverable, fullName, Instant.now());
     }
 
-    Registry registry(User owner, boolean discoverable) {
-        Registry r = new Registry(owner, owner.getPhone());
-        ReflectionTestUtils.setField(r, "id", 10L);
-        r.setDiscoverable(discoverable);
-        return r;
-    }
-
-    BankAccount bankAccount(Long id, Long userId, boolean receivingEnabled,
-                            boolean discoverable, boolean isDefault) {
-        User owner = user(userId, "Kamal Perera");
-        BankAccount a = new BankAccount(owner, "SIMULATED_BANK_A",
-                "hash", "****1001", "Kamal Perera", "enc");
-        ReflectionTestUtils.setField(a, "id", id);
-        a.setStatus(BankAccountStatus.ACTIVE);
-        a.setReceivingEnabled(receivingEnabled);
-        a.setDiscoverable(discoverable);
-        a.setDefault(isDefault);
-        return a;
-    }
-
-    LookupAbuseCounter freshCounter() {
-        LookupAbuseCounter c = new LookupAbuseCounter(ACTOR,
-                java.time.LocalDate.now(java.time.ZoneOffset.UTC));
-        ReflectionTestUtils.setField(c, "id", 1L);
-        return c;
+    RegistryAccountRecord account(Long accountId, String bankCode, String bankName,
+                                  String maskedNumber, boolean discoverable,
+                                  boolean receivingEnabled, boolean isDefault) {
+        return new RegistryAccountRecord(
+                accountId, bankCode, bankName, maskedNumber,
+                discoverable, receivingEnabled, isDefault, "ACTIVE"
+        );
     }
 
     void stubAbuseCounter() {
-        LookupAbuseCounter counter = freshCounter();
-        when(abuseCounterRepository.findByActorIdAndCounterDate(eq(ACTOR), any()))
+        AbuseCounterRecord counter = new AbuseCounterRecord(ACTOR, LocalDate.now(ZoneOffset.UTC));
+        when(phoneIdentityStore.findAbuseCounter(eq(ACTOR), any()))
                 .thenReturn(Optional.of(counter));
-        when(abuseCounterRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(phoneIdentityStore.saveAbuseCounter(any())).thenAnswer(i -> i.getArgument(0));
     }
 
     // ── FOUND ──────────────────────────────────────────────────
@@ -113,16 +78,12 @@ class LookupServiceTest {
         @Test
         @DisplayName("returns FOUND with masked accounts and abbreviated display name")
         void success() {
-            User payee = user(2L, "Kamal Perera");
-            Registry reg = registry(payee, true);
-            BankAccount acct = bankAccount(5L, 2L, true, true, true);
+            PhoneIdentity id = identity(10L, 2L, "Kamal Perera", true);
+            RegistryAccountRecord acct = account(5L, "SIMULATED_BANK_A", "Bank A", "****1001", true, true, true);
 
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.of(reg));
-            when(bankAccountRepository.findByUserIdAndStatus(2L, BankAccountStatus.ACTIVE))
-                    .thenReturn(List.of(acct));
-            when(institutionRepository.findByBankCodeAndActiveTrue("SIMULATED_BANK_A"))
-                    .thenReturn(Optional.empty());
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.of(id));
+            when(phoneIdentityStore.findAccountsInRegistry(PHONE)).thenReturn(List.of(acct));
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -141,16 +102,13 @@ class LookupServiceTest {
         @Test
         @DisplayName("only discoverable accounts are included in result")
         void onlyDiscoverableAccounts() {
-            User payee = user(2L, "Kamal Perera");
-            Registry reg = registry(payee, true);
-            BankAccount discoverable = bankAccount(5L, 2L, true, true, true);
-            BankAccount hidden       = bankAccount(6L, 2L, true, false, false);
+            PhoneIdentity id = identity(10L, 2L, "Kamal Perera", true);
+            RegistryAccountRecord discoverable = account(5L, "SIMULATED_BANK_A", "Bank A", "****1001", true, true, true);
+            RegistryAccountRecord hidden       = account(6L, "SIMULATED_BANK_B", "Bank B", "****1002", false, true, false);
 
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.of(reg));
-            when(bankAccountRepository.findByUserIdAndStatus(2L, BankAccountStatus.ACTIVE))
-                    .thenReturn(List.of(discoverable, hidden));
-            when(institutionRepository.findByBankCodeAndActiveTrue(any())).thenReturn(Optional.empty());
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.of(id));
+            when(phoneIdentityStore.findAccountsInRegistry(PHONE)).thenReturn(List.of(discoverable, hidden));
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -168,7 +126,7 @@ class LookupServiceTest {
         @DisplayName("returns NOT_FOUND when phone has no registry entry")
         void noRegistryEntry() {
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.empty());
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.empty());
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -180,8 +138,6 @@ class LookupServiceTest {
         @Test
         @DisplayName("invalid phone format → ValidationException from normalizer")
         void invalidPhoneFormat() {
-            // rate limiter is called first — let it pass
-            // the normalizer then throws ValidationException
             assertThatThrownBy(() -> service.lookup("not-a-phone", ACTOR, IP))
                     .isInstanceOf(ValidationException.class)
                     .extracting("errorCode").isEqualTo("INVALID_PHONE_FORMAT");
@@ -196,11 +152,10 @@ class LookupServiceTest {
         @Test
         @DisplayName("returns DISCOVERY_DISABLED when user opted out")
         void discoveryOff() {
-            User payee = user(2L, "Kamal Perera");
-            Registry reg = registry(payee, false); // discoverable = false
+            PhoneIdentity id = identity(10L, 2L, "Kamal Perera", false);
 
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.of(reg));
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.of(id));
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -219,14 +174,12 @@ class LookupServiceTest {
         @Test
         @DisplayName("returns NO_ELIGIBLE_ACCOUNT when all accounts have receivingEnabled=false")
         void allReceivingDisabled() {
-            User payee = user(2L, "Nimali Silva");
-            Registry reg = registry(payee, true);
-            BankAccount blocked = bankAccount(5L, 2L, false, true, true);
+            PhoneIdentity id = identity(10L, 2L, "Nimali Silva", true);
+            RegistryAccountRecord blocked = account(5L, "SIMULATED_BANK_A", "Bank A", "****1001", true, false, true);
 
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.of(reg));
-            when(bankAccountRepository.findByUserIdAndStatus(2L, BankAccountStatus.ACTIVE))
-                    .thenReturn(List.of(blocked));
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.of(id));
+            when(phoneIdentityStore.findAccountsInRegistry(PHONE)).thenReturn(List.of(blocked));
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -236,13 +189,11 @@ class LookupServiceTest {
         @Test
         @DisplayName("returns NO_ELIGIBLE_ACCOUNT when account list is empty")
         void noAccounts() {
-            User payee = user(2L, "Nimali Silva");
-            Registry reg = registry(payee, true);
+            PhoneIdentity id = identity(10L, 2L, "Nimali Silva", true);
 
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.of(reg));
-            when(bankAccountRepository.findByUserIdAndStatus(2L, BankAccountStatus.ACTIVE))
-                    .thenReturn(List.of());
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.of(id));
+            when(phoneIdentityStore.findAccountsInRegistry(PHONE)).thenReturn(List.of());
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -258,15 +209,13 @@ class LookupServiceTest {
         @Test
         @DisplayName("returns PRIVACY_RESTRICTED when all accounts have account-level discoverable=false")
         void allAccountsHidden() {
-            User payee = user(2L, "Saman Fernando");
-            Registry reg = registry(payee, true);
+            PhoneIdentity id = identity(10L, 2L, "Saman Fernando", true);
             // receivingEnabled=true but discoverable=false at account level
-            BankAccount hidden = bankAccount(5L, 2L, true, false, true);
+            RegistryAccountRecord hidden = account(5L, "SIMULATED_BANK_A", "Bank A", "****1001", false, true, true);
 
             stubAbuseCounter();
-            when(registryRepository.findByUserId_Phone(PHONE)).thenReturn(Optional.of(reg));
-            when(bankAccountRepository.findByUserIdAndStatus(2L, BankAccountStatus.ACTIVE))
-                    .thenReturn(List.of(hidden));
+            when(phoneIdentityStore.findByPhone(PHONE)).thenReturn(Optional.of(id));
+            when(phoneIdentityStore.findAccountsInRegistry(PHONE)).thenReturn(List.of(hidden));
 
             LookupResponse resp = service.lookup(PHONE, ACTOR, IP);
 
@@ -291,8 +240,7 @@ class LookupServiceTest {
                     .extracting("errorCode").isEqualTo("RATE_LIMITED");
 
             // No DB queries should have been made
-            verifyNoInteractions(registryRepository);
-            verifyNoInteractions(bankAccountRepository);
+            verifyNoInteractions(phoneIdentityStore);
         }
     }
 

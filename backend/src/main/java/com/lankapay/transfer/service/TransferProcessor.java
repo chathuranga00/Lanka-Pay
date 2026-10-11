@@ -8,12 +8,11 @@ import com.lankapay.bank.adapter.TransferEligibilityRequest;
 import com.lankapay.bank.adapter.TransferRequest;
 import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.common.exception.UnprocessableEntityException;
+import com.lankapay.notification.service.NotificationService;
 import com.lankapay.transfer.domain.TransactionEvent;
 import com.lankapay.transfer.domain.TransactionStatus;
+import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.domain.Transfer;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
-import com.lankapay.notification.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,40 +24,29 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * Rules:
  * - Pre-flight eligibility check performed before calling initiateTransfer.
- * - Concurrency safety ensured via @Version optimistic locking on Transfer.
+ * - Concurrency safety ensured via optimistic locking on Transfer.
  * - Timeout moves transfer to REQUIRES_RECONCILIATION, NEVER to FAILED.
  * - Receipts and responses must NEVER say SUCCESS until BankAdapter confirms.
- * - All state transitions write an append-only TransactionEvent.
+ * - All state transitions write an append-only TransactionEvent in Firestore.
  */
 @Service
 public class TransferProcessor {
 
     private static final Logger log = LoggerFactory.getLogger(TransferProcessor.class);
 
-    private final TransferRepository transferRepository;
-    private final TransactionEventRepository transactionEventRepository;
+    private final TransactionStore transactionStore;
     private final BankAdapterRegistry bankAdapterRegistry;
     private final DailyLimitService dailyLimitService;
     private final AuditService auditService;
     private final NotificationService notificationService;
 
-    public TransferProcessor(TransferRepository transferRepository,
-                             TransactionEventRepository transactionEventRepository,
-                             BankAdapterRegistry bankAdapterRegistry,
-                             DailyLimitService dailyLimitService,
-                             AuditService auditService) {
-        this(transferRepository, transactionEventRepository, bankAdapterRegistry, dailyLimitService, auditService, null);
-    }
-
     @Autowired
-    public TransferProcessor(TransferRepository transferRepository,
-                             TransactionEventRepository transactionEventRepository,
+    public TransferProcessor(TransactionStore transactionStore,
                              BankAdapterRegistry bankAdapterRegistry,
                              DailyLimitService dailyLimitService,
                              AuditService auditService,
                              @Autowired(required = false) NotificationService notificationService) {
-        this.transferRepository = transferRepository;
-        this.transactionEventRepository = transactionEventRepository;
+        this.transactionStore = transactionStore;
         this.bankAdapterRegistry = bankAdapterRegistry;
         this.dailyLimitService = dailyLimitService;
         this.auditService = auditService;
@@ -93,12 +81,7 @@ public class TransferProcessor {
             transfer.setReceiverBankCode(receiverAccount.getBankCode());
         }
 
-        // 1. Initial PENDING audit event
-        TransactionEvent pendingEvent = new TransactionEvent(
-                transfer, null, TransactionStatus.PENDING, "INITIATED", null);
-        transactionEventRepository.save(pendingEvent);
-
-        // 2. Pre-flight checks with BankAdapter
+        // 1. Pre-flight checks with BankAdapter
         BankAdapter adapter = bankAdapterRegistry.get(senderAccount.getBankCode());
 
         TransferEligibilityRequest eligRequest = new TransferEligibilityRequest(
@@ -115,8 +98,7 @@ public class TransferProcessor {
                     transfer.getReference(), eligResp.errorCode(), eligResp.errorMessage());
             TransactionEvent failEvent = transfer.fail(
                     eligResp.errorMessage() != null ? eligResp.errorMessage() : "Transfer eligibility check failed");
-            transferRepository.save(transfer);
-            transactionEventRepository.save(failEvent);
+            persistTransition(transfer, failEvent);
 
             auditService.log(transfer.getSender().getId(), "TRANSFER_ELIGIBILITY_FAILED",
                     "TRANSFER", transfer.getId(), "{\"reason\":\"" + eligResp.errorCode() + "\"}", clientIp);
@@ -127,12 +109,11 @@ public class TransferProcessor {
             );
         }
 
-        // 3. Move to PROCESSING
+        // 2. Move to PROCESSING
         TransactionEvent procEvent = transfer.startProcessing("SENT_TO_BANK");
-        transferRepository.save(transfer);
-        transactionEventRepository.save(procEvent);
+        persistTransition(transfer, procEvent);
 
-        // 4. Call BankAdapter initiateTransfer
+        // 3. Call BankAdapter initiateTransfer
         TransferRequest txRequest = new TransferRequest(
                 senderAccount.getBankCode(),
                 senderAccount.getMaskedNumber(),
@@ -152,8 +133,7 @@ public class TransferProcessor {
 
             // Invariant: Timeout moves to REQUIRES_RECONCILIATION, NEVER to FAILED!
             TransactionEvent timeoutEvent = transfer.requiresReconciliation("TIMEOUT_EXCEPTION");
-            transfer = transferRepository.save(transfer);
-            transactionEventRepository.save(timeoutEvent);
+            persistTransition(transfer, timeoutEvent);
 
             auditService.log(transfer.getSender().getId(), "TRANSFER_TIMEOUT",
                     "TRANSFER", transfer.getId(), "{\"error\":\"TIMEOUT_EXCEPTION\"}", clientIp);
@@ -161,7 +141,7 @@ public class TransferProcessor {
             return transfer;
         }
 
-        // 5. Evaluate BankAdapter response
+        // 4. Evaluate BankAdapter response
         String status = adapterResp.transferStatus();
         log.info("BankAdapter response for ref={}: success={}, transferStatus={}, providerRef={}",
                 transfer.getReference(), adapterResp.success(), status, adapterResp.providerReference());
@@ -170,8 +150,7 @@ public class TransferProcessor {
             // Success confirmed by adapter
             TransactionEvent completedEvent = transfer.complete(
                     adapterResp.providerReference(), adapterResp.providerReference());
-            transfer = transferRepository.save(transfer);
-            transactionEventRepository.save(completedEvent);
+            persistTransition(transfer, completedEvent);
 
             // Record daily limit spend only on confirmed success
             dailyLimitService.recordSpend(transfer.getSender(), transfer.getAmount());
@@ -193,8 +172,7 @@ public class TransferProcessor {
         } else if ("TIMEOUT".equalsIgnoreCase(status) || "TIMEOUT".equalsIgnoreCase(adapterResp.errorCode())) {
             // Invariant: BankAdapter timeout MUST move to REQUIRES_RECONCILIATION, NEVER to FAILED!
             TransactionEvent reconEvent = transfer.requiresReconciliation(adapterResp.providerReference());
-            transfer = transferRepository.save(transfer);
-            transactionEventRepository.save(reconEvent);
+            persistTransition(transfer, reconEvent);
 
             auditService.log(transfer.getSender().getId(), "TRANSFER_REQUIRES_RECONCILIATION",
                     "TRANSFER", transfer.getId(), "{\"reason\":\"TIMEOUT\"}", clientIp);
@@ -202,8 +180,7 @@ public class TransferProcessor {
         } else if ("PENDING".equalsIgnoreCase(status)) {
             // Delayed confirmation — must be reconciled via status query
             TransactionEvent reconEvent = transfer.requiresReconciliation(adapterResp.providerReference());
-            transfer = transferRepository.save(transfer);
-            transactionEventRepository.save(reconEvent);
+            persistTransition(transfer, reconEvent);
 
             auditService.log(transfer.getSender().getId(), "TRANSFER_PENDING_CONFIRMATION",
                     "TRANSFER", transfer.getId(), "{\"reason\":\"DELAYED_CONFIRMATION\"}", clientIp);
@@ -212,8 +189,7 @@ public class TransferProcessor {
             // Permanent failure confirmed by BankAdapter
             String reason = adapterResp.errorMessage() != null ? adapterResp.errorMessage() : "BANK_REJECTED";
             TransactionEvent failEvent = transfer.fail(reason);
-            transfer = transferRepository.save(transfer);
-            transactionEventRepository.save(failEvent);
+            persistTransition(transfer, failEvent);
 
             auditService.log(transfer.getSender().getId(), "TRANSFER_FAILED",
                     "TRANSFER", transfer.getId(), "{\"reason\":\"" + reason + "\"}", clientIp);
@@ -229,5 +205,23 @@ public class TransferProcessor {
         }
 
         return transfer;
+    }
+
+    private void persistTransition(Transfer transfer, TransactionEvent event) {
+        if (transactionStore != null && transfer.getId() != null) {
+            var updated = transactionStore.transitionTransferStatus(
+                    transfer.getId(),
+                    transfer.getStatus(),
+                    event.getReason(),
+                    event.getDetailJson(),
+                    transfer.getBankTxRef(),
+                    transfer.getProviderReference(),
+                    transfer.getFailureReason(),
+                    transfer.getVersion()
+            );
+            if (updated != null) {
+                transfer.setVersion(updated.version());
+            }
+        }
     }
 }

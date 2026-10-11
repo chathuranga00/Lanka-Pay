@@ -1,17 +1,9 @@
 package com.lankapay.qr.service;
 
 import com.lankapay.common.exception.AuthorizationException;
-import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.ValidationException;
-import com.lankapay.identity.domain.User;
-import com.lankapay.identity.domain.UserRole;
-import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.UserRepository;
-import com.lankapay.qr.domain.PaymentRequest;
-import com.lankapay.qr.domain.PaymentRequestStatus;
-import com.lankapay.qr.domain.QrCode;
-import com.lankapay.qr.repository.PaymentRequestRepository;
-import com.lankapay.qr.repository.QrCodeRepository;
+import com.lankapay.identity.domain.*;
+import com.lankapay.qr.domain.*;
 import com.lankapay.qr.web.dto.CreatePaymentRequestDto;
 import com.lankapay.qr.web.dto.PaymentRequestResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,9 +27,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PaymentRequestServiceTest {
 
-    @Mock PaymentRequestRepository paymentRequestRepository;
-    @Mock QrCodeRepository qrCodeRepository;
-    @Mock UserRepository userRepository;
+    @Mock QrStore qrStore;
+    @Mock UserStore userStore;
 
     PaymentRequestService service;
 
@@ -47,7 +38,7 @@ class PaymentRequestServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PaymentRequestService(paymentRequestRepository, qrCodeRepository, userRepository);
+        service = new PaymentRequestService(qrStore, userStore);
 
         requester = new User("+94771111111", "Requester User", "199011111111", "$2a$12$hash");
         ReflectionTestUtils.setField(requester, "id", 1L);
@@ -68,12 +59,18 @@ class PaymentRequestServiceTest {
     @Test
     @DisplayName("Create payment request: generated with unguessable reference and linked dynamic QR")
     void testCreatePaymentRequest() {
-        when(userRepository.findById(2L)).thenReturn(Optional.of(designatedPayer));
-        when(qrCodeRepository.save(any(QrCode.class))).thenAnswer(i -> i.getArgument(0));
-        when(paymentRequestRepository.save(any(PaymentRequest.class))).thenAnswer(i -> {
-            PaymentRequest pr = i.getArgument(0);
-            ReflectionTestUtils.setField(pr, "id", 501L);
-            return pr;
+        when(userStore.findUserById(2L)).thenReturn(Optional.of(UserAccount.fromUser(designatedPayer)));
+        when(qrStore.saveQr(any(QrCodeRecord.class))).thenAnswer(i -> {
+            QrCodeRecord r = i.getArgument(0);
+            return new QrCodeRecord(10L, r.merchantId(), r.qrId(), r.reference(), r.qrType(),
+                    r.amount(), r.currency(), r.note(), r.status(), r.oneTimeUse(),
+                    r.payload(), r.expiresAt(), r.createdAt());
+        });
+        when(qrStore.savePaymentRequest(any(PaymentRequestRecord.class))).thenAnswer(i -> {
+            PaymentRequestRecord pr = i.getArgument(0);
+            return new PaymentRequestRecord(501L, pr.requesterId(), pr.payerId(), pr.qrCodeId(),
+                    pr.reference(), pr.amount(), pr.currency(), pr.note(), pr.status(),
+                    pr.expiresAt(), pr.fulfilledTransferId(), pr.createdAt());
         });
 
         CreatePaymentRequestDto dto = new CreatePaymentRequestDto(
@@ -94,7 +91,7 @@ class PaymentRequestServiceTest {
     @Test
     @DisplayName("Cannot request payment from oneself")
     void testCannotRequestFromSelf() {
-        when(userRepository.findById(1L)).thenReturn(Optional.of(requester));
+        when(userStore.findUserById(1L)).thenReturn(Optional.of(UserAccount.fromUser(requester)));
 
         CreatePaymentRequestDto dto = new CreatePaymentRequestDto(
                 new BigDecimal("100.00"), "LKR", 1L, null, "Self", 15);
@@ -107,12 +104,11 @@ class PaymentRequestServiceTest {
     @Test
     @DisplayName("Unauthorized access test: third party cannot view private payment request")
     void testUnauthorizedAccessThrowsForbidden() {
-        PaymentRequest pr = new PaymentRequest(
-                requester, designatedPayer, new BigDecimal("1000.00"), "LKR", "Private bill",
-                Instant.now().plus(15, ChronoUnit.MINUTES), null);
-        ReflectionTestUtils.setField(pr, "id", 601L);
+        PaymentRequestRecord pr = new PaymentRequestRecord(
+                601L, 1L, 2L, null, "PREQ-601", new BigDecimal("1000.00"), "LKR", "Private bill",
+                PaymentRequestStatus.PENDING, Instant.now().plus(15, ChronoUnit.MINUTES), null, Instant.now());
 
-        when(paymentRequestRepository.findById(601L)).thenReturn(Optional.of(pr));
+        when(qrStore.findPaymentRequestById(601L)).thenReturn(Optional.of(pr));
 
         // Unauthorized user id 99L is neither requester (1L) nor designated payer (2L)
         assertThatThrownBy(() -> service.getPaymentRequest(601L, 99L))
@@ -123,12 +119,13 @@ class PaymentRequestServiceTest {
     @Test
     @DisplayName("Authorized access: requester and designated payer can both access")
     void testAuthorizedAccess() {
-        PaymentRequest pr = new PaymentRequest(
-                requester, designatedPayer, new BigDecimal("1000.00"), "LKR", "Private bill",
-                Instant.now().plus(15, ChronoUnit.MINUTES), null);
-        ReflectionTestUtils.setField(pr, "id", 601L);
+        PaymentRequestRecord pr = new PaymentRequestRecord(
+                601L, 1L, 2L, null, "PREQ-601", new BigDecimal("1000.00"), "LKR", "Private bill",
+                PaymentRequestStatus.PENDING, Instant.now().plus(15, ChronoUnit.MINUTES), null, Instant.now());
 
-        when(paymentRequestRepository.findById(601L)).thenReturn(Optional.of(pr));
+        when(qrStore.findPaymentRequestById(601L)).thenReturn(Optional.of(pr));
+        when(userStore.findUserById(1L)).thenReturn(Optional.of(UserAccount.fromUser(requester)));
+        when(userStore.findUserById(2L)).thenReturn(Optional.of(UserAccount.fromUser(designatedPayer)));
 
         // Requester access
         PaymentRequestResponse reqView = service.getPaymentRequest(601L, 1L);
@@ -143,13 +140,14 @@ class PaymentRequestServiceTest {
     @DisplayName("Expiry test: viewing expired request updates status to EXPIRED")
     void testExpiredPaymentRequest() {
         Instant pastExpiry = Instant.now().minus(5, ChronoUnit.MINUTES);
-        PaymentRequest pr = new PaymentRequest(
-                requester, designatedPayer, new BigDecimal("1000.00"), "LKR", "Expired invoice",
-                pastExpiry, null);
-        ReflectionTestUtils.setField(pr, "id", 701L);
+        PaymentRequestRecord pr = new PaymentRequestRecord(
+                701L, 1L, 2L, null, "PREQ-701", new BigDecimal("1000.00"), "LKR", "Expired invoice",
+                PaymentRequestStatus.PENDING, pastExpiry, null, Instant.now());
 
-        when(paymentRequestRepository.findById(701L)).thenReturn(Optional.of(pr));
-        when(paymentRequestRepository.save(any(PaymentRequest.class))).thenAnswer(i -> i.getArgument(0));
+        when(qrStore.findPaymentRequestById(701L)).thenReturn(Optional.of(pr));
+        when(qrStore.savePaymentRequest(any(PaymentRequestRecord.class))).thenAnswer(i -> i.getArgument(0));
+        when(userStore.findUserById(1L)).thenReturn(Optional.of(UserAccount.fromUser(requester)));
+        when(userStore.findUserById(2L)).thenReturn(Optional.of(UserAccount.fromUser(designatedPayer)));
 
         PaymentRequestResponse response = service.getPaymentRequest(701L, 1L);
         assertThat(response.status()).isEqualTo(PaymentRequestStatus.EXPIRED);

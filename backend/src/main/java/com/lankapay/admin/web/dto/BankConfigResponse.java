@@ -13,6 +13,7 @@ public record BankConfigResponse(
         Instant createdAt
 ) {
     public static BankConfigResponse from(BankInstitution inst) {
+        if (inst == null) return null;
         return new BankConfigResponse(
                 inst.getId(),
                 inst.getBankCode(),
@@ -22,4 +23,17 @@ public record BankConfigResponse(
                 inst.getCreatedAt()
         );
     }
+
+    public static BankConfigResponse from(com.lankapay.bank.domain.BankInstitutionRecord inst) {
+        if (inst == null) return null;
+        return new BankConfigResponse(
+                inst.id(),
+                inst.bankCode(),
+                inst.displayName(),
+                inst.simulated(),
+                inst.active(),
+                inst.createdAt()
+        );
+    }
 }
+

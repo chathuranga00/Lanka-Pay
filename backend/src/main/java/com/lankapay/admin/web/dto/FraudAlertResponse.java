@@ -24,6 +24,25 @@ public record FraudAlertResponse(
         Long resolvedBy,
         String resolutionNotes
 ) {
+    public static FraudAlertResponse from(com.lankapay.admin.domain.FraudAlertRecord alert) {
+        return new FraudAlertResponse(
+                alert.id(),
+                alert.userId(),
+                PhoneNumberNormalizer.mask(alert.userPhone()),
+                alert.transferId(),
+                alert.transferReference(),
+                alert.alertType(),
+                alert.severity(),
+                alert.status(),
+                alert.description(),
+                alert.metadataJson(),
+                alert.createdAt(),
+                alert.resolvedAt(),
+                alert.resolvedBy(),
+                alert.resolutionNotes()
+        );
+    }
+
     public static FraudAlertResponse from(FraudAlert alert) {
         return new FraudAlertResponse(
                 alert.getId(),

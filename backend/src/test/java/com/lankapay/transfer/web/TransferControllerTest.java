@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lankapay.common.exception.ConflictException;
 import com.lankapay.common.web.GlobalExceptionHandler;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
 import com.lankapay.identity.domain.UserRole;
 import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.domain.TransferInitiatedVia;
@@ -51,7 +52,7 @@ class TransferControllerTest {
     @Mock TransferService transferService;
     @Mock ReconciliationService reconciliationService;
     @Mock ReversalService reversalService;
-    @Mock UserRepository userRepository;
+    @Mock UserStore userStore;
 
     MockMvc mockMvc;
     ObjectMapper objectMapper;
@@ -70,7 +71,7 @@ class TransferControllerTest {
         ReflectionTestUtils.setField(sender, "role", UserRole.CUSTOMER);
 
         TransferController controller = new TransferController(
-                transferService, reconciliationService, reversalService, userRepository);
+                transferService, reconciliationService, reversalService, userStore);
 
         HandlerMethodArgumentResolver authPrincipalResolver = new HandlerMethodArgumentResolver() {
             @Override
@@ -96,7 +97,7 @@ class TransferControllerTest {
     @Test
     @DisplayName("POST /transfers/quote returns quote with fee and total")
     void testGetQuote() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(sender));
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(UserAccount.fromUser(sender)));
 
         QuoteResponse quoteResponse = new QuoteResponse(
                 "QUO-1234", 2L, "Kamal P.", "+9477***4567",
@@ -120,7 +121,7 @@ class TransferControllerTest {
     @Test
     @DisplayName("POST /transfers with Idempotency-Key and step-up auth succeeds")
     void testInitiateTransferSuccess() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(sender));
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(UserAccount.fromUser(sender)));
 
         TransferResponse response = new TransferResponse(
                 100L, "uuid-ref-1", TransactionStatus.COMPLETED,
@@ -160,7 +161,7 @@ class TransferControllerTest {
     @Test
     @DisplayName("POST /transfers with duplicate idempotency key and conflicting payload returns 409 Conflict")
     void testIdempotencyConflictReturns409() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(sender));
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(UserAccount.fromUser(sender)));
 
         when(transferService.initiateTransfer(anyString(), any(), any(InitiateTransferRequest.class), any(User.class), anyString()))
                 .thenThrow(new ConflictException("IDEMPOTENCY_CONFLICT", "Key reused with different payload"));

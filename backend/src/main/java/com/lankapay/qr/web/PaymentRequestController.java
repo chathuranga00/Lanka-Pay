@@ -1,17 +1,13 @@
 package com.lankapay.qr.web;
 
 import com.lankapay.common.exception.ResourceNotFoundException;
-import com.lankapay.common.web.ErrorResponse;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserAccount;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.qr.service.PaymentRequestService;
 import com.lankapay.qr.web.dto.CreatePaymentRequestDto;
 import com.lankapay.qr.web.dto.PaymentRequestResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.media.Content;
-import io.swagger.v3.oas.annotations.media.Schema;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,46 +23,30 @@ import org.springframework.web.bind.annotation.*;
 public class PaymentRequestController {
 
     private final PaymentRequestService paymentRequestService;
-    private final UserRepository userRepository;
+    private final UserStore userStore;
 
     public PaymentRequestController(PaymentRequestService paymentRequestService,
-                                    UserRepository userRepository) {
+                                    UserStore userStore) {
         this.paymentRequestService = paymentRequestService;
-        this.userRepository = userRepository;
+        this.userStore = userStore;
     }
 
     // ── POST /payment-requests ─────────────────────────────────
 
-    @Operation(summary = "Create a payment request",
-               description = "Creates a payment request with an opaque reference and linked dynamic QR code.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Payment request created"),
-        @ApiResponse(responseCode = "400", description = "Validation error",
-                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "404", description = "Target payer not found",
-                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
+    @Operation(summary = "Create a payment request")
     @PostMapping
     public ResponseEntity<PaymentRequestResponse> createPaymentRequest(
-            @Valid @RequestBody CreatePaymentRequestDto request,
+            @Valid @RequestBody CreatePaymentRequestDto dto,
             @AuthenticationPrincipal Long userId) {
 
         User user = getUser(userId);
-        PaymentRequestResponse response = paymentRequestService.createPaymentRequest(request, user);
+        PaymentRequestResponse response = paymentRequestService.createPaymentRequest(dto, user);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     // ── GET /payment-requests/{id} ─────────────────────────────
 
-    @Operation(summary = "Get payment request details",
-               description = "Object-level security: only the requester or designated payer can view the request.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Payment request details"),
-        @ApiResponse(responseCode = "403", description = "Forbidden (not party to this request)",
-                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
-        @ApiResponse(responseCode = "404", description = "Payment request not found",
-                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    })
+    @Operation(summary = "Get payment request details by ID")
     @GetMapping("/{id}")
     public ResponseEntity<PaymentRequestResponse> getPaymentRequest(
             @PathVariable Long id,
@@ -77,7 +57,12 @@ public class PaymentRequestController {
     }
 
     private User getUser(Long userId) {
-        return userRepository.findById(userId)
+        UserAccount acc = userStore.findUserById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND", "User not found with id: " + userId));
+        User u = new User(acc.phone(), acc.fullName(), acc.nicNumber(), acc.passwordHash());
+        u.setId(acc.id());
+        u.setRole(acc.role());
+        u.setStatus(acc.status());
+        return u;
     }
 }

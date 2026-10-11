@@ -22,35 +22,48 @@ Methodology: STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, D
 | T-10 | **PII Leakage in Logs** | Information Disclosure | Full phone numbers, NICs, or account numbers written to application logs and exposed | Medium | High | Log sanitisation rule in `lankapay.mdc`; never log `phone`, `nic`, `accountNumber`; only log masked versions (`+9477***4567`); tested with a log-scrubbing linter in CI |
 | T-11 | **Simulated Bank Treated as Real** | Tampering / Repudiation | Prototype deployed as if payments are real; users believe real money moved | Low | Critical | All simulated responses include `"simulated": true`; UI displays "SIMULATED" banner permanently; `BANK_ADAPTER_MODE=SIMULATED` env var must be explicitly overridden; README and in-app notice |
 | T-12 | **Denial of Service on Transfer Endpoint** | Denial of Service | Attacker floods `POST /transfers` to exhaust DB connections or daily-limit rows | Medium | Medium | Rate-limit per user (e.g. 20 transfers/min); enforce daily cap in `trf_daily_limits`; connection pool limits in Spring; circuit breaker on BankAdapter calls |
+| T-13 | **Firestore Rules Misconfiguration / Direct Client Access** | Information Disclosure / Tampering / Elevation of Privilege | Client directly accesses Firestore collections (`users`, `linkedBankAccounts`, `transactions`, `idempotencyKeys`, `otpChallenges`, `auditLogs`) using client SDK, bypassing Spring Boot security filters and authorization | Low | Critical | Complete client lockdown in `firestore.rules`: `match /{document=**} { allow read, write: if false; }`. All database operations execute exclusively via Firebase Admin SDK in trusted backend. Verified with `@firebase/rules-unit-testing` regression suite (72 automated tests). |
+| T-14 | **Leaked Service Account Key / Elevated Credentials** | Elevation of Privilege / Information Disclosure | GCP service account private key is accidentally committed to version control, granting unauthorized full-admin read/write access to Firestore | Low | Critical | Zero keys committed in git history (verified via git log audit); `.gitignore` blocks all `*.key`, `*.pem`, `*.json`, `*.p12`, `secrets/`; `.env.example` uses empty placeholders; production enforces GCP Workload Identity / IAM metadata (no static keys); continuous Gitleaks secret scanner in CI. |
+| T-15 | **Hot-Document Contention & Write Rate Limiting** | Denial of Service | High-volume concurrent writes targeting the same document (e.g., sequential counter, daily limit, or idempotency lock) exceed Firestore's 1 write/sec per document limit, triggering `ABORTED` transaction contention storms | Medium | High | Sharded/distributed ID generation (timestamp-based + UUID) eliminates sequential counter bottlenecks; daily limits partitioned per user per day (`dailyLimits/{userId}_{yyyy-MM-dd}`); in-flight idempotency request coordination in `TransferService` prevents duplicate concurrent execution; exponential backoff in `FirestoreTransactionHelper`. |
 
 ---
 
 ## Trust Boundaries
 
 ```
-[ Flutter Client ] ──HTTPS──► [ Spring Security Filter ]
-                                         │
-                         ┌───────────────┼──────────────────┐
-                         │               │                  │
-                   [ USER role ]   [ ADMIN role ]   [ System / Scheduled Jobs ]
-                         │               │
-                    Object-level    ROLE_ADMIN check
-                    authZ check     + audit log
-                         │
-                    [ BankAdapter ] ── SIMULATED boundary ──► [ Simulated Bank Stub ]
+[ Flutter Client / Web Browser ] ──HTTPS──► [ Spring Security Filter ]
+               │                                      │
+               │                      ┌───────────────┼──────────────────┐
+               │                      │               │                  │
+               │                [ USER role ]   [ ADMIN role ]   [ System / Scheduled Jobs ]
+               │                      │               │
+               │                 Object-level    ROLE_ADMIN check
+               │                 authZ check     + audit log
+               │                      │
+               │                 [ BankAdapter ] ── SIMULATED boundary ──► [ Simulated Bank Stub ]
+               │                      │
+               │                 [ Firebase Admin SDK ]
+               │                      │ (Elevated IAM)
+               │                      ▼
+               │         [ Google Cloud Firestore ]
+               │                      ▲
+               └────── Direct Client ─┘
+                   Access DENIED
+                 (firestore.rules)
 ```
 
 Key boundaries:
-1. **Client → API**: HTTPS + JWT; all input validated.
-2. **USER → other users' data**: object-level checks on every resource.
-3. **USER → ADMIN endpoints**: role check (`ROLE_ADMIN`).
-4. **Application → BankAdapter**: `BankAdapter` interface; simulated stubs are the only implementation in this prototype.
-5. **Application → Audit log**: append-only; no application code issues DELETE on `aud_audit_log`.
+1. **Client → API**: HTTPS + JWT; all input validated and sanitized.
+2. **Client → Firestore Direct Boundary**: Completely severed by `firestore.rules` (`match /{document=**} { allow read, write: if false; }`). Mobile and web clients cannot query or modify Firestore directly; all persistence is mediated by the trusted backend.
+3. **USER → other users' data**: Object-level authorization checks on every resource query.
+4. **USER → ADMIN endpoints**: Strict role check (`ROLE_ADMIN`) with administrative action audit logging.
+5. **Application → BankAdapter**: `BankAdapter` interface; simulated stubs are strictly isolated and marked with `simulated: true`.
+6. **Application → Audit log**: Append-only; no application code issues DELETE on `auditLogs`.
 
 ---
 
 ## Assumptions & Out of Scope
 
-- TLS certificate management and network-level DDoS protection are out of scope for this prototype.
+- TLS certificate management and network-level DDoS protection are handled by cloud edge / reverse proxy infrastructure.
 - Device-level security (jailbreak detection, certificate pinning) is noted but not implemented in the university build.
 - The simulated bank stubs do not model real bank fraud controls.

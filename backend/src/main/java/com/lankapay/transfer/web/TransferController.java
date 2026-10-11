@@ -3,7 +3,7 @@ package com.lankapay.transfer.web;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.web.ErrorResponse;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.service.ReconciliationService;
@@ -37,16 +37,16 @@ public class TransferController {
     private final TransferService transferService;
     private final ReconciliationService reconciliationService;
     private final ReversalService reversalService;
-    private final UserRepository userRepository;
+    private final UserStore userStore;
 
     public TransferController(TransferService transferService,
                               ReconciliationService reconciliationService,
                               ReversalService reversalService,
-                              UserRepository userRepository) {
+                              UserStore userStore) {
         this.transferService = transferService;
         this.reconciliationService = reconciliationService;
         this.reversalService = reversalService;
-        this.userRepository = userRepository;
+        this.userStore = userStore;
     }
 
     // ── POST /transfers/quote ──────────────────────────────────
@@ -217,7 +217,8 @@ public class TransferController {
     // ── Helpers ────────────────────────────────────────────────
 
     private User getUser(Long userId) {
-        return userRepository.findById(userId)
+        return userStore.findUserById(userId)
+                .map(com.lankapay.identity.domain.UserAccount::toUser)
                 .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND", "User not found with id: " + userId));
     }
 

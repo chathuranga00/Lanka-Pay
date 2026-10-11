@@ -6,11 +6,11 @@ import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.identity.domain.User;
 import com.lankapay.identity.domain.UserRole;
 import com.lankapay.identity.domain.UserStatus;
+import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.domain.TransferInitiatedVia;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
+import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.service.DailyLimitService;
 import com.lankapay.transfer.service.TransferProcessor;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,8 +32,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class NotificationDeliveryFailureTest {
 
-    @Mock TransferRepository transferRepository;
-    @Mock TransactionEventRepository transactionEventRepository;
+    @Mock TransactionStore transactionStore;
     @Mock BankAdapterRegistry bankAdapterRegistry;
     @Mock DailyLimitService dailyLimitService;
     @Mock AuditService auditService;
@@ -48,8 +48,7 @@ class NotificationDeliveryFailureTest {
     @BeforeEach
     void setUp() {
         transferProcessor = new TransferProcessor(
-                transferRepository,
-                transactionEventRepository,
+                transactionStore,
                 bankAdapterRegistry,
                 dailyLimitService,
                 auditService,
@@ -91,7 +90,15 @@ class NotificationDeliveryFailureTest {
         );
         ReflectionTestUtils.setField(transfer, "id", 101L);
 
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(i -> i.getArgument(0));
+        lenient().when(transactionStore.saveTransfer(any(TransactionRecord.class))).thenAnswer(i -> i.getArgument(0));
+        when(transactionStore.transitionTransferStatus(anyLong(), any(), any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> new TransactionRecord(
+                        inv.getArgument(0), "ref", "idem", 1L, "+94771234567", "Sender",
+                        2L, "+94777654321", "Receiver", "BOC", "COMB",
+                        new BigDecimal("5000.00"), "LKR", inv.getArgument(1),
+                        null, inv.getArgument(4), inv.getArgument(5), null, true,
+                        TransferInitiatedVia.APP, null, 2L, Instant.now(), Instant.now()
+                ));
 
         // BankAdapter pre-flight eligibility check succeeds
         when(bankAdapter.checkTransferEligibility(any(TransferEligibilityRequest.class)))

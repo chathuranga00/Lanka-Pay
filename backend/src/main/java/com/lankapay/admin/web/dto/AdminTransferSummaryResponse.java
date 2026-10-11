@@ -27,6 +27,7 @@ public record AdminTransferSummaryResponse(
         Instant createdAt
 ) {
     public static AdminTransferSummaryResponse from(Transfer transfer) {
+        if (transfer == null) return null;
         return new AdminTransferSummaryResponse(
                 transfer.getId(),
                 transfer.getReference(),
@@ -47,4 +48,28 @@ public record AdminTransferSummaryResponse(
                 transfer.getCreatedAt()
         );
     }
+
+    public static AdminTransferSummaryResponse from(com.lankapay.transfer.domain.TransactionRecord tx) {
+        if (tx == null) return null;
+        return new AdminTransferSummaryResponse(
+                tx.id(),
+                tx.reference(),
+                tx.senderId(),
+                tx.senderFullName(),
+                PhoneNumberNormalizer.mask(tx.senderPhone()),
+                tx.receiverId(),
+                tx.receiverFullName(),
+                PhoneNumberNormalizer.mask(tx.receiverPhone()),
+                tx.amount(),
+                tx.currency(),
+                tx.status(),
+                tx.senderBankCode(),
+                tx.receiverBankCode(),
+                tx.bankTxRef(),
+                tx.providerReference(),
+                tx.simulated(),
+                tx.createdAt()
+        );
+    }
 }
+

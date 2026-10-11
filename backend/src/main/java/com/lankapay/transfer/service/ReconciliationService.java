@@ -5,19 +5,20 @@ import com.lankapay.bank.adapter.AdapterResponse;
 import com.lankapay.bank.adapter.BankAdapter;
 import com.lankapay.bank.adapter.BankAdapterRegistry;
 import com.lankapay.bank.adapter.TransferStatusRequest;
-import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.repository.BankAccountRepository;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ResourceNotFoundException;
+import com.lankapay.identity.domain.User;
 import com.lankapay.transfer.domain.TransactionEvent;
+import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
+import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.domain.Transfer;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
 import com.lankapay.transfer.web.dto.ReconcileResultResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,22 +39,20 @@ public class ReconciliationService {
 
     private static final Logger log = LoggerFactory.getLogger(ReconciliationService.class);
 
-    private final TransferRepository transferRepository;
-    private final TransactionEventRepository transactionEventRepository;
-    private final BankAccountRepository bankAccountRepository;
+    private final TransactionStore transactionStore;
+    private final LinkedAccountStore linkedAccountStore;
     private final BankAdapterRegistry bankAdapterRegistry;
     private final DailyLimitService dailyLimitService;
     private final AuditService auditService;
 
-    public ReconciliationService(TransferRepository transferRepository,
-                                 TransactionEventRepository transactionEventRepository,
-                                 BankAccountRepository bankAccountRepository,
+    @Autowired
+    public ReconciliationService(TransactionStore transactionStore,
+                                 @Autowired(required = false) LinkedAccountStore linkedAccountStore,
                                  BankAdapterRegistry bankAdapterRegistry,
                                  DailyLimitService dailyLimitService,
                                  AuditService auditService) {
-        this.transferRepository = transferRepository;
-        this.transactionEventRepository = transactionEventRepository;
-        this.bankAccountRepository = bankAccountRepository;
+        this.transactionStore = transactionStore;
+        this.linkedAccountStore = linkedAccountStore;
         this.bankAdapterRegistry = bankAdapterRegistry;
         this.dailyLimitService = dailyLimitService;
         this.auditService = auditService;
@@ -74,9 +73,21 @@ public class ReconciliationService {
      */
     @Transactional
     public ReconcileResultResponse reconcileTransfer(Long transferId, Long authenticatedUserId) {
-        Transfer transfer = transferRepository.findById(transferId)
+        TransactionRecord r = transactionStore.findTransferById(transferId)
                 .orElseThrow(() -> new ResourceNotFoundException("TRANSFER_NOT_FOUND",
                         "Transfer not found with id: " + transferId));
+        User sender = new User(r.senderPhone(), r.senderFullName(), null, null);
+        sender.setId(r.senderId());
+        User receiver = new User(r.receiverPhone(), r.receiverFullName(), null, null);
+        receiver.setId(r.receiverId());
+        Transfer transfer = new Transfer(r.reference(), sender, receiver, r.amount(), r.currency(), r.initiatedVia());
+        transfer.setId(r.id());
+        transfer.setStatus(r.status());
+        transfer.setBankTxRef(r.bankTxRef());
+        transfer.setProviderReference(r.providerReference());
+        transfer.setVersion(r.version());
+        transfer.setSenderBankCode(r.senderBankCode());
+        transfer.setReceiverBankCode(r.receiverBankCode());
 
         if (authenticatedUserId != null) {
             boolean isSender = transfer.getSender() != null && transfer.getSender().getId().equals(authenticatedUserId);
@@ -101,24 +112,31 @@ public class ReconciliationService {
             );
         }
 
-        // Resolve bank institution code from sender's default account
-        BankAccount senderAccount = bankAccountRepository
-                .findByUserIdAndIsDefaultTrueAndStatus(transfer.getSender().getId(), BankAccountStatus.ACTIVE)
-                .orElseGet(() -> bankAccountRepository
-                        .findByUserIdAndStatus(transfer.getSender().getId(), BankAccountStatus.ACTIVE)
-                        .stream().findFirst()
-                        .orElseThrow(() -> new IllegalStateException("No active bank account for sender id=" + transfer.getSender().getId())));
+        // Resolve bank institution code from sender's default account or transfer record
+        String bankCode = transfer.getSenderBankCode();
+        if ((bankCode == null || bankCode.isBlank()) && linkedAccountStore != null && transfer.getSender() != null) {
+            Long senderId = transfer.getSender().getId();
+            var senderAccount = linkedAccountStore.findActiveDefaultAccount(senderId)
+                    .orElseGet(() -> linkedAccountStore.findAccountsByUserIdAndStatus(senderId, BankAccountStatus.ACTIVE)
+                            .stream().findFirst().orElse(null));
+            if (senderAccount != null) {
+                bankCode = senderAccount.bankCode();
+            }
+        }
+        if (bankCode == null || bankCode.isBlank()) {
+            bankCode = "SIMULATED_BANK_A";
+        }
 
-        BankAdapter adapter = bankAdapterRegistry.get(senderAccount.getBankCode());
+        BankAdapter adapter = bankAdapterRegistry.get(bankCode);
 
         TransferStatusRequest queryRequest = new TransferStatusRequest(
-                senderAccount.getBankCode(),
+                bankCode,
                 transfer.getProviderReference(),
                 transfer.getReference()
         );
 
         log.info("Reconciling transfer id={}, ref={} with adapter {}",
-                transfer.getId(), transfer.getReference(), senderAccount.getBankCode());
+                transfer.getId(), transfer.getReference(), bankCode);
 
         AdapterResponse resp = adapter.queryTransferStatus(queryRequest);
 
@@ -130,8 +148,7 @@ public class ReconciliationService {
         if (resp.success() && "COMPLETED".equalsIgnoreCase(statusStr)) {
             // Reconciled to COMPLETED
             TransactionEvent event = transfer.complete(resp.providerReference(), resp.providerReference());
-            transferRepository.save(transfer);
-            transactionEventRepository.save(event);
+            persistReconciliation(transfer, event);
 
             dailyLimitService.recordSpend(transfer.getSender(), transfer.getAmount());
 
@@ -151,11 +168,10 @@ public class ReconciliationService {
             // Reconciled to REVERSED
             if (transfer.getStatus() == TransactionStatus.COMPLETED) {
                 TransactionEvent pendingRev = transfer.requestReversal("REVERSAL_REPORTED_BY_BANK");
-                transactionEventRepository.save(pendingRev);
+                persistReconciliation(transfer, pendingRev);
             }
             TransactionEvent revEvent = transfer.reversed(resp.providerReference());
-            transferRepository.save(transfer);
-            transactionEventRepository.save(revEvent);
+            persistReconciliation(transfer, revEvent);
 
             auditService.log(null, "TRANSFER_RECONCILED_REVERSED", "TRANSFER",
                     transfer.getId(), "{\"providerRef\":\"" + resp.providerReference() + "\"}", "SYSTEM");
@@ -173,8 +189,7 @@ public class ReconciliationService {
             // Reconciled to FAILED
             String reason = resp.errorMessage() != null ? resp.errorMessage() : "FAILED_AT_BANK";
             TransactionEvent failEvent = transfer.fail(reason);
-            transferRepository.save(transfer);
-            transactionEventRepository.save(failEvent);
+            persistReconciliation(transfer, failEvent);
 
             auditService.log(null, "TRANSFER_RECONCILED_FAILED", "TRANSFER",
                     transfer.getId(), "{\"reason\":\"" + reason + "\"}", "SYSTEM");
@@ -201,27 +216,45 @@ public class ReconciliationService {
         }
     }
 
+    private void persistReconciliation(Transfer transfer, TransactionEvent event) {
+        if (transfer.getId() != null) {
+            var updated = transactionStore.transitionTransferStatus(
+                    transfer.getId(),
+                    transfer.getStatus(),
+                    event.getReason(),
+                    event.getDetailJson(),
+                    transfer.getBankTxRef(),
+                    transfer.getProviderReference(),
+                    transfer.getFailureReason(),
+                    transfer.getVersion()
+            );
+            if (updated != null) {
+                transfer.setVersion(updated.version());
+            }
+        }
+    }
+
     /**
      * Reconcile all transfers currently requiring reconciliation.
      */
     @Transactional
     public List<ReconcileResultResponse> reconcileAllPending() {
-        List<Transfer> needRecon = transferRepository.findByStatusIn(List.of(
+        List<TransactionRecord> needRecon = transactionStore.findTransfersByStatusIn(List.of(
                 TransactionStatus.REQUIRES_RECONCILIATION,
                 TransactionStatus.PROCESSING
         ));
 
         List<ReconcileResultResponse> results = new ArrayList<>();
-        for (Transfer t : needRecon) {
+        for (TransactionRecord t : needRecon) {
             try {
-                results.add(reconcileTransfer(t.getId()));
+                results.add(reconcileTransfer(t.id()));
             } catch (Exception e) {
-                log.error("Failed to reconcile transfer id={}: {}", t.getId(), e.getMessage(), e);
+                log.error("Failed to reconcile transfer id={}: {}", t.id(), e.getMessage(), e);
                 results.add(new ReconcileResultResponse(
-                        t.getId(),
-                        t.getReference(),
-                        t.getStatus(),
-                        t.getStatus(),
+                        t.id(),
+                        t.reference(),
+                        t.status(),
+                        t.status(),
                         false,
                         "Reconciliation error: " + e.getMessage()
                 ));

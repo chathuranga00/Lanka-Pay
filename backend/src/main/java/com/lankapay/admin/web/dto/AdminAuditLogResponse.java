@@ -1,6 +1,6 @@
 package com.lankapay.admin.web.dto;
 
-import com.lankapay.audit.domain.AuditLog;
+import com.lankapay.audit.domain.AuditRecord;
 
 import java.time.Instant;
 
@@ -14,16 +14,17 @@ public record AdminAuditLogResponse(
         String ipAddress,
         Instant occurredAt
 ) {
-    public static AdminAuditLogResponse from(AuditLog log) {
+    public static AdminAuditLogResponse from(AuditRecord log) {
+        if (log == null) return null;
         return new AdminAuditLogResponse(
-                log.getId(),
-                log.getActorId(),
-                log.getEventType(),
-                log.getEntityType(),
-                log.getEntityId(),
-                log.getDetailJson(),
-                log.getIpAddress(),
-                log.getOccurredAt()
+                log.id(),
+                log.actorId(),
+                log.eventType(),
+                log.entityType(),
+                log.entityId(),
+                log.detailJson(),
+                log.ipAddress(),
+                log.occurredAt()
         );
     }
 }

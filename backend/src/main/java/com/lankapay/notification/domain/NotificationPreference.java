@@ -1,51 +1,31 @@
 package com.lankapay.notification.domain;
 
 import com.lankapay.identity.domain.User;
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
 import java.time.Instant;
 
-@Entity
-@Table(name = "ntf_notification_preferences")
 public class NotificationPreference {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @Column(name = "in_app_enabled", nullable = false)
     private boolean inAppEnabled = true;
 
-    @Column(name = "push_enabled", nullable = false)
     private boolean pushEnabled = true;
 
-    @Column(name = "email_enabled", nullable = false)
     private boolean emailEnabled = true;
 
-    @Column(name = "sms_enabled", nullable = false)
     private boolean smsEnabled = true;
 
-    @Column(name = "payment_alerts", nullable = false)
     private boolean paymentAlerts = true;
 
-    @Column(name = "security_alerts", nullable = false)
     private boolean securityAlerts = true;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    private Instant createdAt = Instant.now();
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    private Instant updatedAt = Instant.now();
 
-    protected NotificationPreference() {}
+    public NotificationPreference() {}
 
     public NotificationPreference(User user) {
         this.user = user;

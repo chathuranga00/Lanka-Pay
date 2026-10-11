@@ -4,26 +4,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.bank.adapter.*;
 import com.lankapay.bank.domain.BankAccount;
-import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.repository.BankAccountRepository;
+import com.lankapay.bank.domain.LinkedAccount;
+import com.lankapay.bank.domain.LinkedAccountStore;
 import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ConflictException;
 import com.lankapay.common.exception.InvalidCredentialsException;
 import com.lankapay.common.exception.UnprocessableEntityException;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
 import com.lankapay.identity.domain.UserRole;
 import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.transfer.domain.*;
-import com.lankapay.transfer.repository.IdempotencyRecordRepository;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
 import com.lankapay.transfer.web.dto.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -42,14 +39,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class TransferServiceTest {
 
-    @Mock TransferRepository transferRepository;
-    @Mock TransactionEventRepository transactionEventRepository;
-    @Mock BankAccountRepository bankAccountRepository;
-    @Mock UserRepository userRepository;
+    @Mock TransactionStore transactionStore;
+    @Mock LinkedAccountStore linkedAccountStore;
+    @Mock UserStore userStore;
     @Mock BankAdapterRegistry bankAdapterRegistry;
     @Mock BankAdapter bankAdapter;
     @Mock DailyLimitService dailyLimitService;
-    @Mock IdempotencyRecordRepository idempotencyRecordRepository;
     @Mock PasswordEncoder passwordEncoder;
     @Mock AuditService auditService;
 
@@ -73,39 +68,38 @@ class TransferServiceTest {
         objectMapper = new ObjectMapper();
         objectMapper.findAndRegisterModules();
 
-        idempotencyService = new IdempotencyService(idempotencyRecordRepository, objectMapper);
+        idempotencyService = new IdempotencyService(transactionStore, objectMapper);
 
         transferProcessor = new TransferProcessor(
-                transferRepository,
-                transactionEventRepository,
+                transactionStore,
                 bankAdapterRegistry,
                 dailyLimitService,
-                auditService
+                auditService,
+                null
         );
 
         reconciliationService = new ReconciliationService(
-                transferRepository,
-                transactionEventRepository,
-                bankAccountRepository,
+                transactionStore,
+                linkedAccountStore,
                 bankAdapterRegistry,
                 dailyLimitService,
                 auditService
         );
 
         reversalService = new ReversalService(
-                transferRepository,
-                transactionEventRepository,
+                transactionStore,
                 auditService
         );
 
         transferService = new TransferService(
-                transferRepository,
-                bankAccountRepository,
-                userRepository,
+                transactionStore,
+                userStore,
+                linkedAccountStore,
                 transferProcessor,
                 dailyLimitService,
                 idempotencyService,
-                passwordEncoder
+                passwordEncoder,
+                null
         );
 
         sender = new User("+94771234567", "Sender User", "199012345678", HASHED_PIN);
@@ -128,20 +122,38 @@ class TransferServiceTest {
     }
 
     private void mockCommonDependencies() {
-        when(userRepository.findById(2L)).thenReturn(Optional.of(payee));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(1L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(senderAccount));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(2L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(payeeAccount));
+        when(userStore.findUserById(2L)).thenReturn(Optional.of(UserAccount.fromUser(payee)));
+        when(linkedAccountStore.findActiveDefaultAccount(1L))
+                .thenReturn(Optional.of(LinkedAccount.fromBankAccount(senderAccount)));
+        when(linkedAccountStore.findActiveDefaultAccount(2L))
+                .thenReturn(Optional.of(LinkedAccount.fromBankAccount(payeeAccount)));
         when(bankAdapterRegistry.get("SIMULATED_BANK_A")).thenReturn(bankAdapter);
         when(passwordEncoder.matches(RAW_PIN, HASHED_PIN)).thenReturn(true);
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> {
-            Transfer t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                ReflectionTestUtils.setField(t, "id", 100L);
-            }
-            return t;
-        });
+
+        when(transactionStore.createTransferWithIdempotency(any(), any(), any()))
+                .thenAnswer(inv -> {
+                    TransactionRecord tr = inv.getArgument(0);
+                    return new TransactionRecord(
+                            100L, tr.reference(), tr.idempotencyKey(), tr.senderId(), tr.senderPhone(),
+                            tr.senderFullName(), tr.receiverId(), tr.receiverPhone(), tr.receiverFullName(),
+                            tr.senderBankCode(), tr.receiverBankCode(), tr.amount(), tr.currency(),
+                            tr.status(), tr.failureReason(), tr.bankTxRef(), tr.providerReference(),
+                            tr.note(), tr.simulated(), tr.initiatedVia(), tr.qrCodeId(),
+                            1L, tr.createdAt(), tr.updatedAt()
+                    );
+                });
+
+        when(transactionStore.transitionTransferStatus(anyLong(), any(), any(), any(), any(), any(), any(), any()))
+                .thenAnswer(inv -> {
+                    Long tid = inv.getArgument(0);
+                    TransactionStatus st = inv.getArgument(1);
+                    return new TransactionRecord(
+                            tid, "ref", "idem", 1L, "+94771234567", "Sender", 2L, "+94777654321", "Payee",
+                            "SIMULATED_BANK_A", "SIMULATED_BANK_B", new BigDecimal("1500.00"), "LKR",
+                            st, null, inv.getArgument(4), inv.getArgument(5), null, true,
+                            TransferInitiatedVia.APP, null, 2L, Instant.now(), Instant.now()
+                    );
+                });
     }
 
     @Test
@@ -166,8 +178,8 @@ class TransferServiceTest {
 
         // Verify daily spend was recorded
         verify(dailyLimitService).recordSpend(sender, new BigDecimal("1500.00"));
-        // Verify events recorded
-        verify(transactionEventRepository, atLeast(2)).save(any(TransactionEvent.class));
+        // Verify transition saved
+        verify(transactionStore, atLeast(2)).transitionTransferStatus(anyLong(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -234,10 +246,10 @@ class TransferServiceTest {
 
         // Mock cached record found in repository for second call
         String payloadHash = idempotencyService.hashPayload(request);
-        IdempotencyRecord cachedRecord = new IdempotencyRecord(
-                "IDEM-KEY-DUP", payloadHash, 100L,
-                objectMapper.writeValueAsString(firstResp), 200);
-        when(idempotencyRecordRepository.findByIdempotencyKey("IDEM-KEY-DUP"))
+        IdempotencyRecordModel cachedRecord = new IdempotencyRecordModel(
+                1L, "IDEM-KEY-DUP", payloadHash, 100L,
+                objectMapper.writeValueAsString(firstResp), 200, Instant.now());
+        when(transactionStore.findIdempotencyRecord("IDEM-KEY-DUP"))
                 .thenReturn(Optional.of(cachedRecord));
 
         // Second call with identical payload
@@ -261,9 +273,9 @@ class TransferServiceTest {
                 2L, null, new BigDecimal("500.00"), "LKR", null, "Coffee", RAW_PIN);
         String hash1 = idempotencyService.hashPayload(request1);
 
-        IdempotencyRecord existingRecord = new IdempotencyRecord(
-                "IDEM-KEY-CONFLICT", hash1, 100L, "{}", 200);
-        when(idempotencyRecordRepository.findByIdempotencyKey("IDEM-KEY-CONFLICT"))
+        IdempotencyRecordModel existingRecord = new IdempotencyRecordModel(
+                1L, "IDEM-KEY-CONFLICT", hash1, 100L, "{}", 200, Instant.now());
+        when(transactionStore.findIdempotencyRecord("IDEM-KEY-CONFLICT"))
                 .thenReturn(Optional.of(existingRecord));
 
         // Attempt second call with different amount
@@ -299,14 +311,14 @@ class TransferServiceTest {
         assertThat(response.status()).isNotEqualTo(TransactionStatus.COMPLETED);
 
         // Now test ReconciliationService resolving it
-        Transfer pendingTransfer = new Transfer(
-                response.reference(), sender, payee,
-                new BigDecimal("20000.00"), "LKR", TransferInitiatedVia.APP);
-        ReflectionTestUtils.setField(pendingTransfer, "id", 100L);
-        ReflectionTestUtils.setField(pendingTransfer, "status", TransactionStatus.REQUIRES_RECONCILIATION);
-        ReflectionTestUtils.setField(pendingTransfer, "providerReference", "SIM-TIMEOUT-REF");
+        TransactionRecord pendingRecord = new TransactionRecord(
+                100L, response.reference(), "IDEM-KEY-TIMEOUT", sender.getId(), sender.getPhone(),
+                sender.getFullName(), payee.getId(), payee.getPhone(), payee.getFullName(),
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B", new BigDecimal("20000.00"), "LKR",
+                TransactionStatus.REQUIRES_RECONCILIATION, null, null, "SIM-TIMEOUT-REF",
+                null, true, TransferInitiatedVia.APP, null, 1L, Instant.now(), Instant.now());
 
-        when(transferRepository.findById(100L)).thenReturn(Optional.of(pendingTransfer));
+        when(transactionStore.findTransferById(100L)).thenReturn(Optional.of(pendingRecord));
         // Status query reveals the bank actually succeeded
         when(bankAdapter.queryTransferStatus(any(TransferStatusRequest.class)))
                 .thenReturn(AdapterResponse.success("SIM-TIMEOUT-REF", "TIMEOUT_SUCCEEDED"));
@@ -315,7 +327,6 @@ class TransferServiceTest {
 
         assertThat(reconResult.resolved()).isTrue();
         assertThat(reconResult.resolvedStatus()).isEqualTo(TransactionStatus.COMPLETED);
-        assertThat(pendingTransfer.getStatus()).isEqualTo(TransactionStatus.COMPLETED);
     }
 
     @Test
@@ -338,14 +349,14 @@ class TransferServiceTest {
         assertThat(response.status()).isEqualTo(TransactionStatus.REQUIRES_RECONCILIATION);
 
         // Reconciliation
-        Transfer pendingTransfer = new Transfer(
-                response.reference(), sender, payee,
-                new BigDecimal("30000.00"), "LKR", TransferInitiatedVia.APP);
-        ReflectionTestUtils.setField(pendingTransfer, "id", 101L);
-        ReflectionTestUtils.setField(pendingTransfer, "status", TransactionStatus.REQUIRES_RECONCILIATION);
-        ReflectionTestUtils.setField(pendingTransfer, "providerReference", "SIM-PENDING-REF");
+        TransactionRecord pendingRecord = new TransactionRecord(
+                101L, response.reference(), "IDEM-KEY-DELAYED", sender.getId(), sender.getPhone(),
+                sender.getFullName(), payee.getId(), payee.getPhone(), payee.getFullName(),
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B", new BigDecimal("30000.00"), "LKR",
+                TransactionStatus.REQUIRES_RECONCILIATION, null, null, "SIM-PENDING-REF",
+                null, true, TransferInitiatedVia.APP, null, 1L, Instant.now(), Instant.now());
 
-        when(transferRepository.findById(101L)).thenReturn(Optional.of(pendingTransfer));
+        when(transactionStore.findTransferById(101L)).thenReturn(Optional.of(pendingRecord));
         when(bankAdapter.queryTransferStatus(any(TransferStatusRequest.class)))
                 .thenReturn(AdapterResponse.success("SIM-PENDING-REF", "DELAYED_CONFIRMATION"));
 
@@ -356,13 +367,23 @@ class TransferServiceTest {
     @Test
     @DisplayName("Reversal flow: COMPLETED -> REVERSAL_PENDING -> REVERSED")
     void testReversalWorkflow() {
-        Transfer completedTransfer = new Transfer(
-                "ref-rev-1", sender, payee, new BigDecimal("50000.00"), "LKR", TransferInitiatedVia.APP);
-        ReflectionTestUtils.setField(completedTransfer, "id", 105L);
-        ReflectionTestUtils.setField(completedTransfer, "status", TransactionStatus.COMPLETED);
+        TransactionRecord completedRecord = new TransactionRecord(
+                105L, "ref-rev-1", "idem-rev-1", sender.getId(), sender.getPhone(),
+                sender.getFullName(), payee.getId(), payee.getPhone(), payee.getFullName(),
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B", new BigDecimal("50000.00"), "LKR",
+                TransactionStatus.COMPLETED, null, "bank-tx-1", "prov-ref-1",
+                null, true, TransferInitiatedVia.APP, null, 1L, Instant.now(), Instant.now());
 
-        when(transferRepository.findById(105L)).thenReturn(Optional.of(completedTransfer));
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(i -> i.getArgument(0));
+        TransactionRecord revPendingRecord = new TransactionRecord(
+                105L, "ref-rev-1", "idem-rev-1", sender.getId(), sender.getPhone(),
+                sender.getFullName(), payee.getId(), payee.getPhone(), payee.getFullName(),
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B", new BigDecimal("50000.00"), "LKR",
+                TransactionStatus.REVERSAL_PENDING, null, "bank-tx-1", "prov-ref-1",
+                null, true, TransferInitiatedVia.APP, null, 2L, Instant.now(), Instant.now());
+
+        when(transactionStore.findTransferById(105L))
+                .thenReturn(Optional.of(completedRecord))
+                .thenReturn(Optional.of(revPendingRecord));
 
         // 1. Request reversal (transitions COMPLETED -> REVERSAL_PENDING)
         Transfer revPending = reversalService.requestReversal(105L, 1L, "Customer dispute", "127.0.0.1");
@@ -376,11 +397,14 @@ class TransferServiceTest {
     @Test
     @DisplayName("Object-level security: third party cannot access GET /transfers/{id}")
     void testObjectLevelSecurity() {
-        Transfer transfer = new Transfer(
-                "ref-sec-1", sender, payee, new BigDecimal("100.00"), "LKR", TransferInitiatedVia.APP);
-        ReflectionTestUtils.setField(transfer, "id", 110L);
+        TransactionRecord record = new TransactionRecord(
+                110L, "ref-sec-1", "idem-sec-1", sender.getId(), sender.getPhone(),
+                sender.getFullName(), payee.getId(), payee.getPhone(), payee.getFullName(),
+                "SIMULATED_BANK_A", "SIMULATED_BANK_B", new BigDecimal("100.00"), "LKR",
+                TransactionStatus.COMPLETED, null, "bank-tx-1", "prov-ref-1",
+                null, true, TransferInitiatedVia.APP, null, 1L, Instant.now(), Instant.now());
 
-        when(transferRepository.findById(110L)).thenReturn(Optional.of(transfer));
+        when(transactionStore.findTransferById(110L)).thenReturn(Optional.of(record));
 
         // Requester id 99L is neither sender (1L) nor receiver (2L)
         assertThatThrownBy(() -> transferService.getTransferById(110L, 99L))

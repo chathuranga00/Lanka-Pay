@@ -35,4 +35,19 @@ public record NotificationResponse(
                 n.isSimulated()
         );
     }
+
+    public static NotificationResponse from(com.lankapay.notification.domain.NotificationRecord n) {
+        return new NotificationResponse(
+                n.id(),
+                n.channel(),
+                n.type(),
+                n.title(),
+                n.message(),
+                n.status(),
+                n.read(),
+                n.readAt(),
+                n.createdAt(),
+                n.simulated()
+        );
+    }
 }

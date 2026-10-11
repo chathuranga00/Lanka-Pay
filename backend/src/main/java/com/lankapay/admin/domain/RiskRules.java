@@ -1,53 +1,32 @@
 package com.lankapay.admin.domain;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 
-@Entity
-@Table(name = "rsk_risk_rules")
 public class RiskRules {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "max_transaction_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal maxTransactionAmount = new BigDecimal("50000.00");
 
-    @Column(name = "max_daily_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal maxDailyAmount = new BigDecimal("100000.00");
 
-    @Column(name = "max_velocity_count_per_hour", nullable = false)
     private int maxVelocityCountPerHour = 5;
 
-    @Column(name = "new_account_age_hours", nullable = false)
     private int newAccountAgeHours = 24;
 
-    @Column(name = "new_account_max_transaction_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal newAccountMaxTransactionAmount = new BigDecimal("10000.00");
 
-    @Column(name = "new_account_max_daily_amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal newAccountMaxDailyAmount = new BigDecimal("25000.00");
 
-    @Column(name = "velocity_window_minutes", nullable = false)
     private int velocityWindowMinutes = 60;
 
-    @Column(nullable = false)
     private boolean enabled = true;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    private Instant createdAt = Instant.now();
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    private Instant updatedAt = Instant.now();
 
-    @Column(name = "updated_by")
     private Long updatedBy;
 
     public RiskRules() {}
@@ -80,7 +59,9 @@ public class RiskRules {
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
     public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 
     public Long getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(Long updatedBy) { this.updatedBy = updatedBy; }

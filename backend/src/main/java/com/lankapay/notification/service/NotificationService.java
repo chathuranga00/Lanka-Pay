@@ -2,11 +2,8 @@ package com.lankapay.notification.service;
 
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
 import com.lankapay.notification.channel.NotificationChannel;
 import com.lankapay.notification.domain.*;
-import com.lankapay.notification.repository.NotificationPreferenceRepository;
-import com.lankapay.notification.repository.NotificationRepository;
 import com.lankapay.notification.web.dto.NotificationPreferenceResponse;
 import com.lankapay.notification.web.dto.NotificationResponse;
 import com.lankapay.notification.web.dto.UpdateNotificationPreferenceRequest;
@@ -27,20 +24,14 @@ public class NotificationService {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
-    private final NotificationRepository notificationRepository;
-    private final NotificationPreferenceRepository preferenceRepository;
-    private final UserRepository userRepository;
+    private final NotificationStore notificationStore;
     private final NotificationMessageFormatter formatter;
     private final Map<NotificationChannelType, NotificationChannel> channelMap = new EnumMap<>(NotificationChannelType.class);
 
-    public NotificationService(NotificationRepository notificationRepository,
-                               NotificationPreferenceRepository preferenceRepository,
-                               UserRepository userRepository,
+    public NotificationService(NotificationStore notificationStore,
                                NotificationMessageFormatter formatter,
                                List<NotificationChannel> channels) {
-        this.notificationRepository = notificationRepository;
-        this.preferenceRepository = preferenceRepository;
-        this.userRepository = userRepository;
+        this.notificationStore = notificationStore;
         this.formatter = formatter;
         if (channels != null) {
             for (NotificationChannel ch : channels) {
@@ -118,26 +109,21 @@ public class NotificationService {
             // Strictly enforce lock-screen privacy: no amounts, no account digits
             NotificationMessageFormatter.assertPrivacySafe(message);
 
-            NotificationPreference pref = getOrCreatePreference(user);
+            NotificationPreferenceRecord pref = notificationStore.findPreferenceByUserId(user.getId())
+                    .orElseGet(() -> notificationStore.savePreference(NotificationPreferenceRecord.defaultForUser(user.getId())));
 
-            // Check if this category of notification is enabled
             if (isAlertDisabled(type, pref)) {
                 log.info("Notification suppressed by user preference: userId={} type={}", user.getId(), type);
                 return;
             }
 
-            // In-app channel (always stores the notification for GET /notifications if enabled)
-            if (pref.isInAppEnabled()) {
+            if (pref.inAppEnabled()) {
                 deliverThroughChannel(NotificationChannelType.IN_APP, user, type, title, message);
             }
-
-            // Push stub channel
-            if (pref.isPushEnabled()) {
+            if (pref.pushEnabled()) {
                 deliverThroughChannel(NotificationChannelType.PUSH, user, type, title, message);
             }
-
-            // Email stub channel
-            if (pref.isEmailEnabled()) {
+            if (pref.emailEnabled()) {
                 deliverThroughChannel(NotificationChannelType.EMAIL, user, type, title, message);
             }
 
@@ -154,13 +140,18 @@ public class NotificationService {
                                        String title,
                                        String message) {
         Notification notification = new Notification(user, channelType, type, title, message);
-        notification = notificationRepository.save(notification);
+        NotificationRecord record = new NotificationRecord(user.getId(), channelType, type, title, message);
+        if (notificationStore != null) {
+            record = notificationStore.saveNotification(record);
+        }
 
         NotificationChannel channel = channelMap.get(channelType);
         if (channel == null) {
             log.warn("No NotificationChannel registered for type: {}", channelType);
             notification.markFailed("No channel provider registered");
-            notificationRepository.save(notification);
+            if (notificationStore != null && record != null) {
+                notificationStore.saveNotification(record.markFailed("No channel provider registered"));
+            }
             return;
         }
 
@@ -171,34 +162,38 @@ public class NotificationService {
             try {
                 channel.deliver(notification, user);
                 notification.markSent();
-                notificationRepository.save(notification);
+                if (notificationStore != null && record != null) {
+                    notificationStore.saveNotification(record.markSent());
+                }
                 delivered = true;
                 break;
             } catch (Exception ex) {
                 notification.markFailed(ex.getMessage());
-                notificationRepository.save(notification);
+                if (notificationStore != null && record != null) {
+                    notificationStore.saveNotification(record.markFailed(ex.getMessage()));
+                }
                 log.warn("Delivery attempt {} failed on channel {} for userId={}: {}",
                         attempt + 1, channelType, user.getId(), ex.getMessage());
             }
         }
 
         if (!delivered) {
-            log.error("All delivery attempts exhausted for notification id={} channel={} userId={}",
-                    notification.getId(), channelType, user.getId());
+            log.error("All delivery attempts exhausted for notification channel={} userId={}",
+                    channelType, user.getId());
         }
     }
 
-    private boolean isAlertDisabled(NotificationType type, NotificationPreference pref) {
+    private boolean isAlertDisabled(NotificationType type, NotificationPreferenceRecord pref) {
         if (type == NotificationType.PAYMENT_SENT ||
             type == NotificationType.PAYMENT_RECEIVED ||
             type == NotificationType.PAYMENT_FAILED ||
             type == NotificationType.PAYMENT_REVERSED ||
             type == NotificationType.PAYMENT_REQUEST_RECEIVED) {
-            return !pref.isPaymentAlerts();
+            return !pref.paymentAlerts();
         }
         if (type == NotificationType.SECURITY_ALERT ||
             type == NotificationType.ACCOUNT_FROZEN) {
-            return !pref.isSecurityAlerts();
+            return !pref.securityAlerts();
         }
         return false;
     }
@@ -210,43 +205,42 @@ public class NotificationService {
                                                            Boolean unreadOnly,
                                                            NotificationType type,
                                                            Pageable pageable) {
-        Page<Notification> page;
+        Page<NotificationRecord> page;
         if (Boolean.TRUE.equals(unreadOnly)) {
-            page = notificationRepository.findByUserIdAndReadOrderByCreatedAtDesc(userId, false, pageable);
+            page = notificationStore.findNotificationsByUserIdAndRead(userId, false, pageable);
         } else if (type != null) {
-            page = notificationRepository.findByUserIdAndTypeOrderByCreatedAtDesc(userId, type, pageable);
+            page = notificationStore.findNotificationsByUserIdAndType(userId, type, pageable);
         } else {
-            page = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+            page = notificationStore.findNotificationsByUserId(userId, pageable);
         }
         return page.map(NotificationResponse::from);
     }
 
     @Transactional
     public NotificationResponse markAsRead(Long notificationId, Long userId) {
-        Notification notif = notificationRepository.findByIdAndUserId(notificationId, userId)
+        NotificationRecord notif = notificationStore.findNotificationByIdAndUserId(notificationId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("NOTIFICATION_NOT_FOUND",
                         "Notification not found with id: " + notificationId));
-        notif.markRead();
-        return NotificationResponse.from(notificationRepository.save(notif));
+        return NotificationResponse.from(notificationStore.saveNotification(notif.markRead(Instant.now())));
     }
 
     @Transactional
     public int markAllAsRead(Long userId) {
-        return notificationRepository.markAllAsReadForUser(userId, Instant.now());
+        return notificationStore.markAllNotificationsAsReadForUser(userId, Instant.now());
     }
 
     @Transactional(readOnly = true)
     public NotificationPreferenceResponse getPreferences(Long userId) {
-        User user = getUser(userId);
-        NotificationPreference pref = getOrCreatePreference(user);
+        NotificationPreferenceRecord pref = notificationStore.findPreferenceByUserId(userId)
+                .orElseGet(() -> notificationStore.savePreference(NotificationPreferenceRecord.defaultForUser(userId)));
         return NotificationPreferenceResponse.from(pref);
     }
 
     @Transactional
     public NotificationPreferenceResponse updatePreferences(Long userId, UpdateNotificationPreferenceRequest request) {
-        User user = getUser(userId);
-        NotificationPreference pref = getOrCreatePreference(user);
-        pref.update(
+        NotificationPreferenceRecord pref = notificationStore.findPreferenceByUserId(userId)
+                .orElseGet(() -> NotificationPreferenceRecord.defaultForUser(userId));
+        NotificationPreferenceRecord updated = pref.update(
                 request.inAppEnabled(),
                 request.pushEnabled(),
                 request.emailEnabled(),
@@ -254,16 +248,6 @@ public class NotificationService {
                 request.paymentAlerts(),
                 request.securityAlerts()
         );
-        return NotificationPreferenceResponse.from(preferenceRepository.save(pref));
-    }
-
-    private NotificationPreference getOrCreatePreference(User user) {
-        return preferenceRepository.findByUserId(user.getId())
-                .orElseGet(() -> preferenceRepository.save(new NotificationPreference(user)));
-    }
-
-    private User getUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("USER_NOT_FOUND", "User not found with id: " + userId));
+        return NotificationPreferenceResponse.from(notificationStore.savePreference(updated));
     }
 }

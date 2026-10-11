@@ -1,25 +1,22 @@
 package com.lankapay.admin.service;
 
-import com.lankapay.admin.repository.AuditLogSpecification;
 import com.lankapay.admin.web.dto.AdminAuditLogResponse;
-import com.lankapay.audit.repository.AuditLogRepository;
+import com.lankapay.audit.domain.AuditStore;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
 @Service
 public class AdminAuditService {
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditStore auditStore;
 
-    public AdminAuditService(AuditLogRepository auditLogRepository) {
-        this.auditLogRepository = auditLogRepository;
+    public AdminAuditService(AuditStore auditStore) {
+        this.auditStore = auditStore;
     }
 
-    @Transactional(readOnly = true)
     public Page<AdminAuditLogResponse> searchAuditLogs(Long actorId,
                                                        String eventType,
                                                        String entityType,
@@ -27,8 +24,9 @@ public class AdminAuditService {
                                                        Instant from,
                                                        Instant to,
                                                        Pageable pageable) {
-        return auditLogRepository.findAll(AuditLogSpecification.withFilters(
-                actorId, eventType, entityType, entityId, from, to), pageable)
-                .map(AdminAuditLogResponse::from);
+        if (actorId != null) {
+            return auditStore.findByActorId(actorId, pageable).map(AdminAuditLogResponse::from);
+        }
+        return auditStore.findAll(pageable).map(AdminAuditLogResponse::from);
     }
 }

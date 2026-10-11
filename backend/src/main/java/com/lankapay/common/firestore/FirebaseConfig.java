@@ -16,8 +16,10 @@ import org.springframework.context.annotation.Configuration;
 
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
+import java.util.List;
 
 /**
  * Spring configuration for initializing FirebaseApp and Google Cloud Firestore.
@@ -27,7 +29,7 @@ import java.util.Date;
  *    connects to the local Firestore emulator using {@link NoCredentials}.
  * 2. If FIREBASE_CREDENTIALS_PATH is set and valid, initializes from the service account JSON.
  * 3. Otherwise attempts Application Default Credentials (ADC), falling back gracefully
- *    to offline development mode to avoid breaking Spring context startup when running with MySQL.
+ *    to offline development mode to avoid breaking Spring context startup when credentials are unavailable.
  */
 @Configuration
 public class FirebaseConfig {
@@ -42,9 +44,6 @@ public class FirebaseConfig {
 
     @Value("${app.firebase.emulator-host:}")
     private String configuredEmulatorHost;
-
-    @Value("${app.persistence:mysql}")
-    private String persistenceMode;
 
     @Bean
     public Firestore firestore() {
@@ -65,17 +64,18 @@ public class FirebaseConfig {
         }
 
         // Live / Cloud configuration
-        if (credentialsPath != null && !credentialsPath.isBlank() && Files.exists(Paths.get(credentialsPath))) {
+        Path resolvedCredentials = resolveCredentialsFile(credentialsPath);
+        if (resolvedCredentials != null && Files.exists(resolvedCredentials)) {
             try {
-                log.info("Initializing Firebase from credentials file: [{}]", credentialsPath);
-                try (InputStream is = Files.newInputStream(Paths.get(credentialsPath))) {
+                log.info("Initializing Firebase from credentials file: [{}]", resolvedCredentials.toAbsolutePath());
+                try (InputStream is = Files.newInputStream(resolvedCredentials)) {
                     GoogleCredentials credentials = GoogleCredentials.fromStream(is);
                     initFirebaseApp(credentials);
                     return FirestoreClient.getFirestore();
                 }
             } catch (Exception e) {
-                log.error("Failed to load credentials from [{}]: {}", credentialsPath, e.getMessage());
-                throw new IllegalStateException("Could not load Firebase credentials from path: " + credentialsPath, e);
+                log.error("Failed to load credentials from [{}]: {}", resolvedCredentials, e.getMessage());
+                throw new IllegalStateException("Could not load Firebase credentials from path: " + resolvedCredentials, e);
             }
         }
 
@@ -86,8 +86,8 @@ public class FirebaseConfig {
             initFirebaseApp(credentials);
             return FirestoreClient.getFirestore();
         } catch (Exception e) {
-            log.warn("ADC not available ({}); initializing Firestore with local NoCredentials (persistence mode: {})",
-                    e.getMessage(), persistenceMode);
+            log.warn("ADC not available ({}); initializing Firestore with local NoCredentials",
+                    e.getMessage());
 
             FirestoreOptions fallbackOptions = FirestoreOptions.getDefaultInstance().toBuilder()
                     .setProjectId(projectId)
@@ -136,5 +136,24 @@ public class FirebaseConfig {
             return envHost;
         }
         return System.getProperty("FIRESTORE_EMULATOR_HOST");
+    }
+
+    private Path resolveCredentialsFile(String configuredPath) {
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            Path p = Paths.get(configuredPath);
+            if (Files.exists(p)) return p;
+            Path parentP = Paths.get("..", configuredPath);
+            if (Files.exists(parentP)) return parentP;
+            Path backendP = Paths.get("backend", configuredPath);
+            if (Files.exists(backendP)) return backendP;
+        }
+        for (String candidate : List.of(
+                "secrets/firebase-service-account.json",
+                "../secrets/firebase-service-account.json",
+                "backend/secrets/firebase-service-account.json")) {
+            Path p = Paths.get(candidate);
+            if (Files.exists(p)) return p;
+        }
+        return null;
     }
 }

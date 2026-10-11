@@ -18,6 +18,22 @@ public record RiskRulesResponse(
         Instant updatedAt,
         Long updatedBy
 ) {
+    public static RiskRulesResponse from(com.lankapay.admin.domain.RiskRulesRecord rules) {
+        return new RiskRulesResponse(
+                rules.id(),
+                rules.maxTransactionAmount(),
+                rules.maxDailyAmount(),
+                rules.maxVelocityCountPerHour(),
+                rules.newAccountAgeHours(),
+                rules.newAccountMaxTransactionAmount(),
+                rules.newAccountMaxDailyAmount(),
+                rules.velocityWindowMinutes(),
+                rules.enabled(),
+                rules.updatedAt(),
+                rules.updatedBy()
+        );
+    }
+
     public static RiskRulesResponse from(RiskRules rules) {
         return new RiskRulesResponse(
                 rules.getId(),

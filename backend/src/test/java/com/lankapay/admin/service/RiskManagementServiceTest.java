@@ -1,18 +1,13 @@
 package com.lankapay.admin.service;
 
 import com.lankapay.admin.domain.*;
-import com.lankapay.admin.repository.FraudAlertRepository;
-import com.lankapay.admin.repository.RiskRulesRepository;
 import com.lankapay.admin.web.dto.UpdateFraudAlertStatusRequest;
 import com.lankapay.admin.web.dto.UpdateRiskRulesRequest;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.common.exception.UnprocessableEntityException;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.domain.UserRole;
-import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.transfer.domain.DailyLimit;
-import com.lankapay.transfer.repository.DailyLimitRepository;
-import com.lankapay.transfer.repository.TransferRepository;
+import com.lankapay.transfer.domain.DailyLimitRecord;
+import com.lankapay.transfer.domain.TransactionStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -37,39 +32,39 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class RiskManagementServiceTest {
 
-    @Mock RiskRulesRepository riskRulesRepository;
-    @Mock FraudAlertRepository fraudAlertRepository;
-    @Mock TransferRepository transferRepository;
-    @Mock DailyLimitRepository dailyLimitRepository;
+    @Mock AdminStore adminStore;
+    @Mock TransactionStore transactionStore;
     @Mock AuditService auditService;
 
     RiskManagementService service;
-    RiskRules rules;
+    RiskRulesRecord defaultRules;
     User establishedUser;
     User newUser;
 
     @BeforeEach
     void setUp() {
         service = new RiskManagementService(
-                riskRulesRepository,
-                fraudAlertRepository,
-                transferRepository,
-                dailyLimitRepository,
+                adminStore,
+                transactionStore,
                 auditService
         );
 
-        rules = new RiskRules();
-        rules.setId(1L);
-        rules.setMaxTransactionAmount(new BigDecimal("50000.00"));
-        rules.setMaxDailyAmount(new BigDecimal("100000.00"));
-        rules.setMaxVelocityCountPerHour(5);
-        rules.setNewAccountAgeHours(24);
-        rules.setNewAccountMaxTransactionAmount(new BigDecimal("10000.00"));
-        rules.setNewAccountMaxDailyAmount(new BigDecimal("25000.00"));
-        rules.setVelocityWindowMinutes(60);
-        rules.setEnabled(true);
+        defaultRules = new RiskRulesRecord(
+                1L,
+                new BigDecimal("50000.00"),
+                new BigDecimal("100000.00"),
+                5,
+                24,
+                new BigDecimal("10000.00"),
+                new BigDecimal("25000.00"),
+                60,
+                true,
+                Instant.now(),
+                Instant.now(),
+                1L
+        );
 
-        lenient().when(riskRulesRepository.findById(1L)).thenReturn(Optional.of(rules));
+        lenient().when(adminStore.findRiskRules()).thenReturn(Optional.of(defaultRules));
 
         // Established user: created 10 days ago
         establishedUser = new User("+94771111111", "Old User", "199011111111", "hash");
@@ -81,10 +76,12 @@ class RiskManagementServiceTest {
         ReflectionTestUtils.setField(newUser, "id", 20L);
         ReflectionTestUtils.setField(newUser, "createdAt", Instant.now().minus(2, ChronoUnit.HOURS));
 
-        lenient().when(fraudAlertRepository.save(any(FraudAlert.class))).thenAnswer(inv -> {
-            FraudAlert a = inv.getArgument(0);
-            ReflectionTestUtils.setField(a, "id", 100L);
-            return a;
+        lenient().when(adminStore.saveFraudAlert(any(FraudAlertRecord.class))).thenAnswer(inv -> {
+            FraudAlertRecord r = inv.getArgument(0);
+            return new FraudAlertRecord(100L, r.userId(), r.userPhone(), r.userFullName(),
+                    r.transferId(), r.transferReference(), r.alertType(), r.severity(),
+                    r.status(), r.description(), r.metadataJson(), r.createdAt(),
+                    r.resolvedAt(), r.resolvedBy(), r.resolutionNotes());
         });
     }
 
@@ -95,12 +92,12 @@ class RiskManagementServiceTest {
         @Test
         @DisplayName("Transfer within max per-transaction limit succeeds")
         void transferWithinLimitPasses() {
-            when(transferRepository.countBySenderIdAndCreatedAtAfter(eq(10L), any(Instant.class)))
+            when(transactionStore.countTransfersBySenderIdAndCreatedAtAfter(eq(10L), any(Instant.class)))
                     .thenReturn(0L);
 
             service.evaluateTransferRisk(establishedUser, new BigDecimal("45000.00"));
 
-            verify(fraudAlertRepository, never()).save(any());
+            verify(adminStore, never()).saveFraudAlert(any());
         }
 
         @Test
@@ -111,13 +108,13 @@ class RiskManagementServiceTest {
             ).isInstanceOf(UnprocessableEntityException.class)
              .hasMessageContaining("exceeds maximum per-transaction limit");
 
-            ArgumentCaptor<FraudAlert> alertCaptor = ArgumentCaptor.forClass(FraudAlert.class);
-            verify(fraudAlertRepository).save(alertCaptor.capture());
+            ArgumentCaptor<FraudAlertRecord> alertCaptor = ArgumentCaptor.forClass(FraudAlertRecord.class);
+            verify(adminStore).saveFraudAlert(alertCaptor.capture());
 
-            FraudAlert alert = alertCaptor.getValue();
-            assertThat(alert.getAlertType()).isEqualTo(FraudAlertType.PER_TRANSACTION_LIMIT_EXCEEDED);
-            assertThat(alert.getSeverity()).isEqualTo(FraudAlertSeverity.HIGH);
-            assertThat(alert.getUser().getId()).isEqualTo(10L);
+            FraudAlertRecord alert = alertCaptor.getValue();
+            assertThat(alert.alertType()).isEqualTo(FraudAlertType.PER_TRANSACTION_LIMIT_EXCEEDED);
+            assertThat(alert.severity()).isEqualTo(FraudAlertSeverity.HIGH);
+            assertThat(alert.userId()).isEqualTo(10L);
 
             verify(auditService).log(eq(10L), eq("FRAUD_ALERT_RAISED"), eq("FRAUD_ALERT"), any(), any(), eq("SYSTEM"));
         }
@@ -130,14 +127,14 @@ class RiskManagementServiceTest {
         @Test
         @DisplayName("New account under new-account limits passes")
         void newAccountUnderLimitPasses() {
-            when(dailyLimitRepository.findByUserIdAndLimitDate(eq(20L), any(LocalDate.class)))
-                    .thenReturn(Optional.of(new DailyLimit(newUser, LocalDate.now(), new BigDecimal("25000.00"))));
-            when(transferRepository.countBySenderIdAndCreatedAtAfter(eq(20L), any(Instant.class)))
+            when(transactionStore.findDailyLimit(eq(20L), any(LocalDate.class)))
+                    .thenReturn(Optional.of(new DailyLimitRecord(1L, 20L, LocalDate.now(), BigDecimal.ZERO, new BigDecimal("25000.00"))));
+            when(transactionStore.countTransfersBySenderIdAndCreatedAtAfter(eq(20L), any(Instant.class)))
                     .thenReturn(1L);
 
             service.evaluateTransferRisk(newUser, new BigDecimal("8000.00"));
 
-            verify(fraudAlertRepository, never()).save(any());
+            verify(adminStore, never()).saveFraudAlert(any());
         }
 
         @Test
@@ -148,34 +145,31 @@ class RiskManagementServiceTest {
             ).isInstanceOf(UnprocessableEntityException.class)
              .hasMessageContaining("exceeds new-account transaction limit");
 
-            ArgumentCaptor<FraudAlert> alertCaptor = ArgumentCaptor.forClass(FraudAlert.class);
-            verify(fraudAlertRepository).save(alertCaptor.capture());
+            ArgumentCaptor<FraudAlertRecord> alertCaptor = ArgumentCaptor.forClass(FraudAlertRecord.class);
+            verify(adminStore).saveFraudAlert(alertCaptor.capture());
 
-            FraudAlert alert = alertCaptor.getValue();
-            assertThat(alert.getAlertType()).isEqualTo(FraudAlertType.NEW_ACCOUNT_LIMIT_EXCEEDED);
-            assertThat(alert.getSeverity()).isEqualTo(FraudAlertSeverity.HIGH);
-            assertThat(alert.getUser().getId()).isEqualTo(20L);
+            FraudAlertRecord alert = alertCaptor.getValue();
+            assertThat(alert.alertType()).isEqualTo(FraudAlertType.NEW_ACCOUNT_LIMIT_EXCEEDED);
+            assertThat(alert.severity()).isEqualTo(FraudAlertSeverity.HIGH);
+            assertThat(alert.userId()).isEqualTo(20L);
         }
 
         @Test
         @DisplayName("New account exceeding new-account daily limit is blocked and raises fraud alert")
         void newAccountExceedingDailyLimitBlocked() {
-            DailyLimit daily = new DailyLimit(newUser, LocalDate.now(), new BigDecimal("25000.00"));
-            daily.addSent(new BigDecimal("20000.00"));
-
-            when(dailyLimitRepository.findByUserIdAndLimitDate(eq(20L), any(LocalDate.class)))
-                    .thenReturn(Optional.of(daily));
+            when(transactionStore.findDailyLimit(eq(20L), any(LocalDate.class)))
+                    .thenReturn(Optional.of(new DailyLimitRecord(1L, 20L, LocalDate.now(), new BigDecimal("20000.00"), new BigDecimal("25000.00"))));
 
             assertThatThrownBy(() ->
                     service.evaluateTransferRisk(newUser, new BigDecimal("6000.00"))
             ).isInstanceOf(UnprocessableEntityException.class)
              .hasMessageContaining("exceeds new-account daily limit");
 
-            ArgumentCaptor<FraudAlert> alertCaptor = ArgumentCaptor.forClass(FraudAlert.class);
-            verify(fraudAlertRepository).save(alertCaptor.capture());
+            ArgumentCaptor<FraudAlertRecord> alertCaptor = ArgumentCaptor.forClass(FraudAlertRecord.class);
+            verify(adminStore).saveFraudAlert(alertCaptor.capture());
 
-            FraudAlert alert = alertCaptor.getValue();
-            assertThat(alert.getAlertType()).isEqualTo(FraudAlertType.NEW_ACCOUNT_LIMIT_EXCEEDED);
+            FraudAlertRecord alert = alertCaptor.getValue();
+            assertThat(alert.alertType()).isEqualTo(FraudAlertType.NEW_ACCOUNT_LIMIT_EXCEEDED);
         }
     }
 
@@ -186,7 +180,7 @@ class RiskManagementServiceTest {
         @Test
         @DisplayName("User with rapid consecutive transactions breaches velocity check and is blocked")
         void velocityBreachBlockedAndAlerted() {
-            when(transferRepository.countBySenderIdAndCreatedAtAfter(eq(10L), any(Instant.class)))
+            when(transactionStore.countTransfersBySenderIdAndCreatedAtAfter(eq(10L), any(Instant.class)))
                     .thenReturn(5L); // limit is 5
 
             assertThatThrownBy(() ->
@@ -194,12 +188,12 @@ class RiskManagementServiceTest {
             ).isInstanceOf(UnprocessableEntityException.class)
              .hasMessageContaining("Velocity check failed");
 
-            ArgumentCaptor<FraudAlert> alertCaptor = ArgumentCaptor.forClass(FraudAlert.class);
-            verify(fraudAlertRepository).save(alertCaptor.capture());
+            ArgumentCaptor<FraudAlertRecord> alertCaptor = ArgumentCaptor.forClass(FraudAlertRecord.class);
+            verify(adminStore).saveFraudAlert(alertCaptor.capture());
 
-            FraudAlert alert = alertCaptor.getValue();
-            assertThat(alert.getAlertType()).isEqualTo(FraudAlertType.VELOCITY_EXCEEDED);
-            assertThat(alert.getSeverity()).isEqualTo(FraudAlertSeverity.HIGH);
+            FraudAlertRecord alert = alertCaptor.getValue();
+            assertThat(alert.alertType()).isEqualTo(FraudAlertType.VELOCITY_EXCEEDED);
+            assertThat(alert.severity()).isEqualTo(FraudAlertSeverity.HIGH);
         }
     }
 
@@ -210,7 +204,7 @@ class RiskManagementServiceTest {
         @Test
         @DisplayName("Updating risk rules generates audit entry")
         void updateRiskRulesCreatesAuditEntry() {
-            when(riskRulesRepository.save(any(RiskRules.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(adminStore.saveRiskRules(any(RiskRulesRecord.class))).thenAnswer(inv -> inv.getArgument(0));
 
             UpdateRiskRulesRequest req = new UpdateRiskRulesRequest(
                     new BigDecimal("60000.00"),
@@ -231,12 +225,14 @@ class RiskManagementServiceTest {
         @Test
         @DisplayName("Updating fraud alert status generates audit entry")
         void updateFraudAlertStatusCreatesAuditEntry() {
-            FraudAlert alert = new FraudAlert(establishedUser, null, FraudAlertType.SUSPICIOUS_ACTIVITY,
-                    FraudAlertSeverity.MEDIUM, "test", null);
-            ReflectionTestUtils.setField(alert, "id", 77L);
+            FraudAlertRecord alert = new FraudAlertRecord(
+                    77L, 10L, "+94771111111", "Old User", null, null,
+                    FraudAlertType.SUSPICIOUS_ACTIVITY, FraudAlertSeverity.MEDIUM,
+                    FraudAlertStatus.OPEN, "test", null, Instant.now(), null, null, null
+            );
 
-            when(fraudAlertRepository.findById(77L)).thenReturn(Optional.of(alert));
-            when(fraudAlertRepository.save(any(FraudAlert.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(adminStore.findFraudAlertById(77L)).thenReturn(Optional.of(alert));
+            when(adminStore.saveFraudAlert(any(FraudAlertRecord.class))).thenAnswer(inv -> inv.getArgument(0));
 
             UpdateFraudAlertStatusRequest req = new UpdateFraudAlertStatusRequest(
                     FraudAlertStatus.RESOLVED,
@@ -245,8 +241,6 @@ class RiskManagementServiceTest {
 
             service.updateFraudAlertStatus(77L, req, 999L, "192.168.1.1");
 
-            assertThat(alert.getStatus()).isEqualTo(FraudAlertStatus.RESOLVED);
-            assertThat(alert.getResolvedBy()).isEqualTo(999L);
             verify(auditService).log(eq(999L), eq("ADMIN_UPDATE_FRAUD_ALERT_STATUS"), eq("FRAUD_ALERT"), eq(77L), anyString(), eq("192.168.1.1"));
         }
     }

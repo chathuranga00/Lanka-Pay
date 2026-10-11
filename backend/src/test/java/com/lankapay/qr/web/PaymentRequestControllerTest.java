@@ -5,7 +5,8 @@ import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.web.GlobalExceptionHandler;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
+import com.lankapay.identity.domain.UserAccount;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.qr.domain.PaymentRequestStatus;
 import com.lankapay.qr.service.PaymentRequestService;
 import com.lankapay.qr.web.dto.CreatePaymentRequestDto;
@@ -43,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PaymentRequestControllerTest {
 
     @Mock PaymentRequestService paymentRequestService;
-    @Mock UserRepository userRepository;
+    @Mock UserStore userStore;
 
     MockMvc mockMvc;
     ObjectMapper objectMapper;
@@ -59,7 +60,7 @@ class PaymentRequestControllerTest {
         requester = new User("+94771111111", "Requester User", "199011111111", "$2a$12$hash");
         ReflectionTestUtils.setField(requester, "id", USER_ID);
 
-        PaymentRequestController controller = new PaymentRequestController(paymentRequestService, userRepository);
+        PaymentRequestController controller = new PaymentRequestController(paymentRequestService, userStore);
 
         HandlerMethodArgumentResolver authPrincipalResolver = new HandlerMethodArgumentResolver() {
             @Override
@@ -85,7 +86,7 @@ class PaymentRequestControllerTest {
     @Test
     @DisplayName("POST /api/v1/payment-requests creates payment request with opaque reference")
     void testCreatePaymentRequest() throws Exception {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(requester));
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(UserAccount.fromUser(requester)));
 
         PaymentRequestResponse response = new PaymentRequestResponse(
                 501L, "PREQ-1234-abcd", USER_ID, "Requester User",

@@ -49,11 +49,23 @@ class AdminApiClient {
       throw new Error(err.message || 'Authentication failed. Check phone and PIN.');
     }
     const data = await res.json();
+    let tokenRole = 'ADMIN';
+    let tokenUserId = 1;
+    try {
+      const payloadBase64 = data.accessToken.split('.')[1];
+      const normalizedBase64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(normalizedBase64));
+      if (payload.role) tokenRole = payload.role;
+      if (payload.sub) tokenUserId = Number(payload.sub);
+    } catch {
+      // fallback
+    }
+
     const session: AdminAuthSession = {
       token: data.accessToken,
-      userId: data.userId || 1,
+      userId: data.userId || tokenUserId,
       fullName: data.fullName || 'Operations Admin',
-      role: data.role || 'ADMIN',
+      role: tokenRole as any,
     };
     if (session.role !== 'ADMIN') {
       throw new Error('Access denied. Administrator privileges required.');

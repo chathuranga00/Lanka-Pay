@@ -6,15 +6,11 @@ import com.lankapay.bank.adapter.AdapterResponse;
 import com.lankapay.bank.adapter.BankAdapterRegistry;
 import com.lankapay.bank.crypto.AccountReferenceEncryptor;
 import com.lankapay.bank.domain.*;
-import com.lankapay.bank.repository.AccountConsentRepository;
-import com.lankapay.bank.repository.BankAccountRepository;
-import com.lankapay.bank.repository.BankInstitutionRepository;
 import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ConflictException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.exception.ValidationException;
 import com.lankapay.identity.domain.User;
-import com.lankapay.identity.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -45,27 +41,21 @@ public class BankAccountService {
 
     private static final Logger log = LoggerFactory.getLogger(BankAccountService.class);
 
-    private final BankAccountRepository     accountRepository;
-    private final BankInstitutionRepository institutionRepository;
-    private final AccountConsentRepository  consentRepository;
-    private final UserRepository            userRepository;
+    private final LinkedAccountStore        linkedAccountStore;
+    private final com.lankapay.identity.domain.UserStore userStore;
     private final BankAdapterRegistry       adapterRegistry;
     private final AccountReferenceEncryptor encryptor;
     private final AuditService              auditService;
 
     public BankAccountService(
-            BankAccountRepository accountRepository,
-            BankInstitutionRepository institutionRepository,
-            AccountConsentRepository consentRepository,
-            UserRepository userRepository,
+            LinkedAccountStore linkedAccountStore,
+            com.lankapay.identity.domain.UserStore userStore,
             BankAdapterRegistry adapterRegistry,
             AccountReferenceEncryptor encryptor,
             AuditService auditService) {
 
-        this.accountRepository    = accountRepository;
-        this.institutionRepository = institutionRepository;
-        this.consentRepository    = consentRepository;
-        this.userRepository       = userRepository;
+        this.linkedAccountStore   = linkedAccountStore;
+        this.userStore            = userStore;
         this.adapterRegistry      = adapterRegistry;
         this.encryptor            = encryptor;
         this.auditService         = auditService;
@@ -108,13 +98,14 @@ public class BankAccountService {
         User user = requireUser(userId);
 
         // 1. Validate institution
-        institutionRepository.findByBankCodeAndActiveTrue(institutionCode)
+        linkedAccountStore.findActiveInstitutionByBankCode(institutionCode)
                 .orElseThrow(() -> new ResourceNotFoundException("INSTITUTION_NOT_FOUND",
                         "Institution not found or inactive: " + institutionCode));
 
         // 2. Duplicate check via SHA-256 hash
         String hash = sha256(institutionCode + accountNumber);
-        if (accountRepository.findByAccountNumberHash(hash).isPresent()) {
+        boolean duplicate = linkedAccountStore.findAccountByAccountNumberHash(hash).isPresent();
+        if (duplicate) {
             throw new ConflictException("ACCOUNT_ALREADY_LINKED",
                     "This bank account is already linked");
         }
@@ -143,17 +134,17 @@ public class BankAccountService {
         String masked = "****" + accountNumber.substring(
                 Math.max(0, accountNumber.length() - 4));
 
-        // 6. Persist
-        BankAccount account = new BankAccount(
-                user, institutionCode, hash, masked, accountName, encrypted);
-        if (label != null && !label.isBlank()) {
-            account.setLabel(label.trim());
-        }
-        BankAccount saved = accountRepository.save(account);
-
-        // 7. Consent record
-        consentRepository.save(new AccountConsent(
-                user, saved, ConsentType.LINK_ACCOUNT, true, ipAddress));
+        // 6. Persist & 7. Consent
+        LinkedAccount domain = new LinkedAccount(
+                null, userId, institutionCode, hash, masked, accountName,
+                label != null && !label.isBlank() ? label.trim() : null,
+                true, true, encrypted, BankAccountStatus.ACTIVE, false, null, null
+        );
+        LinkedAccount savedDomain = linkedAccountStore.saveAccount(domain);
+        linkedAccountStore.saveConsent(new AccountConsentRecord(
+                userId, savedDomain.id(), ConsentType.LINK_ACCOUNT, true, ipAddress
+        ));
+        BankAccount saved = toEntity(savedDomain, user);
 
         // 8. Audit
         auditService.log(userId, "BANK_ACCOUNT_LINKED", "BANK_ACCOUNT",
@@ -175,7 +166,10 @@ public class BankAccountService {
      */
     @Transactional(readOnly = true)
     public List<BankAccount> listAccounts(Long userId) {
-        return accountRepository.findByUserIdOrderByLinkedAtDesc(userId);
+        User user = requireUser(userId);
+        return linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(userId).stream()
+                .map(d -> toEntity(d, user))
+                .toList();
     }
 
     // ── Get single account (with ownership check) ─────────────
@@ -211,9 +205,8 @@ public class BankAccountService {
             account.setReceivingEnabled(receivingEnabled);
             // Record consent when enabling receive
             if (receivingEnabled) {
-                consentRepository.save(new AccountConsent(
-                        account.getUser(), account,
-                        ConsentType.RECEIVE_FUNDS, true, ipAddress));
+                linkedAccountStore.saveConsent(new AccountConsentRecord(
+                        userId, accountId, ConsentType.RECEIVE_FUNDS, true, ipAddress));
             }
             changed = true;
         }
@@ -222,7 +215,14 @@ public class BankAccountService {
             return account; // nothing to update
         }
 
-        BankAccount saved = accountRepository.save(account);
+        LinkedAccount cur = linkedAccountStore.findAccountByIdAndUserId(accountId, userId).orElseThrow();
+        LinkedAccount updated = new LinkedAccount(
+                cur.id(), cur.userId(), cur.bankCode(), cur.accountNumberHash(), cur.maskedNumber(),
+                cur.accountName(), account.getLabel(), account.isDiscoverable(), account.isReceivingEnabled(),
+                cur.encryptedAccountReference(), account.getStatus(), cur.isDefault(), cur.linkedAt(), null
+        );
+        LinkedAccount savedDomain = linkedAccountStore.saveAccount(updated);
+        BankAccount saved = toEntity(savedDomain, account.getUser());
 
         auditService.log(userId, "BANK_ACCOUNT_UPDATED", "BANK_ACCOUNT",
                 accountId,
@@ -245,15 +245,10 @@ public class BankAccountService {
     public BankAccount setDefault(Long accountId, Long userId, String ipAddress) {
         BankAccount account = requireOwnedActiveAccount(accountId, userId);
 
-        // Consent record
-        consentRepository.save(new AccountConsent(
-                account.getUser(), account,
-                ConsentType.SET_DEFAULT, true, ipAddress));
-
-        // Clear all existing defaults then set the new one
-        accountRepository.clearDefaultForUser(userId);
-        account.setDefault(true);
-        BankAccount saved = accountRepository.save(account);
+        linkedAccountStore.saveConsent(new AccountConsentRecord(
+                userId, accountId, ConsentType.SET_DEFAULT, true, ipAddress));
+        LinkedAccount savedDomain = linkedAccountStore.setDefaultAccount(accountId, userId);
+        BankAccount saved = toEntity(savedDomain, account.getUser());
 
         auditService.log(userId, "BANK_ACCOUNT_SET_DEFAULT", "BANK_ACCOUNT",
                 accountId, "{\"maskedNumber\":\"" + account.getMaskedNumber() + "\"}",
@@ -290,14 +285,18 @@ public class BankAccountService {
                     "This bank account has already been removed");
         }
 
+        LinkedAccount cur = linkedAccountStore.findAccountByIdAndUserId(accountId, userId).orElseThrow();
+        LinkedAccount updated = new LinkedAccount(
+                cur.id(), cur.userId(), cur.bankCode(), cur.accountNumberHash(), cur.maskedNumber(),
+                cur.accountName(), cur.label(), cur.discoverable(), false,
+                cur.encryptedAccountReference(), BankAccountStatus.REMOVED, false, cur.linkedAt(), null
+        );
+        linkedAccountStore.saveAccount(updated);
+        linkedAccountStore.saveConsent(new AccountConsentRecord(
+                userId, accountId, ConsentType.REMOVE_ACCOUNT, true, ipAddress));
         account.setStatus(BankAccountStatus.REMOVED);
-        account.setReceivingEnabled(false);   // block new routing
-        account.setDefault(false);            // clear default if it was set
-        accountRepository.save(account);
-
-        consentRepository.save(new AccountConsent(
-                account.getUser(), account,
-                ConsentType.REMOVE_ACCOUNT, true, ipAddress));
+        account.setReceivingEnabled(false);
+        account.setDefault(false);
 
         auditService.log(userId, "BANK_ACCOUNT_REMOVED", "BANK_ACCOUNT",
                 accountId,
@@ -330,8 +329,16 @@ public class BankAccountService {
     // ── Helpers ───────────────────────────────────────────────
 
     private User requireUser(Long userId) {
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("USER", userId));
+        if (userStore != null) {
+            com.lankapay.identity.domain.UserAccount account = userStore.findUserById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("USER", userId));
+            User u = new User(account.phone(), account.fullName(), account.nicNumber(), account.passwordHash());
+            u.setId(account.id());
+            u.setStatus(account.status());
+            u.setRole(account.role());
+            return u;
+        }
+        throw new ResourceNotFoundException("USER", userId);
     }
 
     /**
@@ -340,7 +347,9 @@ public class BankAccountService {
      * — both errors look identical to the caller to prevent enumeration.
      */
     private BankAccount requireOwnedAccount(Long accountId, Long userId) {
-        return accountRepository.findByIdAndUserId(accountId, userId)
+        User user = requireUser(userId);
+        return linkedAccountStore.findAccountByIdAndUserId(accountId, userId)
+                .map(d -> toEntity(d, user))
                 .orElseThrow(() -> new AuthorizationException("BANK_ACCOUNT_ACCESS_DENIED",
                         "Bank account not found or does not belong to this user"));
     }
@@ -352,6 +361,23 @@ public class BankAccountService {
                     "This bank account is no longer active");
         }
         return account;
+    }
+
+    static BankAccount toEntity(LinkedAccount domain, User user) {
+        if (domain == null) return null;
+        BankAccount a = new BankAccount(
+                user, domain.bankCode(), domain.accountNumberHash(),
+                domain.maskedNumber(), domain.accountName(), domain.encryptedAccountReference()
+        );
+        a.setId(domain.id());
+        a.setLabel(domain.label());
+        a.setDiscoverable(domain.discoverable());
+        a.setReceivingEnabled(domain.receivingEnabled());
+        a.setStatus(domain.status());
+        a.setDefault(domain.isDefault());
+        a.setLinkedAt(domain.linkedAt());
+        a.setUpdatedAt(domain.updatedAt());
+        return a;
     }
 
     /**

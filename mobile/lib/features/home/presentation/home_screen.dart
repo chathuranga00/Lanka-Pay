@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/simulated_banner.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../accounts/data/bank_account_service.dart';
+import '../../accounts/domain/bank_account_model.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -50,15 +51,15 @@ class HomeScreen extends ConsumerWidget {
                           child: const CircularProgressIndicator(),
                         ),
                       ),
-                      error: (_, _) => _buildDefaultAccountCard(isDark, null),
+                      error: (_, _) => _buildDefaultAccountCard(context, isDark, null),
                       data: (accounts) {
-                        final defaultAccount = accounts.firstWhere(
-                          (a) => a.isDefault,
-                          orElse: () => accounts.isNotEmpty
-                              ? accounts.first
-                              : null as dynamic,
-                        );
-                        return _buildDefaultAccountCard(isDark, defaultAccount);
+                        final BankAccountModel? defaultAccount = accounts.isEmpty
+                            ? null
+                            : accounts.firstWhere(
+                                (a) => a.isDefault,
+                                orElse: () => accounts.first,
+                              );
+                        return _buildDefaultAccountCard(context, isDark, defaultAccount);
                       },
                     ),
                     const SizedBox(height: 24),
@@ -155,61 +156,72 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDefaultAccountCard(bool isDark, dynamic account) {
-    return Card(
-      child: Container(
-        padding: const EdgeInsets.all(20.0),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? [AppColors.primaryGreenLight, AppColors.primaryGreenDark]
-                : [AppColors.primaryGreen, AppColors.primaryGreenDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+  Widget _buildDefaultAccountCard(BuildContext context, bool isDark, BankAccountModel? account) {
+    return InkWell(
+      onTap: () => context.push('/accounts'),
+      borderRadius: BorderRadius.circular(16),
+      child: Card(
+        child: Container(
+          padding: const EdgeInsets.all(20.0),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [AppColors.primaryGreenLight, AppColors.primaryGreenDark]
+                  : [AppColors.primaryGreen, AppColors.primaryGreenDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
           ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Primary Account',
-                  style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.accentGold.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    account != null ? 'Primary Account' : 'No Account Linked',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
                   ),
-                  child: const Text(
-                    'SIMULATED',
-                    style: TextStyle(color: AppColors.accentGoldLight, fontSize: 10, fontWeight: FontWeight.w800),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentGold.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'SIMULATED',
+                      style: TextStyle(color: AppColors.accentGoldLight, fontSize: 10, fontWeight: FontWeight.w800),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'LKR 125,450.00',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              account != null
-                  ? '${account.institutionCode} • ${account.maskedNumber}'
-                  : 'Simulated Bank • ****1001',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                account != null ? 'LKR 125,450.00' : 'LKR 0.00',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    account != null
+                        ? '${account.institutionCode} • ${account.maskedNumber}'
+                        : 'Tap to link bank account',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  if (account == null)
+                    const Icon(Icons.add_circle_outline_rounded, color: Colors.white70, size: 18),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

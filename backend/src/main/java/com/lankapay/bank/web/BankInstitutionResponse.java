@@ -18,4 +18,8 @@ public record BankInstitutionResponse(
     public static BankInstitutionResponse from(BankInstitution i) {
         return new BankInstitutionResponse(i.getBankCode(), i.getDisplayName(), i.isSimulated());
     }
+
+    public static BankInstitutionResponse from(com.lankapay.bank.domain.BankInstitutionRecord i) {
+        return new BankInstitutionResponse(i.bankCode(), i.displayName(), i.simulated());
+    }
 }

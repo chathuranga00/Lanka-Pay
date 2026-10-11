@@ -39,6 +39,7 @@ public class JwtService {
         this(secret, expiryMinutes, "");
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public JwtService(
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiry-minutes:30}") long expiryMinutes,

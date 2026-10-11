@@ -1,27 +1,24 @@
 package com.lankapay.load;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lankapay.common.exception.RateLimitException;
 import com.lankapay.audit.service.AuditService;
 import com.lankapay.bank.adapter.BankAdapter;
 import com.lankapay.bank.adapter.BankAdapterRegistry;
 import com.lankapay.bank.adapter.simulated.*;
-import com.lankapay.bank.domain.BankAccount;
 import com.lankapay.bank.domain.BankAccountStatus;
-import com.lankapay.bank.repository.BankAccountRepository;
+import com.lankapay.bank.domain.LinkedAccount;
+import com.lankapay.bank.domain.LinkedAccountStore;
+import com.lankapay.common.exception.RateLimitException;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
 import com.lankapay.identity.domain.UserRole;
 import com.lankapay.identity.domain.UserStatus;
-import com.lankapay.identity.repository.UserRepository;
-import com.lankapay.registry.repository.LookupAbuseCounterRepository;
-import com.lankapay.registry.repository.RegistryRepository;
+import com.lankapay.identity.domain.UserStore;
 import com.lankapay.registry.service.LookupRateLimiter;
-import com.lankapay.registry.service.LookupService;
-import com.lankapay.transfer.domain.Transfer;
-import com.lankapay.transfer.repository.DailyLimitRepository;
-import com.lankapay.transfer.repository.IdempotencyRecordRepository;
-import com.lankapay.transfer.repository.TransactionEventRepository;
-import com.lankapay.transfer.repository.TransferRepository;
+import com.lankapay.transfer.domain.TransactionRecord;
+import com.lankapay.transfer.domain.TransactionStatus;
+import com.lankapay.transfer.domain.TransactionStore;
+import com.lankapay.transfer.domain.TransferInitiatedVia;
 import com.lankapay.transfer.service.DailyLimitService;
 import com.lankapay.transfer.service.IdempotencyService;
 import com.lankapay.transfer.service.TransferProcessor;
@@ -43,12 +40,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.when;
 
 /**
@@ -69,14 +68,9 @@ public class TransferConcurrencyAndLoadTest {
 
     private static final Logger log = LoggerFactory.getLogger(TransferConcurrencyAndLoadTest.class);
 
-    @Mock TransferRepository transferRepository;
-    @Mock TransactionEventRepository transactionEventRepository;
-    @Mock BankAccountRepository bankAccountRepository;
-    @Mock UserRepository userRepository;
-    @Mock RegistryRepository registryRepository;
-    @Mock DailyLimitRepository dailyLimitRepository;
-    @Mock IdempotencyRecordRepository idempotencyRecordRepository;
-    @Mock LookupAbuseCounterRepository abuseCounterRepository;
+    @Mock TransactionStore transactionStore;
+    @Mock LinkedAccountStore linkedAccountStore;
+    @Mock UserStore userStore;
     @Mock AuditService auditService;
 
     private PasswordEncoder passwordEncoder;
@@ -90,8 +84,6 @@ public class TransferConcurrencyAndLoadTest {
 
     private User senderUser;
     private User receiverUser;
-    private BankAccount senderAccount;
-    private BankAccount receiverAccount;
 
     @BeforeEach
     void setUp() {
@@ -107,14 +99,14 @@ public class TransferConcurrencyAndLoadTest {
         );
         bankAdapterRegistry = new BankAdapterRegistry(adapters);
 
-        dailyLimitService = new DailyLimitService(dailyLimitRepository);
+        dailyLimitService = new DailyLimitService(transactionStore);
         transferProcessor = new TransferProcessor(
-                transferRepository, transactionEventRepository, bankAdapterRegistry, dailyLimitService, auditService);
-        idempotencyService = new IdempotencyService(idempotencyRecordRepository, objectMapper);
+                transactionStore, bankAdapterRegistry, dailyLimitService, auditService, null);
+        idempotencyService = new IdempotencyService(transactionStore, objectMapper);
 
         transferService = new TransferService(
-                transferRepository, bankAccountRepository, userRepository,
-                transferProcessor, dailyLimitService, idempotencyService, passwordEncoder);
+                transactionStore, userStore, linkedAccountStore,
+                transferProcessor, dailyLimitService, idempotencyService, passwordEncoder, null);
 
         // Sender
         senderUser = new User("+94771000001", "Kasun Perera [TEST]", "199010000001", passwordEncoder.encode("123456"));
@@ -122,10 +114,9 @@ public class TransferConcurrencyAndLoadTest {
         senderUser.setRole(UserRole.CUSTOMER);
         ReflectionTestUtils.setField(senderUser, "id", 101L);
 
-        senderAccount = new BankAccount(senderUser, "SIMULATED_BANK_B", "hashB", "****1001", "Kasun Perera [TEST]", "encRefB");
-        senderAccount.setDefault(true);
-        senderAccount.setStatus(BankAccountStatus.ACTIVE);
-        ReflectionTestUtils.setField(senderAccount, "id", 202L);
+        LinkedAccount senderLinked = new LinkedAccount(
+                202L, 101L, "SIMULATED_BANK_B", "hashB", "****1001", "Kasun Perera [TEST]",
+                null, true, true, "encRefB", BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now());
 
         // Receiver
         receiverUser = new User("+94771000002", "Nimal Silva [TEST]", "199010000002", passwordEncoder.encode("123456"));
@@ -133,25 +124,51 @@ public class TransferConcurrencyAndLoadTest {
         receiverUser.setRole(UserRole.CUSTOMER);
         ReflectionTestUtils.setField(receiverUser, "id", 102L);
 
-        receiverAccount = new BankAccount(receiverUser, "SIMULATED_BANK_A", "hashA", "****1002", "Nimal Silva [TEST]", "encRefA");
-        receiverAccount.setDefault(true);
-        receiverAccount.setStatus(BankAccountStatus.ACTIVE);
-        ReflectionTestUtils.setField(receiverAccount, "id", 204L);
+        LinkedAccount receiverLinked = new LinkedAccount(
+                204L, 102L, "SIMULATED_BANK_A", "hashA", "****1002", "Nimal Silva [TEST]",
+                null, true, true, "encRefA", BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now());
 
         // Stubs
-        when(userRepository.findById(102L)).thenReturn(Optional.of(receiverUser));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(101L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(senderAccount));
-        when(bankAccountRepository.findByUserIdAndIsDefaultTrueAndStatus(102L, BankAccountStatus.ACTIVE))
-                .thenReturn(Optional.of(receiverAccount));
+        when(userStore.findUserById(101L)).thenReturn(Optional.of(UserAccount.fromUser(senderUser)));
+        when(userStore.findUserById(102L)).thenReturn(Optional.of(UserAccount.fromUser(receiverUser)));
+        when(linkedAccountStore.findActiveDefaultAccount(101L)).thenReturn(Optional.of(senderLinked));
+        when(linkedAccountStore.findActiveDefaultAccount(102L)).thenReturn(Optional.of(receiverLinked));
+        when(transactionStore.findDailyLimit(any(), any())).thenReturn(Optional.empty());
 
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(invocation -> {
-            Transfer t = invocation.getArgument(0);
-            if (t.getId() == null) {
-                ReflectionTestUtils.setField(t, "id", Math.abs(UUID.randomUUID().getMostSignificantBits() % 100000L));
-            }
-            return t;
-        });
+        AtomicLong txIdCounter = new AtomicLong(1000L);
+        when(transactionStore.createTransferWithIdempotency(any(TransactionRecord.class), anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    TransactionRecord r = inv.getArgument(0);
+                    Long id = txIdCounter.incrementAndGet();
+                    return new TransactionRecord(
+                            id, r.reference(), r.idempotencyKey(),
+                            r.senderId(), r.senderPhone(), r.senderFullName(),
+                            r.receiverId(), r.receiverPhone(), r.receiverFullName(),
+                            r.senderBankCode(), r.receiverBankCode(),
+                            r.amount(), r.currency(), TransactionStatus.PENDING,
+                            null, null, null, r.note(), true, r.initiatedVia(),
+                            r.qrCodeId(), 1L, Instant.now(), Instant.now()
+                    );
+                });
+
+        when(transactionStore.transitionTransferStatus(anyLong(), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(inv -> {
+                    Long id = inv.getArgument(0);
+                    TransactionStatus status = inv.getArgument(1);
+                    String bankTxRef = inv.getArgument(4);
+                    String provRef = inv.getArgument(5);
+                    String failReason = inv.getArgument(6);
+                    Long ver = inv.getArgument(7);
+                    return new TransactionRecord(
+                            id, "ref-" + id, "key-" + id,
+                            101L, "+94771000001", "Kasun Perera [TEST]",
+                            102L, "+94771000002", "Nimal Silva [TEST]",
+                            "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                            new BigDecimal("100.00"), "LKR", status,
+                            failReason, bankTxRef != null ? bankTxRef : "SIM-TX-" + id, provRef, "note", true, TransferInitiatedVia.APP,
+                            null, (ver != null ? ver : 1L) + 1L, Instant.now(), Instant.now()
+                    );
+                });
     }
 
     @Test
@@ -183,7 +200,7 @@ public class TransferConcurrencyAndLoadTest {
                             null, "Load benchmark transfer " + index, "123456");
 
                     TransferResponse resp = transferService.initiateTransfer(
-                            key, null, req, senderUser, "192.168.1." + (index % 250));
+                            key, "123456", req, senderUser, "192.168.1." + (index % 250));
 
                     long elapsed = System.nanoTime() - reqStart;
                     latenciesNanos.add(elapsed);
@@ -228,24 +245,55 @@ public class TransferConcurrencyAndLoadTest {
         CountDownLatch endGate = new CountDownLatch(threads);
 
         List<TransferResponse> responses = Collections.synchronizedList(new ArrayList<>());
-        AtomicInteger saveCount = new AtomicInteger(0);
 
-        // When transfer is saved for the first time, store it in in-memory map
-        Map<String, Transfer> inMemoryTransfers = new ConcurrentHashMap<>();
-        when(transferRepository.findByIdempotencyKey(sharedKey)).thenAnswer(inv ->
+        Map<String, TransactionRecord> inMemoryTransfers = new ConcurrentHashMap<>();
+        Object lock = new Object();
+
+        when(transactionStore.findTransferByIdempotencyKey(sharedKey)).thenAnswer(inv ->
                 Optional.ofNullable(inMemoryTransfers.get(sharedKey)));
 
-        when(transferRepository.save(any(Transfer.class))).thenAnswer(inv -> {
-            Transfer t = inv.getArgument(0);
-            if (t.getId() == null) {
-                ReflectionTestUtils.setField(t, "id", 9999L);
-            }
-            if (t.getIdempotencyKey() != null) {
-                inMemoryTransfers.putIfAbsent(t.getIdempotencyKey(), t);
-                saveCount.incrementAndGet();
-            }
-            return t;
-        });
+        when(transactionStore.createTransferWithIdempotency(any(TransactionRecord.class), eq(sharedKey), anyString()))
+                .thenAnswer(inv -> {
+                    synchronized (lock) {
+                        TransactionRecord existing = inMemoryTransfers.get(sharedKey);
+                        if (existing != null) {
+                            return existing;
+                        }
+                        TransactionRecord r = inv.getArgument(0);
+                        TransactionRecord created = new TransactionRecord(
+                                9999L, r.reference(), sharedKey,
+                                r.senderId(), r.senderPhone(), r.senderFullName(),
+                                r.receiverId(), r.receiverPhone(), r.receiverFullName(),
+                                r.senderBankCode(), r.receiverBankCode(),
+                                r.amount(), r.currency(), TransactionStatus.PENDING,
+                                null, null, null, r.note(), true, r.initiatedVia(),
+                                null, 1L, Instant.now(), Instant.now()
+                        );
+                        inMemoryTransfers.put(sharedKey, created);
+                        return created;
+                    }
+                });
+
+        when(transactionStore.transitionTransferStatus(eq(9999L), any(), any(), any(), any(), any(), any(), anyLong()))
+                .thenAnswer(inv -> {
+                    synchronized (lock) {
+                        TransactionStatus status = inv.getArgument(1);
+                        String bankTxRef = inv.getArgument(4);
+                        String provRef = inv.getArgument(5);
+                        TransactionRecord updated = new TransactionRecord(
+                                9999L, "uuid-ref-1", sharedKey,
+                                101L, "+94771000001", "Kasun Perera [TEST]",
+                                102L, "+94771000002", "Nimal Silva [TEST]",
+                                "SIMULATED_BANK_B", "SIMULATED_BANK_A",
+                                new BigDecimal("250.00"), "LKR", status,
+                                null, bankTxRef != null ? bankTxRef : "SIM-TX-9999", provRef != null ? provRef : "SIM-PROV-9999",
+                                "Race test", true, TransferInitiatedVia.APP,
+                                null, 2L, Instant.now(), Instant.now()
+                        );
+                        inMemoryTransfers.put(sharedKey, updated);
+                        return updated;
+                    }
+                });
 
         InitiateTransferRequest req = new InitiateTransferRequest(
                 102L, null, new BigDecimal("250.00"), "LKR",
@@ -256,7 +304,7 @@ public class TransferConcurrencyAndLoadTest {
                 try {
                     startGate.await(); // Await race trigger
                     TransferResponse resp = transferService.initiateTransfer(
-                            sharedKey, null, req, senderUser, "10.0.0.1");
+                            sharedKey, "123456", req, senderUser, "10.0.0.1");
                     responses.add(resp);
                 } catch (Exception e) {
                     log.error("Race error: {}", e.getMessage());

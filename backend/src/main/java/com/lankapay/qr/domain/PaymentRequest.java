@@ -1,77 +1,47 @@
 package com.lankapay.qr.domain;
 
 import com.lankapay.identity.domain.User;
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
 /**
- * JPA entity for pmt_payment_requests.
+ * Domain entity for pmt_payment_requests.
  *
  * Represents a payment request initiated by a requester to be fulfilled by a payer.
  * Can be linked to an opaque QR reference.
  */
-@Entity
-@Table(name = "pmt_payment_requests",
-       indexes = {
-           @Index(name = "idx_pmt_req_requester", columnList = "requester_id"),
-           @Index(name = "idx_pmt_req_status",    columnList = "status")
-       })
 public class PaymentRequest {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     /** Opaque, unguessable public reference (e.g. "PREQ-550e8400..."). */
-    @Column(nullable = false, unique = true, length = 64)
     private String reference;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "requester_id", nullable = false)
     private User requester;
 
     /** Optional: specific designated payer, or null if open to anyone scanning. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payer_id")
     private User payer;
 
-    @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
-    @Column(nullable = false, length = 3)
     private String currency = "LKR";
 
-    @Column(length = 255)
     private String note;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
     private PaymentRequestStatus status = PaymentRequestStatus.PENDING;
 
-    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    @JoinColumn(name = "qr_code_id")
     private QrCode qrCode;
 
-    @Column(name = "fulfilled_transfer_id")
     private Long fulfilledTransferId;
 
-    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    private Instant createdAt = Instant.now();
 
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+    private Instant updatedAt = Instant.now();
 
-    protected PaymentRequest() {}
+    public PaymentRequest() {}
 
     public PaymentRequest(User requester, User payer, BigDecimal amount, String currency,
                           String note, Instant expiresAt, QrCode qrCode) {
