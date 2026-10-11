@@ -12,6 +12,8 @@ import '../../features/home/presentation/home_screen.dart';
 import '../../features/accounts/presentation/accounts_screen.dart';
 import '../../features/accounts/presentation/add_bank_account_screen.dart';
 import '../../features/send/presentation/send_screen.dart';
+import '../../features/send/presentation/transfer_result_screen.dart';
+import '../../features/send/domain/transfer_models.dart';
 import '../../features/qr/presentation/qr_screen.dart';
 import '../../features/history/presentation/history_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
@@ -74,6 +76,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/send',
         builder: (context, state) => const SendScreen(),
+      ),
+      GoRoute(
+        path: '/send/result',
+        builder: (context, state) {
+          final transfer = state.extra as TransferModel;
+          return TransferResultScreen(initialTransfer: transfer);
+        },
       ),
       GoRoute(
         path: '/qr',
