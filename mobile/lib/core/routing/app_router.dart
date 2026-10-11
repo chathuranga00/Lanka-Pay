@@ -75,7 +75,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/send',
-        builder: (context, state) => const SendScreen(),
+        builder: (context, state) => SendScreen(resolvedQr: state.extra),
       ),
       GoRoute(
         path: '/send/result',

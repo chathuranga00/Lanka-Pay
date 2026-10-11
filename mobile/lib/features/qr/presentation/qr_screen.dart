@@ -1,97 +1,469 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/simulated_banner.dart';
-import '../../../l10n/app_localizations.dart';
+import '../data/qr_service.dart';
+import '../domain/qr_models.dart';
+import 'qr_scanner_screen.dart';
 
-class QrScreen extends StatelessWidget {
+class QrScreen extends ConsumerStatefulWidget {
   const QrScreen({super.key});
 
   @override
+  ConsumerState<QrScreen> createState() => _QrScreenState();
+}
+
+class _QrScreenState extends ConsumerState<QrScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  // Static QR state
+  QrReferenceModel? _staticQr;
+  bool _isLoadingStatic = false;
+  String? _staticError;
+
+  // Dynamic Payment Request state
+  final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
+  int _validityMinutes = 15;
+  QrReferenceModel? _dynamicQr;
+  bool _isGeneratingDynamic = false;
+  String? _dynamicError;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadStaticQr();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadStaticQr() async {
+    setState(() {
+      _isLoadingStatic = true;
+      _staticError = null;
+    });
+
+    try {
+      final qr = await ref.read(qrServiceProvider).generateStaticQr();
+      if (mounted) {
+        setState(() {
+          _staticQr = qr;
+          _isLoadingStatic = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingStatic = false;
+          _staticError = 'Could not generate personal QR. Please check your connection.';
+        });
+      }
+    }
+  }
+
+  Future<void> _generateDynamicQr() async {
+    final amountText = _amountController.text.trim();
+    final amount = double.tryParse(amountText);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter an amount greater than 0')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isGeneratingDynamic = true;
+      _dynamicError = null;
+    });
+
+    try {
+      final qr = await ref.read(qrServiceProvider).generateDynamicQr(
+            amount: amount,
+            validityMinutes: _validityMinutes,
+            note: _noteController.text.trim(),
+          );
+      if (mounted) {
+        setState(() {
+          _dynamicQr = qr;
+          _isGeneratingDynamic = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isGeneratingDynamic = false;
+          _dynamicError = 'Failed to generate dynamic QR. Please try again.';
+        });
+      }
+    }
+  }
+
+  void _openScanner() async {
+    final result = await Navigator.of(context).push<ResolvedQrModel>(
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+
+    if (result != null && mounted) {
+      // Navigate to normal send money flow with resolved recipient
+      context.push('/send', extra: result);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n?.navQr ?? 'LANKAQR'),
+        title: const Text('LANKAQR Payments'),
+        actions: [
+          IconButton(
+            key: const Key('qr_open_scanner_btn'),
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            tooltip: 'Scan QR',
+            onPressed: _openScanner,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: isDark ? AppColors.accentGoldLight : AppColors.primaryGreen,
+          unselectedLabelColor: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+          indicatorColor: AppColors.primaryGreen,
+          tabs: const [
+            Tab(text: 'My QR (Static)'),
+            Tab(text: 'Request (Dynamic)'),
+          ],
+        ),
       ),
       body: SafeArea(
         child: Column(
           children: [
             const SimulatedBanner(),
             Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: isDark ? AppColors.surfaceDark : Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isDark ? Colors.white12 : Colors.black12,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.qr_code_2_rounded,
-                              size: 180,
-                              color: isDark ? AppColors.accentGoldLight : AppColors.primaryGreen,
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Scan to Pay (LANKAQR)',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Opaque, privacy-safe QR reference',
-                              style: TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.qr_code_scanner_rounded),
-                              label: const Text('Scan QR'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.qr_code_rounded),
-                              label: const Text('My Code'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildStaticQrTab(isDark),
+                  _buildDynamicRequestTab(isDark),
+                ],
               ),
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('qr_scan_fab'),
+        onPressed: _openScanner,
+        icon: const Icon(Icons.qr_code_scanner_rounded),
+        label: const Text('Scan & Pay'),
+        backgroundColor: AppColors.primaryGreen,
+        foregroundColor: Colors.white,
+      ),
+    );
+  }
+
+  Widget _buildStaticQrTab(bool isDark) {
+    if (_isLoadingStatic) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_staticError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+              const SizedBox(height: 12),
+              Text(_staticError!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadStaticQr,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final qrData = _staticQr?.qrPayload ?? 'LANKAPAY:QR:STATIC_PLACEHOLDER';
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark ? Colors.white12 : Colors.black12,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  _staticQr?.recipientDisplayName ?? 'Personal LankaPay-ID',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _staticQr?.maskedPhone ?? '+9477***XXXX',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                QrImageView(
+                  data: qrData,
+                  version: QrVersions.auto,
+                  size: 220.0,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: AppColors.primaryGreen,
+                  ),
+                  dataModuleStyle: QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: isDark ? Colors.white : AppColors.primaryGreenDark,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentGold.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_outline_rounded, size: 16, color: AppColors.accentGoldDark),
+                      SizedBox(width: 6),
+                      Text(
+                        'Opaque Privacy Reference (No PII)',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accentGoldDark),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            'Present this QR code to receive payments. The payer can scan this code and choose the transfer amount.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDynamicRequestTab(bool isDark) {
+    if (_dynamicQr != null) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: isDark ? Colors.white12 : Colors.black12,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    'Payment Request',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : AppColors.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'LKR ${_dynamicQr!.amount?.toStringAsFixed(2) ?? "0.00"}',
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryGreen,
+                    ),
+                  ),
+                  if (_dynamicQr!.note != null && _dynamicQr!.note!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      _dynamicQr!.note!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  QrImageView(
+                    data: _dynamicQr!.qrPayload,
+                    version: QrVersions.auto,
+                    size: 220.0,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: AppColors.primaryGreen,
+                    ),
+                    dataModuleStyle: QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: isDark ? Colors.white : AppColors.primaryGreenDark,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.timer_outlined, size: 16, color: AppColors.warning),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Expires in $_validityMinutes minutes',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.warning,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _dynamicQr = null;
+                  _amountController.clear();
+                  _noteController.clear();
+                });
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Create New Request'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Create Dynamic Payment QR',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : AppColors.textPrimaryLight,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Set an exact amount and expiry timer for one-time payments.',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            ),
+          ),
+          const SizedBox(height: 24),
+          TextField(
+            key: const Key('qr_amount_field'),
+            controller: _amountController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Requested Amount (LKR)',
+              hintText: '0.00',
+              prefixIcon: Icon(Icons.currency_exchange_rounded),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            key: const Key('qr_note_field'),
+            controller: _noteController,
+            decoration: const InputDecoration(
+              labelText: 'Description / Note (Optional)',
+              hintText: 'e.g. Lunch split, invoice #102',
+              prefixIcon: Icon(Icons.notes_rounded),
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<int>(
+            value: _validityMinutes,
+            decoration: const InputDecoration(
+              labelText: 'Validity Duration',
+              prefixIcon: Icon(Icons.schedule_rounded),
+            ),
+            items: const [
+              DropdownMenuItem(value: 5, child: Text('5 minutes')),
+              DropdownMenuItem(value: 15, child: Text('15 minutes')),
+              DropdownMenuItem(value: 30, child: Text('30 minutes')),
+              DropdownMenuItem(value: 60, child: Text('1 hour')),
+            ],
+            onChanged: (val) {
+              if (val != null) setState(() => _validityMinutes = val);
+            },
+          ),
+          if (_dynamicError != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _dynamicError!,
+              style: const TextStyle(color: AppColors.error, fontSize: 13),
+            ),
+          ],
+          const SizedBox(height: 28),
+          ElevatedButton(
+            key: const Key('qr_generate_dynamic_btn'),
+            onPressed: _isGeneratingDynamic ? null : _generateDynamicQr,
+            child: _isGeneratingDynamic
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  )
+                : const Text('Generate Request QR'),
+          ),
+        ],
       ),
     );
   }

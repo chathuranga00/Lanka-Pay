@@ -10,7 +10,9 @@ import '../data/transfer_service.dart';
 import '../domain/transfer_models.dart';
 
 class SendScreen extends ConsumerStatefulWidget {
-  const SendScreen({super.key});
+  final dynamic resolvedQr;
+
+  const SendScreen({super.key, this.resolvedQr});
 
   @override
   ConsumerState<SendScreen> createState() => _SendScreenState();
@@ -49,6 +51,23 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   void initState() {
     super.initState();
     _idempotencyKey = _generateIdempotencyKey();
+
+    if (widget.resolvedQr != null) {
+      final qr = widget.resolvedQr;
+      _phoneController.text = qr.maskedPhone ?? '';
+      if (qr.amount != null && qr.amount > 0) {
+        _amountController.text = qr.amount.toStringAsFixed(2);
+      }
+      if (qr.note != null) {
+        _noteController.text = qr.note;
+      }
+      _lookupResult = LookupResultModel(
+        resultType: 'FOUND',
+        displayName: qr.recipientDisplayName ?? 'QR Recipient',
+        verificationStatus: 'VERIFIED',
+      );
+      _currentStep = 1;
+    }
   }
 
   @override
