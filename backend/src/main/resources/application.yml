@@ -70,6 +70,13 @@ info:
 
 # ── JWT ───────────────────────────────────────────────────
 app:
+  persistence: ${APP_PERSISTENCE:mysql} # mysql | firestore
+
+  firebase:
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH:}
+    project-id: ${FIREBASE_PROJECT_ID:lankapay-dev}
+    emulator-host: ${FIRESTORE_EMULATOR_HOST:}
+
   jwt:
     secret: ${JWT_SECRET:dev-secret-replace-in-production-must-be-at-least-32-chars}
     expiry-minutes: ${JWT_EXPIRY_MINUTES:30}

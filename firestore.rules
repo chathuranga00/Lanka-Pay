@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // LankaPay ID Security Rule:
+    // All direct client-side read and write access from web and mobile applications is strictly DENIED.
+    // All persistence operations must be executed exclusively by the trusted backend API service
+    // running with elevated service credentials via the Firebase Admin SDK.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

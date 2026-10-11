@@ -22,6 +22,7 @@ spring:
     locations: classpath:db/migration
 
 app:
+  persistence: ${APP_PERSISTENCE:mysql}
   jwt:
     secret: test-secret-value-that-is-long-enough-32chars
     expiry-minutes: 30
