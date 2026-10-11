@@ -138,6 +138,32 @@ class BankAccountsNotifier extends AsyncNotifier<List<BankAccountModel>> {
     await refresh();
   }
 
+  Future<void> toggleReceiving(int id, bool receivingEnabled) async {
+    final previous = state.value;
+    if (previous != null) {
+      state = AsyncData(
+        previous.map((a) => a.id == id ? a.copyWith(receivingEnabled: receivingEnabled) : a).toList(),
+      );
+    }
+    try {
+      final service = ref.read(bankAccountServiceProvider);
+      final updated = await service.patchAccount(
+        id: id,
+        receivingEnabled: receivingEnabled,
+      );
+      if (state.value != null) {
+        state = AsyncData(
+          state.value!.map((a) => a.id == id ? updated : a).toList(),
+        );
+      }
+    } catch (e) {
+      if (previous != null) {
+        state = AsyncData(previous);
+      }
+      rethrow;
+    }
+  }
+
   Future<void> removeAccount(int id) async {
     final service = ref.read(bankAccountServiceProvider);
     await service.removeAccount(id);

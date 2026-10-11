@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 import 'simulated_badge.dart';
@@ -6,27 +7,42 @@ import 'simulated_badge.dart';
 enum AccountCardStyle { charcoal, lavender }
 
 /// Bank account card representation supporting charcoal & lavender styles
-/// with a subtle geometric hexagon pattern and simulated indicator.
+/// with a subtle geometric hexagon pattern, simulated indicator, badges,
+/// frosted snowflake paused overlay, and eye toggle for digit masking.
 class AccountCard extends StatefulWidget {
   final String bankName;
   final String nickname;
   final String maskedNumber;
-  final String balance;
+  final String? balance;
   final bool isDefault;
+  final bool isDiscoverable;
+  final bool isPaused;
   final AccountCardStyle style;
   final VoidCallback? onTap;
   final String? expiryText;
+  final bool showDigitToggle;
+  final bool hideDigitsByDefault;
+  final bool? isDigitsRevealed;
+  final VoidCallback? onToggleVisibility;
+  final Key? toggleVisibilityKey;
 
   const AccountCard({
     super.key,
     required this.bankName,
     required this.nickname,
     required this.maskedNumber,
-    required this.balance,
+    this.balance,
     this.isDefault = false,
+    this.isDiscoverable = false,
+    this.isPaused = false,
     this.style = AccountCardStyle.charcoal,
     this.onTap,
     this.expiryText,
+    this.showDigitToggle = false,
+    this.hideDigitsByDefault = false,
+    this.isDigitsRevealed,
+    this.onToggleVisibility,
+    this.toggleVisibilityKey,
   });
 
   @override
@@ -34,7 +50,24 @@ class AccountCard extends StatefulWidget {
 }
 
 class _AccountCardState extends State<AccountCard> {
-  bool _isMasked = false;
+  bool _isBalanceMasked = false;
+  late bool _internalDigitsRevealed;
+
+  @override
+  void initState() {
+    super.initState();
+    _internalDigitsRevealed = !widget.hideDigitsByDefault;
+  }
+
+  bool get _digitsRevealed => widget.isDigitsRevealed ?? _internalDigitsRevealed;
+
+  String _formatMaskedNumber(String raw) {
+    if (!widget.showDigitToggle || _digitsRevealed) {
+      return raw;
+    }
+    // Replace all digits with bullet points
+    return raw.replaceAll(RegExp(r'\d'), '•');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,58 +167,107 @@ class _AccountCardState extends State<AccountCard> {
                               ),
                               const SizedBox(width: 6),
                             ],
+                            if (widget.isDiscoverable) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.20),
+                                  borderRadius: AppTokens.borderRadiusSmall,
+                                ),
+                                child: const Text(
+                                  'DISCOVERABLE',
+                                  style: TextStyle(
+                                    fontFamily: AppTokens.fontFamily,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
                             const SimulatedBadge(compact: true),
                           ],
                         ),
                       ],
                     ),
 
-                    // Middle: Balance with Eye toggle
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _isMasked ? '••••••••' : widget.balance,
-                            style: const TextStyle(
-                              fontFamily: AppTokens.fontFamily,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.2,
-                              color: Colors.white,
+                    // Middle: Balance with Eye toggle (if balance is provided)
+                    if (widget.balance != null)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _isBalanceMasked ? '••••••••' : widget.balance!,
+                              style: const TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.2,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                          icon: Icon(
-                            _isMasked ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                            color: Colors.white.withOpacity(0.8),
-                            size: 20,
+                          const SizedBox(width: 8),
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            icon: Icon(
+                              _isBalanceMasked ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: Colors.white.withOpacity(0.8),
+                              size: 20,
+                            ),
+                            onPressed: () => setState(() => _isBalanceMasked = !_isBalanceMasked),
+                            tooltip: 'Toggle balance',
                           ),
-                          onPressed: () => setState(() => _isMasked = !_isMasked),
-                          tooltip: 'Toggle balance',
-                        ),
-                      ],
-                    ),
+                        ],
+                      )
+                    else
+                      const Spacer(),
 
-                    // Bottom Row: Masked Number & Expiry
+                    // Bottom Row: Masked Number & Eye Toggle / Expiry
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          widget.maskedNumber,
-                          style: TextStyle(
-                            fontFamily: AppTokens.fontFamily,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.5,
-                            color: Colors.white.withOpacity(0.85),
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.showDigitToggle) ...[
+                              IconButton(
+                                key: widget.toggleVisibilityKey ?? const Key('account_toggle_visibility'),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                icon: Icon(
+                                  _digitsRevealed ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                  color: Colors.white.withOpacity(0.85),
+                                  size: 18,
+                                ),
+                                onPressed: () {
+                                  if (widget.onToggleVisibility != null) {
+                                    widget.onToggleVisibility!();
+                                  } else {
+                                    setState(() => _internalDigitsRevealed = !_internalDigitsRevealed);
+                                  }
+                                },
+                                tooltip: _digitsRevealed ? 'Hide account digits' : 'Reveal account digits',
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Text(
+                              _formatMaskedNumber(widget.maskedNumber),
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 1.5,
+                                color: Colors.white.withOpacity(0.85),
+                              ),
+                            ),
+                          ],
                         ),
                         if (widget.expiryText != null)
                           Text(
@@ -202,6 +284,50 @@ class _AccountCardState extends State<AccountCard> {
                   ],
                 ),
               ),
+
+              // Frosted overlay with snowflake icon when receiving is paused
+              if (widget.isPaused)
+                Positioned.fill(
+                  child: ClipRRect(
+                    borderRadius: AppTokens.borderRadiusCard,
+                    child: BackdropFilter(
+                      filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                      child: Container(
+                        color: Colors.black.withOpacity(0.45),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.18),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.ac_unit_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Receiving paused',
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

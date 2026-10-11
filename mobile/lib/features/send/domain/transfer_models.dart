@@ -156,6 +156,8 @@ class TransferModel {
   final bool simulated;
   final String? createdAt;
   final String? updatedAt;
+  final int? senderAccountId;
+  final int? receiverAccountId;
 
   const TransferModel({
     required this.transferId,
@@ -174,6 +176,8 @@ class TransferModel {
     this.simulated = true,
     this.createdAt,
     this.updatedAt,
+    this.senderAccountId,
+    this.receiverAccountId,
   });
 
   factory TransferModel.fromJson(Map<String, dynamic> json) {
@@ -196,6 +200,12 @@ class TransferModel {
       simulated: json['simulated'] as bool? ?? true,
       createdAt: json['createdAt'] as String?,
       updatedAt: json['updatedAt'] as String?,
+      senderAccountId: json['senderAccountId'] is int
+          ? json['senderAccountId'] as int
+          : int.tryParse(json['senderAccountId']?.toString() ?? ''),
+      receiverAccountId: json['receiverAccountId'] is int
+          ? json['receiverAccountId'] as int
+          : int.tryParse(json['receiverAccountId']?.toString() ?? ''),
     );
   }
 }

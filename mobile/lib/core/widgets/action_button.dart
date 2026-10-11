@@ -32,46 +32,49 @@ class ActionButton extends StatelessWidget {
             ? AppTokens.primaryViolet
             : (isDark ? Colors.white : AppTokens.textPrimaryLight));
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(18),
-            child: Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
-                  width: 1.0,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(4.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                    width: 1.0,
+                  ),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  icon,
+                  size: 22,
+                  color: iconColor,
                 ),
               ),
-              alignment: Alignment.center,
-              child: Icon(
-                icon,
-                size: 22,
-                color: iconColor,
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppTokens.textSecondaryDark : AppTokens.textPrimaryLight,
+                ),
+                textAlign: TextAlign.center,
               ),
-            ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            fontFamily: AppTokens.fontFamily,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isDark ? AppTokens.textSecondaryDark : AppTokens.textPrimaryLight,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+      ),
     );
   }
 }
