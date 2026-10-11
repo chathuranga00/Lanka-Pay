@@ -144,14 +144,18 @@ class _AccountCardState extends State<AccountCard> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          _isMasked ? '••••••••' : widget.balance,
-                          style: const TextStyle(
-                            fontFamily: AppTokens.fontFamily,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.2,
-                            color: Colors.white,
+                        Expanded(
+                          child: Text(
+                            _isMasked ? '••••••••' : widget.balance,
+                            style: const TextStyle(
+                              fontFamily: AppTokens.fontFamily,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),

@@ -1,289 +1,553 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_theme.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/account_card.dart';
+import '../../../core/widgets/app_avatar.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../../core/widgets/error_retry.dart';
+import '../../../core/widgets/gradient_header_scaffold.dart';
+import '../../../core/widgets/quick_action_tile.dart';
+import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/shimmer_skeletons.dart';
 import '../../../core/widgets/simulated_badge.dart';
-import '../../../l10n/app_localizations.dart';
+import '../../../core/widgets/transaction_tile.dart';
 import '../../accounts/data/bank_account_service.dart';
 import '../../accounts/domain/bank_account_model.dart';
+import '../../auth/data/auth_service.dart';
+import '../../auth/domain/auth_state.dart';
+import '../../history/data/history_service.dart';
+import '../../history/presentation/receipt_screen.dart';
+import '../../send/domain/transfer_models.dart';
+import '../../settings/presentation/privacy_settings_screen.dart';
+import '../data/home_providers.dart';
 
-class HomeScreen extends ConsumerWidget {
+/// Redesigned Neo-Banking Home Dashboard tab matching the target design language.
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accountsAsync = ref.watch(bankAccountsProvider);
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n?.appTitle ?? 'Lanka Pay'),
-        actions: [
-          const Center(child: SimulatedBadge(compact: true)),
-          const SizedBox(width: 4),
-          IconButton(
-            key: const Key('home_notifications_icon_btn'),
-            icon: const Icon(Icons.notifications_none_rounded),
-            onPressed: () => context.push('/notifications'),
-          ),
-          IconButton(
-            key: const Key('home_settings_icon_btn'),
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => context.push('/settings'),
-          ),
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _isSummaryHidden = false;
+
+  Future<void> _refreshAll() async {
+    ref.invalidate(bankAccountsProvider);
+    ref.invalidate(unreadNotificationCountProvider);
+    ref.invalidate(recentTransactionsProvider);
+    ref.invalidate(monthlyReceivedProvider);
+  }
+
+  Future<void> _openTransactionDetail(TransferModel item) async {
+    try {
+      final receipt = await ref.read(historyServiceProvider).getReceipt(item.transferId);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ReceiptScreen(receipt: receipt)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      final fallbackReceipt = ReceiptModel(
+        receiptNumber: 'REC-${item.reference}',
+        transferId: item.transferId,
+        reference: item.reference,
+        status: item.status.name.toUpperCase(),
+        amount: item.amount,
+        totalDebited: item.amount,
+        receiver: ReceiptPartyModel(displayName: item.receiverDisplayName ?? 'Payee'),
+        note: item.note,
+        createdAt: item.createdAt,
+        simulated: item.simulated,
+      );
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ReceiptScreen(receipt: fallbackReceipt)),
+      );
+    }
+  }
+
+  bool _isIncomingTransfer(TransferModel item, String? currentUserId, String? currentUserPhone) {
+    if (currentUserId != null && currentUserId.isNotEmpty && item.receiverId != null) {
+      if (item.receiverId.toString() == currentUserId) return true;
+    }
+    if (currentUserPhone != null && currentUserPhone.isNotEmpty && item.senderPhone != null) {
+      if (item.senderPhone != currentUserPhone) return true;
+    }
+    final receiver = item.receiverDisplayName?.toLowerCase() ?? '';
+    final note = item.note?.toLowerCase() ?? '';
+    if (receiver.contains('received') || note.contains('received') || receiver.contains('from')) {
+      return true;
+    }
+    return false;
+  }
+
+  String _formatStatusLabel(TransferStatusType status) {
+    switch (status) {
+      case TransferStatusType.completed:
+        return 'Completed';
+      case TransferStatusType.pending:
+      case TransferStatusType.processing:
+      case TransferStatusType.requiresReconciliation:
+        return 'Pending';
+      case TransferStatusType.failed:
+        return 'Failed';
+      case TransferStatusType.reversed:
+      case TransferStatusType.reversalPending:
+        return 'Reversed';
+      default:
+        return 'Completed';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GradientHeaderScaffold(
+      scrollable: false,
+      bodyPadding: EdgeInsets.zero,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeaderRow(context, isDark),
+          const SizedBox(height: 16),
+          _buildSummary(context, isDark),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Clean Primary Card
-                    accountsAsync.when(
-                      loading: () => Card(
-                        child: Container(
-                          height: 140,
-                          alignment: Alignment.center,
-                          child: const CircularProgressIndicator(),
-                        ),
-                      ),
-                      error: (_, _) => _buildDefaultAccountCard(context, isDark, null),
-                      data: (accounts) {
-                        final BankAccountModel? defaultAccount = accounts.isEmpty
-                            ? null
-                            : accounts.firstWhere(
-                                (a) => a.isDefault,
-                                orElse: () => accounts.first,
-                              );
-                        return _buildDefaultAccountCard(context, isDark, defaultAccount);
-                      },
-                    ),
-                    const SizedBox(height: 24),
+      body: RefreshIndicator(
+        onRefresh: _refreshAll,
+        color: AppTokens.primaryViolet,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppTokens.screenHorizontalPadding,
+            vertical: AppTokens.space16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 3. ACCOUNTS Section
+              _buildAccountsSection(context, isDark),
+              const SizedBox(height: 20),
 
-                    // Quick Action Buttons (Send, Scan, Request)
-                    Row(
-                      children: [
-                        _buildQuickAction(
-                          context: context,
-                          key: const Key('home_quick_send_btn'),
-                          icon: Icons.send_rounded,
-                          label: 'Send',
-                          onTap: () => context.push('/send'),
-                        ),
-                        const SizedBox(width: 14),
-                        _buildQuickAction(
-                          context: context,
-                          key: const Key('home_quick_scan_btn'),
-                          icon: Icons.qr_code_scanner_rounded,
-                          label: 'Scan QR',
-                          onTap: () => context.push('/qr'),
-                        ),
-                        const SizedBox(width: 14),
-                        _buildQuickAction(
-                          context: context,
-                          key: const Key('home_quick_request_btn'),
-                          icon: Icons.call_received_rounded,
-                          label: 'Request',
-                          onTap: () => context.push('/qr'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 28),
+              // 4. QUICK ACTIONS Section
+              _buildQuickActionsSection(context, isDark),
+              const SizedBox(height: 20),
 
-                    // Recent Activity Section
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Recent Activity',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: isDark ? Colors.white : AppColors.textPrimaryLight,
-                          ),
-                        ),
-                        TextButton(
-                          key: const Key('home_view_all_history_btn'),
-                          onPressed: () => context.push('/history'),
-                          child: const Text('View All'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+              // 5. LAST TRANSACTIONS Section
+              _buildLastTransactionsSection(context, isDark),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-                    Card(
-                      child: Column(
-                        children: [
-                          ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.error.withOpacity(0.12),
-                              child: const Icon(Icons.arrow_upward_rounded, color: AppColors.error),
-                            ),
-                            title: const Text('Transfer to Kamal P.', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                            subtitle: const Text('Instant Pay-ID • SIMULATED', style: TextStyle(fontSize: 12)),
-                            trailing: const Text(
-                              '- LKR 1,500.00',
-                              style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.error, fontSize: 14),
-                            ),
-                          ),
-                          const Divider(height: 1),
-                          ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.success.withOpacity(0.12),
-                              child: const Icon(Icons.arrow_downward_rounded, color: AppColors.success),
-                            ),
-                            title: const Text('Received from Nimal S.', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                            subtitle: const Text('LANKAQR Merchant • SIMULATED', style: TextStyle(fontSize: 12)),
-                            trailing: const Text(
-                              '+ LKR 4,200.00',
-                              style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.success, fontSize: 14),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+  // ---------------------------------------------------------------------------
+  // 1. Header Row
+  // ---------------------------------------------------------------------------
+  Widget _buildHeaderRow(BuildContext context, bool isDark) {
+    final profile = ref.watch(paymentProfileProvider);
+    final safeName = profile.safeName;
+    final firstName = (safeName != null && safeName.trim().isNotEmpty)
+        ? safeName.trim().split(' ').first
+        : 'James';
+
+    final unreadAsync = ref.watch(unreadNotificationCountProvider);
+    final unreadCount = unreadAsync.value ?? 0;
+    final hasUnread = unreadCount > 0;
+
+    final iconColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        AppAvatar(
+          name: safeName ?? 'James Taylor',
+          size: 42,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Hello, $firstName',
+            style: TextStyle(
+              fontFamily: AppTokens.fontFamily,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: iconColor,
+              letterSpacing: -0.2,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        IconButton(
+          key: const Key('home_search'),
+          icon: Icon(Icons.search_rounded, color: iconColor, size: 24),
+          tooltip: 'Search recipients',
+          onPressed: () => context.go('/send'),
+        ),
+        KeyedSubtree(
+          key: const Key('home_notifications_icon_btn'),
+          child: IconButton(
+            key: const Key('home_bell'),
+            tooltip: 'Notifications',
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  Icons.notifications_none_rounded,
+                  color: iconColor,
+                  size: 24,
                 ),
+                if (hasUnread)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      key: const Key('home_bell_unread_dot'),
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: AppTokens.error,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? AppTokens.backgroundDark : AppTokens.lightHeaderStart,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onPressed: () => context.push('/notifications'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. Summary: Simulated balance / Received this month
+  // ---------------------------------------------------------------------------
+  Widget _buildSummary(BuildContext context, bool isDark) {
+    final simulatedBalance = ref.watch(simulatedBalanceProvider);
+    final monthlyReceivedAsync = ref.watch(monthlyReceivedProvider);
+
+    final isSimulated = simulatedBalance != null;
+    final amount = isSimulated ? simulatedBalance : (monthlyReceivedAsync.value ?? 0.0);
+    final formattedAmount = 'LKR ${NumberFormat('#,##0.00').format(amount)}';
+
+    final labelColor = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
+    final valueColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              isSimulated ? 'Simulated balance' : 'Received this month',
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: labelColor,
               ),
+            ),
+            if (isSimulated) ...[
+              const SizedBox(width: 8),
+              const SimulatedBadge(compact: true),
+            ],
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text(
+              _isSummaryHidden ? '••••••••' : formattedAmount,
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: valueColor,
+                letterSpacing: -0.4,
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              key: const Key('home_toggle_balance'),
+              icon: Icon(
+                _isSummaryHidden ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                color: labelColor,
+                size: 20,
+              ),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              tooltip: 'Toggle balance',
+              onPressed: () => setState(() => _isSummaryHidden = !_isSummaryHidden),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildDefaultAccountCard(BuildContext context, bool isDark, BankAccountModel? account) {
-    return InkWell(
-      onTap: () => context.push('/accounts'),
-      borderRadius: BorderRadius.circular(16),
-      child: Card(
-        child: Container(
-          padding: const EdgeInsets.all(20.0),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: isDark
-                  ? [AppColors.primaryGreenLight, AppColors.primaryGreenDark]
-                  : [AppColors.primaryGreen, AppColors.primaryGreenDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+  // ---------------------------------------------------------------------------
+  // 3. ACCOUNTS Section
+  // ---------------------------------------------------------------------------
+  Widget _buildAccountsSection(BuildContext context, bool isDark) {
+    final accountsAsync = ref.watch(bankAccountsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionHeader(
+          title: 'ACCOUNTS',
+          actionLabel: 'Add +',
+          actionKey: const Key('home_add_account'),
+          onActionTap: () => context.push('/accounts/add'),
+        ),
+        const SizedBox(height: 8),
+        if (accountsAsync.hasError && !accountsAsync.hasValue)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: ErrorRetry(
+              key: const Key('home_accounts_error'),
+              message: 'Failed to load bank accounts',
+              onRetry: () => ref.refresh(bankAccountsProvider),
             ),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    account != null ? 'Primary Account' : 'No Account Linked',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w500),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentGold.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(6),
+          )
+        else
+          accountsAsync.when(
+            loading: () => const SizedBox(
+              height: 200,
+              child: SkeletonAccountCard(),
+            ),
+            error: (error, _) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: ErrorRetry(
+                key: const Key('home_accounts_error'),
+                message: 'Failed to load bank accounts',
+                onRetry: () => ref.refresh(bankAccountsProvider),
+              ),
+            ),
+            data: (accounts) {
+            if (accounts.isEmpty) {
+              return EmptyState(
+                key: const Key('home_accounts_empty'),
+                icon: Icons.account_balance_outlined,
+                title: 'No linked accounts',
+                description: 'Link your bank account to start transacting.',
+                actionLabel: 'Add Account',
+                actionKey: const Key('home_add_account_empty_btn'),
+                onActionTap: () => context.push('/accounts/add'),
+              );
+            }
+
+            final sorted = List<BankAccountModel>.from(accounts)
+              ..sort((a, b) => (b.isDefault ? 1 : 0).compareTo(a.isDefault ? 1 : 0));
+
+            return SizedBox(
+              height: 200,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: sorted.length,
+                separatorBuilder: (_, _) => const SizedBox(width: AppTokens.space12),
+                itemBuilder: (context, index) {
+                  final acc = sorted[index];
+                  final isSingle = sorted.length == 1;
+                  final width = isSingle
+                      ? MediaQuery.of(context).size.width - (AppTokens.screenHorizontalPadding * 2)
+                      : 310.0;
+
+                  return SizedBox(
+                    width: width,
+                    child: AccountCard(
+                      key: Key('home_account_${acc.id}'),
+                      bankName: acc.institutionCode,
+                      nickname: acc.label ?? acc.accountName,
+                      maskedNumber: acc.maskedNumber,
+                      balance: 'LKR 125,450.00',
+                      isDefault: acc.isDefault,
+                      style: index.isEven ? AccountCardStyle.charcoal : AccountCardStyle.lavender,
+                      onTap: () => context.go('/accounts'),
                     ),
-                    child: const Text(
-                      'SIMULATED',
-                      style: TextStyle(color: AppColors.accentGoldLight, fontSize: 10, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
-              const SizedBox(height: 12),
-              Text(
-                account != null ? 'LKR 125,450.00' : 'LKR 0.00',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    account != null
-                        ? '${account.institutionCode} • ${account.maskedNumber}'
-                        : 'Tap to link bank account',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                  if (account == null)
-                    const Icon(Icons.add_circle_outline_rounded, color: Colors.white70, size: 18),
-                ],
-              ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildQuickAction({
-    required BuildContext context,
-    required Key key,
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Expanded(
-      child: InkWell(
-        key: key,
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: isDark ? Colors.white12 : Colors.black.withOpacity(0.06)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+  // ---------------------------------------------------------------------------
+  // 4. QUICK ACTIONS Section
+  // ---------------------------------------------------------------------------
+  Widget _buildQuickActionsSection(BuildContext context, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(title: 'QUICK ACTIONS'),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color: isDark ? AppColors.accentGoldLight : AppColors.primaryGreen,
-                  size: 24,
+              KeyedSubtree(
+                key: const Key('home_quick_send_btn'),
+                child: QuickActionTile(
+                  key: const Key('qa_send'),
+                  icon: Icons.send_rounded,
+                  label: 'Send money',
+                  gradient: QuickActionGradient.violet,
+                  width: 86,
+                  height: 96,
+                  onTap: () => context.go('/send'),
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : AppColors.textPrimaryLight,
+              const SizedBox(width: AppTokens.space12),
+              KeyedSubtree(
+                key: const Key('home_quick_scan_btn'),
+                child: QuickActionTile(
+                  key: const Key('qa_scan'),
+                  icon: Icons.qr_code_scanner_rounded,
+                  label: 'Scan QR',
+                  gradient: QuickActionGradient.orange,
+                  width: 86,
+                  height: 96,
+                  onTap: () => context.push('/qr'),
                 ),
-                textAlign: TextAlign.center,
+              ),
+              const SizedBox(width: AppTokens.space12),
+              KeyedSubtree(
+                key: const Key('home_quick_request_btn'),
+                child: QuickActionTile(
+                  key: const Key('qa_request'),
+                  icon: Icons.call_received_rounded,
+                  label: 'Request money',
+                  gradient: QuickActionGradient.pink,
+                  width: 86,
+                  height: 96,
+                  onTap: () => context.push('/qr'),
+                ),
+              ),
+              const SizedBox(width: AppTokens.space12),
+              QuickActionTile(
+                key: const Key('qa_my_qr'),
+                icon: Icons.qr_code_2_rounded,
+                label: 'My payment ID/QR',
+                gradient: QuickActionGradient.cyan,
+                width: 86,
+                height: 96,
+                onTap: () => context.push('/qr'),
               ),
             ],
           ),
         ),
-      ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. LAST TRANSACTIONS Section
+  // ---------------------------------------------------------------------------
+  Widget _buildLastTransactionsSection(BuildContext context, bool isDark) {
+    final recentAsync = ref.watch(recentTransactionsProvider);
+    final authState = ref.watch(authStateProvider);
+    final String? currentUserId = authState is AuthAuthenticated ? authState.userId : null;
+    final String? currentUserPhone = authState is AuthAuthenticated ? authState.phone : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KeyedSubtree(
+          key: const Key('home_view_all_history_btn'),
+          child: SectionHeader(
+            title: 'LAST TRANSACTIONS',
+            actionLabel: 'See all >',
+            actionKey: const Key('home_see_all'),
+            onActionTap: () => context.push('/history'),
+          ),
+        ),
+        Text(
+          'Recent Activity',
+          style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+          ),
+        ),
+        const SizedBox(height: 6),
+        if (recentAsync.hasError && !recentAsync.hasValue)
+          ErrorRetry(
+            key: const Key('home_transactions_error'),
+            message: 'Could not load recent transactions',
+            onRetry: () => ref.refresh(recentTransactionsProvider),
+          )
+        else
+          recentAsync.when(
+            loading: () => const Column(
+              key: Key('home_transactions_loading'),
+              children: [
+                SkeletonTransactionTile(key: Key('skeleton_tx_0')),
+                SkeletonTransactionTile(key: Key('skeleton_tx_1')),
+                SkeletonTransactionTile(key: Key('skeleton_tx_2')),
+              ],
+            ),
+            error: (error, _) => ErrorRetry(
+              key: const Key('home_transactions_error'),
+              message: 'Could not load recent transactions',
+              onRetry: () => ref.refresh(recentTransactionsProvider),
+            ),
+            data: (transfers) {
+            if (transfers.isEmpty) {
+              return const EmptyState(
+                key: Key('home_transactions_empty'),
+                icon: Icons.receipt_long_outlined,
+                title: 'No transactions yet',
+                description: 'Your recent payments and transfers will appear here.',
+              );
+            }
+
+            final recent = transfers.take(5).toList();
+
+            return Column(
+              children: recent.map((item) {
+                final isIncoming = _isIncomingTransfer(item, currentUserId, currentUserPhone);
+                final isConfirmedSuccess = item.status.isConfirmedSuccess;
+                final isPositive = isIncoming && isConfirmedSuccess;
+                final prefix = isPositive ? '+' : '-';
+                final amountText = '$prefix LKR ${NumberFormat('#,##0.00').format(item.amount)}';
+                final statusLabel = _formatStatusLabel(item.status);
+                final subtitle = (item.createdAt != null && item.createdAt!.length >= 10)
+                    ? item.createdAt!.substring(0, 10)
+                    : 'Recent transfer';
+
+                return TransactionTile(
+                  key: Key('tx_${item.transferId}'),
+                  icon: isIncoming ? Icons.south_west_rounded : Icons.north_east_rounded,
+                  title: item.receiverDisplayName ?? (item.senderPhone != null ? 'From ${item.senderPhone}' : item.reference),
+                  subtitle: subtitle,
+                  amount: amountText,
+                  status: statusLabel,
+                  isPositive: isPositive,
+                  onTap: () => _openTransactionDetail(item),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
     );
   }
 }

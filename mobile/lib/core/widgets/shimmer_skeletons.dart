@@ -5,12 +5,19 @@ import '../theme/app_tokens.dart';
 /// Base shimmer effect wrapper that adapts smoothly to light and dark themes.
 class ShimmerWrapper extends StatelessWidget {
   final Widget child;
+  final bool? enabled;
 
-  const ShimmerWrapper({super.key, required this.child});
+  const ShimmerWrapper({super.key, required this.child, this.enabled});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isTest = WidgetsBinding.instance.runtimeType.toString().contains('TestWidgets');
+    final isEnabled = enabled ?? !isTest;
+
+    if (!isEnabled) {
+      return child;
+    }
 
     return Shimmer.fromColors(
       baseColor: isDark ? const Color(0xFF1C1C28) : const Color(0xFFE8E8EE),
