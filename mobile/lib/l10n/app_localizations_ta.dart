@@ -35,10 +35,83 @@ class AppLocalizationsTa extends AppLocalizations {
   String get phoneLabel => 'கைபேசி எண்';
 
   @override
-  String get phoneHint => 'எ.கா. 0771234567';
+  String get phoneHint => 'எ.கா. 0771234567 அல்லது +94771234567';
 
   @override
   String get passwordLabel => 'கடவுச்சொல்';
+
+  @override
+  String get pinLabel => '6-இலக்க பாதுகாப்பு PIN';
+
+  @override
+  String get fullNameLabel => 'முழுப் பெயர்';
+
+  @override
+  String get fullNameHint => 'எ.கா. கமல் பெரேரா';
+
+  @override
+  String get nicLabel => 'தேசிய அடையாள அட்டை (NIC)';
+
+  @override
+  String get nicHint => 'எ.கா. 199012345678 அல்லது 901234567V';
+
+  @override
+  String get roleLabel => 'கணக்கு வகை';
+
+  @override
+  String get customerRole => 'தனிநபர் கணக்கு';
+
+  @override
+  String get merchantRole => 'வணிக கணக்கு';
+
+  @override
+  String get otpTitle => 'OTP சரிபார்ப்பு';
+
+  @override
+  String get otpSubtitle =>
+      'உங்கள் மொபைல் எண்ணுக்கு அனுப்பப்பட்ட 6-இலக்க குறியீட்டை உள்ளிடவும்.';
+
+  @override
+  String get verifyButton => 'சரிபார்த்து தொடரவும்';
+
+  @override
+  String get resendOtp => 'குறியீட்டை மீண்டும் அனுப்புக';
+
+  @override
+  String get forgotPin => 'PIN மறந்ததா? / கணக்கு மீட்பு';
+
+  @override
+  String get recoverPinTitle => 'பாதுகாப்பு மீட்பு';
+
+  @override
+  String get recoverPinSubtitle =>
+      'உங்கள் பதிவுசெய்யப்பட்ட மொபைல் எண் மற்றும் தேசிய அடையாள அட்டை மூலம் மீட்டெடுக்கவும்.';
+
+  @override
+  String get recoverSubmit => 'மீட்புக் குறியீட்டை அனுப்புக';
+
+  @override
+  String get termsAgree =>
+      'தனியுரிமை கொள்கை மற்றும் சேவை விதிமுறைகளை ஒப்புக்கொள்கிறேன்';
+
+  @override
+  String get privacyNoticeTitle => 'தனியுரிமை அறிவிப்பு & விதிமுறைகள்';
+
+  @override
+  String get privacyNoticeSubtitle =>
+      'இலங்கை தரவு பாதுகாப்பு சட்டத்தின் கீழ் உங்கள் நிதி தரவை எவ்வாறு பாதுகாக்கிறோம்.';
+
+  @override
+  String get consentContinue => 'ஒப்புக்கொண்டு தொடரவும்';
+
+  @override
+  String get consentDecline => 'நிராகரிக்கவும்';
+
+  @override
+  String get signOut => 'வெளியேறுக';
+
+  @override
+  String get retryButton => 'மீண்டும் முயற்சிக்கவும்';
 
   @override
   String get navHome => 'முகப்பு';

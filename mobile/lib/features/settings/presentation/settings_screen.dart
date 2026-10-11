@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/storage/token_storage.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/simulated_banner.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../auth/data/auth_service.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -58,6 +58,7 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   Card(
                     child: ListTile(
+                      key: const Key('settings_sign_out_tile'),
                       leading: const Icon(Icons.logout_rounded, color: AppColors.error),
                       title: const Text(
                         'Sign Out',
@@ -67,8 +68,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ),
                       onTap: () async {
-                        final tokenStorage = ref.read(tokenStorageProvider);
-                        await tokenStorage.clearAll();
+                        await ref.read(authStateProvider.notifier).logout();
                         if (context.mounted) {
                           context.go('/welcome');
                         }

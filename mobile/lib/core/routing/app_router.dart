@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/welcome_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/register_screen.dart';
+import '../../features/auth/presentation/otp_verification_screen.dart';
+import '../../features/auth/presentation/consent_screen.dart';
+import '../../features/auth/presentation/recovery_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
 import '../../features/accounts/presentation/accounts_screen.dart';
 import '../../features/send/presentation/send_screen.dart';
@@ -25,8 +29,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
+        path: '/consent',
+        builder: (context, state) => const ConsentScreen(),
+      ),
+      GoRoute(
         path: '/login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/verify-otp',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          final userId = int.tryParse(extra['userId']?.toString() ?? '0') ?? 0;
+          final phone = extra['phone']?.toString() ?? '';
+          return OtpVerificationScreen(
+            userId: userId,
+            phone: phone,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/recover',
+        builder: (context, state) => const RecoveryScreen(),
       ),
       GoRoute(
         path: '/home',

@@ -151,7 +151,7 @@ abstract class AppLocalizations {
   /// No description provided for @phoneHint.
   ///
   /// In en, this message translates to:
-  /// **'e.g. 0771234567'**
+  /// **'e.g. 0771234567 or +94771234567'**
   String get phoneHint;
 
   /// No description provided for @passwordLabel.
@@ -159,6 +159,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Password'**
   String get passwordLabel;
+
+  /// No description provided for @pinLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'6-Digit Security PIN'**
+  String get pinLabel;
+
+  /// No description provided for @fullNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Name'**
+  String get fullNameLabel;
+
+  /// No description provided for @fullNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Kamal Perera'**
+  String get fullNameHint;
+
+  /// No description provided for @nicLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'National Identity Card (NIC)'**
+  String get nicLabel;
+
+  /// No description provided for @nicHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 199012345678 or 901234567V'**
+  String get nicHint;
+
+  /// No description provided for @roleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Account Role'**
+  String get roleLabel;
+
+  /// No description provided for @customerRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer / Personal'**
+  String get customerRole;
+
+  /// No description provided for @merchantRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Merchant / Business'**
+  String get merchantRole;
+
+  /// No description provided for @otpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'OTP Verification'**
+  String get otpTitle;
+
+  /// No description provided for @otpSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the 6-digit verification code sent to your mobile phone.'**
+  String get otpSubtitle;
+
+  /// No description provided for @verifyButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify & Continue'**
+  String get verifyButton;
+
+  /// No description provided for @resendOtp.
+  ///
+  /// In en, this message translates to:
+  /// **'Resend Code'**
+  String get resendOtp;
+
+  /// No description provided for @forgotPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Forgot PIN / Account Recovery?'**
+  String get forgotPin;
+
+  /// No description provided for @recoverPinTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Security Recovery'**
+  String get recoverPinTitle;
+
+  /// No description provided for @recoverPinSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recover access by verifying your registered phone number and National Identity Card (NIC).'**
+  String get recoverPinSubtitle;
+
+  /// No description provided for @recoverSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Send Recovery Code'**
+  String get recoverSubmit;
+
+  /// No description provided for @termsAgree.
+  ///
+  /// In en, this message translates to:
+  /// **'I agree to the Privacy Notice and Terms of Service'**
+  String get termsAgree;
+
+  /// No description provided for @privacyNoticeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Notice & Terms'**
+  String get privacyNoticeTitle;
+
+  /// No description provided for @privacyNoticeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'How we protect your financial data under Sri Lanka Personal Data Protection Act (PDPA).'**
+  String get privacyNoticeSubtitle;
+
+  /// No description provided for @consentContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Agree & Continue'**
+  String get consentContinue;
+
+  /// No description provided for @consentDecline.
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
+  String get consentDecline;
+
+  /// No description provided for @signOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out'**
+  String get signOut;
+
+  /// No description provided for @retryButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retryButton;
 
   /// No description provided for @navHome.
   ///
