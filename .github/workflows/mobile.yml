@@ -1,0 +1,46 @@
+name: Mobile CI
+
+on:
+  push:
+    branches: [ main, master, 'feature/**' ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile.yml'
+
+jobs:
+  analyze-and-test:
+    name: Flutter Analyze & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Run Flutter Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Run Flutter Tests
+        working-directory: mobile
+        run: flutter test

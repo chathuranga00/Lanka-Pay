@@ -35,7 +35,14 @@ public class BankInstitution {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    protected BankInstitution() {}
+    public BankInstitution() {}
+
+    public BankInstitution(String bankCode, String displayName, boolean simulated, boolean active) {
+        this.bankCode = bankCode;
+        this.displayName = displayName;
+        this.simulated = simulated;
+        this.active = active;
+    }
 
     public Long getId() { return id; }
     public String getBankCode() { return bankCode; }
