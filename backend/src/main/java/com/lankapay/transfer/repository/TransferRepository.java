@@ -45,6 +45,8 @@ public interface TransferRepository extends JpaRepository<Transfer, Long>, JpaSp
 
     List<Transfer> findByStatusIn(Collection<TransactionStatus> statuses);
 
+    long countBySenderIdAndCreatedAtAfter(Long senderId, Instant since);
+
     @Query("SELECT t FROM Transfer t WHERE " +
            "(:userId IS NULL OR t.sender.id = :userId OR t.receiver.id = :userId) AND " +
            "(:senderId IS NULL OR t.sender.id = :senderId) AND " +

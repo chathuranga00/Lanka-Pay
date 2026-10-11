@@ -8,4 +8,7 @@ import java.util.Optional;
 public interface BankInstitutionRepository extends JpaRepository<BankInstitution, Long> {
 
     Optional<BankInstitution> findByBankCodeAndActiveTrue(String bankCode);
+
+    Optional<BankInstitution> findByBankCode(String bankCode);
 }
+

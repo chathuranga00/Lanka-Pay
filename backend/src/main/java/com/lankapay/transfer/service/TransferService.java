@@ -41,6 +41,7 @@ public class TransferService {
     private final DailyLimitService dailyLimitService;
     private final IdempotencyService idempotencyService;
     private final PasswordEncoder passwordEncoder;
+    private final com.lankapay.admin.service.RiskManagementService riskManagementService;
 
     public TransferService(TransferRepository transferRepository,
                            BankAccountRepository bankAccountRepository,
@@ -49,6 +50,20 @@ public class TransferService {
                            DailyLimitService dailyLimitService,
                            IdempotencyService idempotencyService,
                            PasswordEncoder passwordEncoder) {
+        this(transferRepository, bankAccountRepository, userRepository, transferProcessor,
+             dailyLimitService, idempotencyService, passwordEncoder, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public TransferService(TransferRepository transferRepository,
+                           BankAccountRepository bankAccountRepository,
+                           UserRepository userRepository,
+                           TransferProcessor transferProcessor,
+                           DailyLimitService dailyLimitService,
+                           IdempotencyService idempotencyService,
+                           PasswordEncoder passwordEncoder,
+                           @org.springframework.beans.factory.annotation.Autowired(required = false)
+                           com.lankapay.admin.service.RiskManagementService riskManagementService) {
         this.transferRepository = transferRepository;
         this.bankAccountRepository = bankAccountRepository;
         this.userRepository = userRepository;
@@ -56,6 +71,7 @@ public class TransferService {
         this.dailyLimitService = dailyLimitService;
         this.idempotencyService = idempotencyService;
         this.passwordEncoder = passwordEncoder;
+        this.riskManagementService = riskManagementService;
     }
 
     /**
@@ -67,6 +83,10 @@ public class TransferService {
 
         if (payee.getId().equals(sender.getId())) {
             throw new ValidationException("CANNOT_TRANSFER_TO_SELF", "Sender and payee cannot be the same user");
+        }
+
+        if (riskManagementService != null) {
+            riskManagementService.evaluateTransferRisk(sender, request.amount());
         }
 
         dailyLimitService.checkLimit(sender, request.amount());
@@ -140,7 +160,11 @@ public class TransferService {
             throw new ValidationException("CANNOT_TRANSFER_TO_SELF", "Sender and payee cannot be the same user");
         }
 
-        // 4. Verify daily limit
+        // 4. Verify risk rules & daily limit
+        if (riskManagementService != null) {
+            riskManagementService.evaluateTransferRisk(sender, request.amount());
+        }
+
         dailyLimitService.checkLimit(sender, request.amount());
 
         // 5. Verify bank accounts

@@ -3,10 +3,11 @@ package com.lankapay.identity.repository;
 import com.lankapay.identity.domain.User;
 import com.lankapay.identity.domain.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.Optional;
 
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
 
     Optional<User> findByPhone(String phone);
 

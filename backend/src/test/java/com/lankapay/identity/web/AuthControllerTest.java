@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @ActiveProfiles("test")
 class AuthControllerTest {
 
@@ -451,11 +451,11 @@ class AuthControllerTest {
         }
 
         @Test
-        @DisplayName("ADMIN JWT can reach /admin path (404 = no handler, not 403)")
+        @DisplayName("ADMIN JWT can access /admin endpoints → 200")
         void adminAllowed() throws Exception {
             mockMvc.perform(get("/api/v1/admin/users")
                             .header("Authorization", adminJwt()))
-                    .andExpect(status().isNotFound()); // path exists but no controller in this test
+                    .andExpect(status().isOk());
         }
 
         @Test

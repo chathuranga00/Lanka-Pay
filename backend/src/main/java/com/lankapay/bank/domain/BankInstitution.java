@@ -43,4 +43,8 @@ public class BankInstitution {
     public boolean isSimulated() { return simulated; }
     public boolean isActive() { return active; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+    public void setActive(boolean active) { this.active = active; }
 }
+
