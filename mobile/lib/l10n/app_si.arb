@@ -1,0 +1,20 @@
+{
+  "@@locale": "si",
+  "appTitle": "ලංකා පේ",
+  "simulatedBannerText": "අනුකරණයකි - පරීක්ෂණ මුදල් පමණි",
+  "welcomeTitle": "ශ්‍රී ලංකාව සඳහා නව පරපුරේ ක්ෂණික ගෙවීම්",
+  "welcomeSubtitle": "LankaPay-ID මඟින් ශ්‍රී ලංකාවේ ඕනෑම බැංකුවකට ක්ෂණිකව සහ ආරක්ෂිතව මුදල් හුවමාරු කරන්න.",
+  "getStarted": "ආරම්භ කරන්න",
+  "signIn": "ඇතුල් වන්න",
+  "register": "ලියාපදිංචි වන්න",
+  "phoneLabel": "ජංගම දුරකථන අංකය",
+  "phoneHint": "උදා: 0771234567",
+  "passwordLabel": "මුරපදය",
+  "navHome": "මුල් පිටුව",
+  "navAccounts": "ගිණුම්",
+  "navSend": "යවන්න",
+  "navQr": "QR ගෙවීම්",
+  "navHistory": "ඉතිහාසය",
+  "navNotifications": "දැනුම්දීම්",
+  "navSettings": "සැකසුම්"
+}

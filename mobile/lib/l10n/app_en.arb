@@ -1,0 +1,26 @@
+{
+  "@@locale": "en",
+  "appTitle": "Lanka Pay",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "simulatedBannerText": "SIMULATED - test money only",
+  "@simulatedBannerText": {
+    "description": "Persistent banner warning that money is simulated"
+  },
+  "welcomeTitle": "Next-Gen Instant Payments for Sri Lanka",
+  "welcomeSubtitle": "Seamless, secure, and instant fund transfers across Sri Lankan banks powered by LankaPay-ID.",
+  "getStarted": "Get Started",
+  "signIn": "Sign In",
+  "register": "Register",
+  "phoneLabel": "Mobile Number",
+  "phoneHint": "e.g. 0771234567",
+  "passwordLabel": "Password",
+  "navHome": "Home",
+  "navAccounts": "Accounts",
+  "navSend": "Send",
+  "navQr": "QR Pay",
+  "navHistory": "History",
+  "navNotifications": "Alerts",
+  "navSettings": "Settings"
+}
