@@ -41,6 +41,20 @@ class LankaPayApp extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
+      builder: (context, child) {
+        final platformBrightness = MediaQuery.of(context).platformBrightness;
+        final isDark = themeMode == ThemeMode.dark ||
+            (themeMode == ThemeMode.system && platformBrightness == Brightness.dark);
+        final theme = isDark ? AppTheme.darkTheme : AppTheme.lightTheme;
+        final reduceMotion = MediaQuery.of(context).disableAnimations;
+
+        return AnimatedTheme(
+          data: theme,
+          duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 400),
+          curve: Curves.easeInOut,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

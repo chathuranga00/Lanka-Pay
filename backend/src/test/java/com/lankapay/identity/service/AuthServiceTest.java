@@ -81,8 +81,8 @@ class AuthServiceTest {
         @Test
         @DisplayName("success – creates user and returns userId + OTP expiry")
         void success() {
-            when(userStore.existsByPhone(PHONE)).thenReturn(false);
-            when(userStore.existsByNicNumber(any())).thenReturn(false);
+            when(userStore.findUserByPhone(PHONE)).thenReturn(Optional.empty());
+            when(userStore.findUserByNicNumber(any())).thenReturn(Optional.empty());
             when(passwordEncoder.encode(PIN)).thenReturn(HASHED_PIN);
 
             UserAccount saved = pendingUser();
@@ -105,7 +105,7 @@ class AuthServiceTest {
         @Test
         @DisplayName("duplicate phone → ConflictException PHONE_ALREADY_REGISTERED")
         void duplicatePhone() {
-            when(userStore.existsByPhone(PHONE)).thenReturn(true);
+            when(userStore.findUserByPhone(PHONE)).thenReturn(Optional.of(activeUser()));
 
             RegisterRequest req = new RegisterRequest(PHONE, "Kamal", "199012345678", PIN, null);
 
@@ -117,8 +117,10 @@ class AuthServiceTest {
         @Test
         @DisplayName("duplicate NIC → ConflictException NIC_ALREADY_REGISTERED")
         void duplicateNic() {
-            when(userStore.existsByPhone(PHONE)).thenReturn(false);
-            when(userStore.existsByNicNumber("199012345678")).thenReturn(true);
+            when(userStore.findUserByPhone(PHONE)).thenReturn(Optional.empty());
+            UserAccount activeUserWithNic = new UserAccount(2L, "+94770000000", "Kamal", "199012345678", HASHED_PIN,
+                    UserStatus.ACTIVE, UserRole.CUSTOMER, 0, null, Instant.now(), Instant.now());
+            when(userStore.findUserByNicNumber("199012345678")).thenReturn(Optional.of(activeUserWithNic));
 
             RegisterRequest req = new RegisterRequest(PHONE, "Kamal", "199012345678", PIN, null);
 
@@ -130,8 +132,8 @@ class AuthServiceTest {
         @Test
         @DisplayName("MERCHANT role is preserved")
         void merchantRole() {
-            when(userStore.existsByPhone(any())).thenReturn(false);
-            when(userStore.existsByNicNumber(any())).thenReturn(false);
+            when(userStore.findUserByPhone(any())).thenReturn(Optional.empty());
+            when(userStore.findUserByNicNumber(any())).thenReturn(Optional.empty());
             when(passwordEncoder.encode(any())).thenReturn(HASHED_PIN);
 
             ArgumentCaptor<UserAccount> captor = ArgumentCaptor.forClass(UserAccount.class);

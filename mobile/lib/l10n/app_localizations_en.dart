@@ -132,4 +132,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navSettings => 'Settings';
+
+  @override
+  String get navMore => 'More';
+
+  @override
+  String get paymentQr => 'Payment QR';
+
+  @override
+  String get paymentRequests => 'Payment Requests';
+
+  @override
+  String get transactionHistory => 'Transaction History';
+
+  @override
+  String get privacyAndPaymentId => 'Privacy & Payment-ID';
+
+  @override
+  String get securityAndDevices => 'Security & Devices';
 }

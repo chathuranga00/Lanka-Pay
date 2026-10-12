@@ -45,5 +45,11 @@
   "navQr": "QR Pay",
   "navHistory": "History",
   "navNotifications": "Alerts",
-  "navSettings": "Settings"
+  "navSettings": "Settings",
+  "navMore": "More",
+  "paymentQr": "Payment QR",
+  "paymentRequests": "Payment Requests",
+  "transactionHistory": "Transaction History",
+  "privacyAndPaymentId": "Privacy & Payment-ID",
+  "securityAndDevices": "Security & Devices"
 }

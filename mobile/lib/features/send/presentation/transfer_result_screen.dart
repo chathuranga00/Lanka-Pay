@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/gradient_header_scaffold.dart';
 import '../../../core/widgets/simulated_banner.dart';
 import '../data/transfer_service.dart';
 import '../domain/transfer_models.dart';
@@ -86,40 +88,49 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
         if (!didPop) context.go('/home');
       },
       child: Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: Text(_buildAppBarTitle(status)),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.close_rounded),
-              onPressed: () => context.go('/home'),
-              tooltip: 'Close',
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: Column(
-            children: [
-              const SimulatedBanner(),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildStatusIconCard(status, isDark),
-                      const SizedBox(height: 24),
-                      _buildAmountSummary(isDark),
-                      const SizedBox(height: 24),
-                      _buildReceiptDetailsCard(isDark),
-                      const SizedBox(height: 32),
-                      _buildActionButtons(status),
-                    ],
-                  ),
+        body: Column(
+          children: [
+            const SimulatedBanner(),
+            Expanded(
+              child: GradientHeaderScaffold(
+                scrollable: true,
+                header: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _buildAppBarTitle(status),
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      tooltip: 'Close',
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        context.go('/home');
+                      },
+                    ),
+                  ],
+                ),
+                body: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildStatusIconCard(status, isDark),
+                    const SizedBox(height: 24),
+                    _buildAmountSummary(isDark),
+                    const SizedBox(height: 24),
+                    _buildReceiptDetailsCard(isDark),
+                    const SizedBox(height: 32),
+                    _buildActionButtons(status),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -141,15 +152,15 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
 
     if (status.isConfirmedSuccess) {
       // Green ONLY when bank confirmed
-      iconColor = AppColors.success;
-      bgColor = AppColors.success.withOpacity(0.12);
+      iconColor = AppTokens.success;
+      bgColor = AppTokens.success.withOpacity(0.12);
       iconData = Icons.check_circle_rounded;
       titleText = 'Payment Confirmed';
       subtitleText = 'Bank adapter confirmed debit and credit transfer.';
     } else if (status.isPendingOrReconciling) {
       // Amber/Gold for pending/reconciliation - NEVER green
-      iconColor = AppColors.warning;
-      bgColor = AppColors.warning.withOpacity(0.15);
+      iconColor = AppTokens.warning;
+      bgColor = AppTokens.warningLight;
       iconData = Icons.hourglass_top_rounded;
       titleText = status == TransferStatusType.requiresReconciliation
           ? 'Requires Bank Reconciliation'
@@ -158,7 +169,7 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
           ? 'Transaction timeout occurred. Our background worker is reconciling the settlement with the bank. Do not retry.'
           : 'Your transfer is being processed across LankaPay CEFTS network. Status will update automatically.';
     } else if (status.isReversed) {
-      // Gray/amber reversal notice
+      // Neutral slate reversal notice
       iconColor = const Color(0xFF6B7280);
       bgColor = const Color(0xFF6B7280).withOpacity(0.12);
       iconData = Icons.replay_rounded;
@@ -166,8 +177,8 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
       subtitleText = 'The transfer was refunded or reversed back to your origin account.';
     } else {
       // Red failed screen
-      iconColor = AppColors.error;
-      bgColor = AppColors.error.withOpacity(0.12);
+      iconColor = AppTokens.error;
+      bgColor = AppTokens.errorLight;
       iconData = Icons.cancel_rounded;
       titleText = 'Payment Failed';
       subtitleText = _currentTransfer.failureReason ??
@@ -179,7 +190,7 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: iconColor.withOpacity(0.3), width: 1.5),
+        border: Border.all(color: iconColor.withOpacity(0.35), width: 1.5),
       ),
       child: Column(
         children: [
@@ -189,9 +200,10 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
             titleText,
             textAlign: TextAlign.center,
             style: TextStyle(
+              fontFamily: AppTokens.fontFamily,
               fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : AppColors.textPrimaryLight,
+              fontWeight: FontWeight.w800,
+              color: isDark ? Colors.white : AppTokens.textPrimaryLight,
             ),
           ),
           const SizedBox(height: 8),
@@ -199,28 +211,30 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
             subtitleText,
             textAlign: TextAlign.center,
             style: TextStyle(
+              fontFamily: AppTokens.fontFamily,
               fontSize: 13,
               height: 1.4,
-              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
             ),
           ),
           if (_isPolling && status.isPendingOrReconciling) ...[
             const SizedBox(height: 16),
-            Row(
+            const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 16,
                   height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppTokens.warning),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Text(
                   'Auto-checking status...',
                   style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.warning,
+                    fontWeight: FontWeight.w600,
+                    color: AppTokens.warning,
                   ),
                 ),
               ],
@@ -237,18 +251,20 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
         Text(
           'Total Amount',
           style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
             fontSize: 13,
-            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           'LKR ${_currentTransfer.amount.toStringAsFixed(2)}',
           style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
             fontSize: 32,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
-            color: isDark ? Colors.white : AppColors.textPrimaryLight,
+            color: isDark ? Colors.white : AppTokens.textPrimaryLight,
           ),
         ),
       ],
@@ -259,28 +275,28 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.cardDark : AppColors.surfaceLight,
+        color: isDark ? AppTokens.cardDark : AppTokens.mutedSurfaceLight,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white12 : Colors.black12,
+          color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
         ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildRow('Transfer Reference', _currentTransfer.reference, isDark, isMonospace: true),
-          const Divider(height: 24),
+          Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
           if (_currentTransfer.receiverDisplayName != null) ...[
             _buildRow('Recipient', _currentTransfer.receiverDisplayName!, isDark),
-            const Divider(height: 24),
+            Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
           ],
           if (_currentTransfer.bankTxRef != null) ...[
             _buildRow('Bank Tx Ref', _currentTransfer.bankTxRef!, isDark, isMonospace: true),
-            const Divider(height: 24),
+            Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
           ],
           _buildRow('Status', _currentTransfer.status.name.toUpperCase(), isDark),
           if (_currentTransfer.note != null && _currentTransfer.note!.isNotEmpty) ...[
-            const Divider(height: 24),
+            Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
             _buildRow('Reference / Note', _currentTransfer.note!, isDark),
           ],
         ],
@@ -296,8 +312,9 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
         Text(
           label,
           style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
             fontSize: 13,
-            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
           ),
         ),
         const SizedBox(width: 16),
@@ -308,8 +325,8 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              fontFamily: isMonospace ? 'monospace' : null,
-              color: isDark ? Colors.white : AppColors.textPrimaryLight,
+              fontFamily: isMonospace ? 'monospace' : AppTokens.fontFamily,
+              color: isDark ? Colors.white : AppTokens.textPrimaryLight,
             ),
           ),
         ),
@@ -322,18 +339,45 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (status.isPendingOrReconciling) ...[
-          OutlinedButton.icon(
-            key: const Key('transfer_refresh_btn'),
-            onPressed: _isPolling ? null : () => _checkStatus(),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Refresh Status Now'),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 52),
+            child: OutlinedButton.icon(
+              key: const Key('transfer_refresh_btn'),
+              onPressed: _isPolling
+                  ? null
+                  : () {
+                      HapticFeedback.lightImpact();
+                      _checkStatus();
+                    },
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text(
+                'Refresh Status Now',
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 12),
         ],
-        ElevatedButton(
-          key: const Key('transfer_done_btn'),
-          onPressed: () => context.go('/home'),
-          child: const Text('Return to Home'),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 52),
+          child: ElevatedButton(
+            key: const Key('transfer_done_btn'),
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.go('/home');
+            },
+            child: const Text(
+              'Return to Home',
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
         ),
       ],
     );

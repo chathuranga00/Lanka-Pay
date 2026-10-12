@@ -58,7 +58,7 @@ app:
 
   otp:
     mode: ${OTP_MODE:TEST}            # TEST = log to console; PROD = real SMS
-    expiry-seconds: ${OTP_EXPIRY_SECONDS:300}
+    expiry-seconds: ${OTP_EXPIRY_SECONDS:1800}   # 30 minutes in dev (was 300)
     max-attempts: ${OTP_MAX_ATTEMPTS:5}
     resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
     daily-cap: ${OTP_DAILY_CAP:10}

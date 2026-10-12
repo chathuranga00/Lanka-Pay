@@ -214,7 +214,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
                 gap: '16px',
                 marginBottom: '32px',
               }}>
-                <MetricCard title="Registered Users" value={users.length.toString()} icon={<Users size={22} />} />
+                <MetricCard title="Registered Users" value={String(users.length)} icon={<Users size={22} />} />
                 <MetricCard
                   title="Participating Banks"
                   value={`${banks.filter((b) => b.active).length} / ${banks.length}`}
@@ -256,7 +256,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
                     <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No pending reconciliations.</p>
                   ) : (
                     queue.slice(0, 3).map((tx) => (
-                      <div key={tx.id} style={{
+                      <div key={tx.transferId ?? tx.id} style={{
                         padding: '12px',
                         borderRadius: '10px',
                         backgroundColor: 'var(--card-dark)',
@@ -265,7 +265,9 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
                         justifyContent: 'space-between',
                       }}>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: '13px' }}>#{tx.id} - LKR {tx.amount.toFixed(2)}</div>
+                          <div style={{ fontWeight: 600, fontSize: '13px' }}>
+                            #{tx.transferId ?? tx.id} - LKR {Number(tx.amount).toFixed(2)}
+                          </div>
                           <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{tx.status}</div>
                         </div>
                         <span style={{ fontSize: '11px', color: 'var(--warning)', fontWeight: 700 }}>Reconcile Required</span>
@@ -291,7 +293,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
                     </button>
                   </div>
                   {banks.slice(0, 3).map((b) => (
-                    <div key={b.code} style={{
+                    <div key={b.bankCode ?? b.code} style={{
                       padding: '12px',
                       borderRadius: '10px',
                       backgroundColor: 'var(--card-dark)',
@@ -301,8 +303,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
                       alignItems: 'center',
                     }}>
                       <div>
-                        <div style={{ fontWeight: 600, fontSize: '13px' }}>{b.name}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Latency: {b.baseLatencyMs}ms • Fail: {b.failureRatePercent}%</div>
+                        <div style={{ fontWeight: 600, fontSize: '13px' }}>{b.displayName ?? b.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          {b.simulated ? '[SIMULATED]' : b.bankCode ?? b.code}
+                        </div>
                       </div>
                       <span style={{
                         padding: '2px 8px',

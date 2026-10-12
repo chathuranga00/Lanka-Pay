@@ -19,6 +19,7 @@ abstract final class AppTokens {
   static const Color lightHeaderStart = Color(0xFFC9C4FF);
   static const Color lightHeaderEnd = Color(0xFF8F9BFF);
   static const Color sheetLight = Color(0xFFFFFFFF);
+  static const Color cardLight = Color(0xFFFFFFFF);
   static const Color mutedSurfaceLight = Color(0xFFF4F4F6);
   static const Color textPrimaryLight = Color(0xFF14142B); // 15.6:1 contrast against white
   static const Color textSecondaryLight = Color(0xFF6E6E82); // 4.7:1 contrast against white (WCAG AA)

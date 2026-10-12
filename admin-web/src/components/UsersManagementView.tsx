@@ -16,8 +16,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ users,
   const filtered = users.filter((u) => {
     const matchesSearch =
       u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.phone.includes(searchTerm) ||
-      u.nic.toLowerCase().includes(searchTerm.toLowerCase());
+      (u.maskedPhone ?? '').includes(searchTerm) ||
+      (u.maskedNic ?? '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -30,8 +30,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ users,
     try {
       await adminApi.updateUserStatus(userId, newStatus, reason);
       onRefresh();
-    } catch (err: any) {
-      alert(`Status update failed: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Status update failed: ${(err as Error).message}`);
     } finally {
       setUpdatingId(null);
     }
@@ -115,12 +115,14 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ users,
             </tr>
           </thead>
           <tbody>
-            {filtered.map((user) => (
-              <tr key={user.id} style={{ borderBottom: '1px solid var(--border-dark)' }}>
-                <td style={{ padding: '14px 18px', fontFamily: 'monospace' }}>#{user.id}</td>
+            {filtered.map((user) => {
+              const uid = user.userId ?? user.id ?? 0;
+              return (
+              <tr key={uid} style={{ borderBottom: '1px solid var(--border-dark)' }}>
+                <td style={{ padding: '14px 18px', fontFamily: 'monospace' }}>#{uid}</td>
                 <td style={{ padding: '14px 18px', fontWeight: 600 }}>{user.fullName}</td>
-                <td style={{ padding: '14px 18px' }}>{user.phone}</td>
-                <td style={{ padding: '14px 18px', fontFamily: 'monospace' }}>{user.nic}</td>
+                <td style={{ padding: '14px 18px' }}>{user.maskedPhone}</td>
+                <td style={{ padding: '14px 18px', fontFamily: 'monospace' }}>{user.maskedNic}</td>
                 <td style={{ padding: '14px 18px' }}>
                   <span style={{
                     padding: '4px 8px',
@@ -159,57 +161,27 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ users,
                   <div style={{ display: 'inline-flex', gap: '8px' }}>
                     {user.status !== 'ACTIVE' && (
                       <button
-                        disabled={updatingId === user.id}
-                        onClick={() => handleStatusChange(user.id, 'ACTIVE')}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: 'rgba(27, 135, 85, 0.2)',
-                          color: 'var(--success)',
-                          borderRadius: '8px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
+                        disabled={updatingId === uid}
+                        onClick={() => handleStatusChange(uid, 'ACTIVE')}
+                        style={{ padding: '6px 10px', backgroundColor: 'rgba(27, 135, 85, 0.2)', color: 'var(--success)', borderRadius: '8px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
                         <UserCheck size={14} /> Unfreeze
                       </button>
                     )}
                     {user.status !== 'FROZEN' && (
                       <button
-                        disabled={updatingId === user.id}
-                        onClick={() => handleStatusChange(user.id, 'FROZEN')}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: 'rgba(217, 119, 6, 0.2)',
-                          color: 'var(--warning)',
-                          borderRadius: '8px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
+                        disabled={updatingId === uid}
+                        onClick={() => handleStatusChange(uid, 'FROZEN')}
+                        style={{ padding: '6px 10px', backgroundColor: 'rgba(217, 119, 6, 0.2)', color: 'var(--warning)', borderRadius: '8px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
                         <ShieldAlert size={14} /> Freeze
                       </button>
                     )}
                     {user.status !== 'SUSPENDED' && (
                       <button
-                        disabled={updatingId === user.id}
-                        onClick={() => handleStatusChange(user.id, 'SUSPENDED')}
-                        style={{
-                          padding: '6px 10px',
-                          backgroundColor: 'rgba(220, 38, 38, 0.2)',
-                          color: 'var(--error)',
-                          borderRadius: '8px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
+                        disabled={updatingId === uid}
+                        onClick={() => handleStatusChange(uid, 'SUSPENDED')}
+                        style={{ padding: '6px 10px', backgroundColor: 'rgba(220, 38, 38, 0.2)', color: 'var(--error)', borderRadius: '8px', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
                         <ShieldX size={14} /> Suspend
                       </button>
@@ -217,7 +189,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ users,
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

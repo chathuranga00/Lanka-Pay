@@ -7,6 +7,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/theme/theme_controller.dart';
 import '../../../core/widgets/widgets.dart';
 import '../../auth/data/auth_service.dart';
+import '../../auth/domain/auth_state.dart';
 
 /// More Hub screen styled with neo-banking aesthetics, grey MenuTiles,
 /// Appearance controls, and service management.
@@ -19,27 +20,43 @@ class MoreScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentLocale = ref.watch(localeProvider);
 
-    return Scaffold(
-      backgroundColor: isDark ? AppTokens.backgroundDark : AppTokens.sheetLight,
-      appBar: AppBar(
-        title: Text(
-          'More',
-          style: TextStyle(
-            fontFamily: AppTokens.fontFamily,
-            fontWeight: FontWeight.w800,
-            fontSize: 22,
-            color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+    // Read real user data from auth state
+    final authState = ref.watch(authStateProvider);
+    final fullName = authState is AuthAuthenticated
+        ? (authState.fullName ?? 'User')
+        : 'User';
+    final rawPhone = authState is AuthAuthenticated ? authState.phone : null;
+    final maskedPhone = rawPhone != null ? _maskPhone(rawPhone) : '—';
+    final isActive = authState is AuthAuthenticated;
+
+    return GradientHeaderScaffold(
+      header: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppTokens.space20,
+            AppTokens.space12,
+            AppTokens.space20,
+            AppTokens.space16,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'More',
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 24,
+                  color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                ),
+              ),
+              const SimulatedBadge(compact: true),
+            ],
           ),
         ),
-        actions: const [
-          Center(
-            child: SimulatedBadge(compact: true),
-          ),
-          SizedBox(width: 20),
-        ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
+      body: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(
             horizontal: AppTokens.space20,
             vertical: AppTokens.space12,
@@ -48,7 +65,7 @@ class MoreScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // User summary header card
-              _buildUserSummaryCard(context, isDark),
+              _buildUserSummaryCard(context, isDark, fullName, maskedPhone, isActive),
               const SizedBox(height: AppTokens.space20),
 
               // Appearance section
@@ -110,7 +127,7 @@ class MoreScreen extends ConsumerWidget {
                     key: const Key('more_profile'),
                     icon: Icons.person_outline_rounded,
                     label: 'Profile',
-                    onTap: () => _showProfileSheet(context, isDark),
+                    onTap: () => _showProfileSheet(context, isDark, fullName, rawPhone ?? '—'),
                   ),
                   MenuTile(
                     key: const Key('more_language'),
@@ -136,11 +153,12 @@ class MoreScreen extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 
-  Widget _buildUserSummaryCard(BuildContext context, bool isDark) {
+  Widget _buildUserSummaryCard(BuildContext context, bool isDark,
+      String fullName, String maskedPhone, bool isActive) {
+    final statusLabel = isActive ? 'Active' : 'Inactive';
     return Container(
       padding: const EdgeInsets.all(AppTokens.space16),
       decoration: BoxDecoration(
@@ -152,14 +170,14 @@ class MoreScreen extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          const AppAvatar(name: 'James Taylor', size: 48),
+          AppAvatar(name: fullName, size: 48),
           const SizedBox(width: AppTokens.space16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'James Taylor',
+                  fullName,
                   style: TextStyle(
                     fontFamily: AppTokens.fontFamily,
                     fontSize: 16,
@@ -169,7 +187,7 @@ class MoreScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'LankaPay-ID: 077****123 • Active',
+                  'LankaPay-ID: $maskedPhone • $statusLabel',
                   style: TextStyle(
                     fontFamily: AppTokens.fontFamily,
                     fontSize: 12,
@@ -319,7 +337,8 @@ class MoreScreen extends ConsumerWidget {
     );
   }
 
-  void _showProfileSheet(BuildContext context, bool isDark) {
+  void _showProfileSheet(BuildContext context, bool isDark,
+      String fullName, String phone) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -353,11 +372,9 @@ class MoreScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: AppTokens.space16),
-              _buildProfileRow('Full Name', 'James Taylor', isDark),
-              _buildProfileRow('LankaPay-ID Phone', '+94 77 123 4567', isDark),
-              _buildProfileRow('National ID (NIC)', '199512345678', isDark),
+              _buildProfileRow('Full Name', fullName, isDark),
+              _buildProfileRow('LankaPay-ID Phone', _maskPhone(phone), isDark),
               _buildProfileRow('PDPA Consent', 'Verified & Active', isDark),
-              _buildProfileRow('Discovery Status', 'Publicly Reachable', isDark),
               const SizedBox(height: AppTokens.space24),
               SizedBox(
                 width: double.infinity,
@@ -584,6 +601,19 @@ class MoreScreen extends ConsumerWidget {
         );
       },
     );
+  }
+
+  /// Masks a phone number: +94771234567 → 077****567
+  String _maskPhone(String phone) {
+    if (phone.isEmpty) return '—';
+    // Normalise to local format for display
+    String local = phone.startsWith('+94')
+        ? '0${phone.substring(3)}'
+        : phone;
+    if (local.length < 7) return local;
+    final start = local.substring(0, 3);          // 077
+    final end   = local.substring(local.length - 3); // 567
+    return '$start****$end';
   }
 
   Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/test_keys.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/gradient_header_scaffold.dart';
 import '../../../core/widgets/simulated_banner.dart';
 
 class PaymentProfileState {
@@ -56,7 +59,7 @@ class PaymentProfileNotifier extends Notifier<PaymentProfileState> {
         isDiscoverable: data['discoverable'] as bool? ?? true,
         isFrozen: false,
         phone: data['maskedPhone'] as String?,
-        safeName: data['safeDisplayName'] as String?,
+        safeName: data['displayName'] as String?,
         isLoading: false,
       );
     } catch (_) {
@@ -72,7 +75,9 @@ class PaymentProfileNotifier extends Notifier<PaymentProfileState> {
       state = state.copyWith(
         isDiscoverable: value,
         isLoading: false,
-        message: value ? 'Discovery enabled across network' : 'Discovery disabled. Your phone is private.',
+        message: value
+            ? 'Discovery enabled across the national network.'
+            : 'Discovery disabled. Your phone number is now private.',
       );
     } catch (_) {
       state = state.copyWith(
@@ -85,12 +90,15 @@ class PaymentProfileNotifier extends Notifier<PaymentProfileState> {
   void toggleFreezePaymentIdentity(bool value) {
     state = state.copyWith(
       isFrozen: value,
-      message: value ? 'Payment identity frozen. Incoming transfers paused.' : 'Payment identity active.',
+      message: value
+          ? 'Payment identity frozen. Incoming transfers are temporarily paused.'
+          : 'Payment identity active and receiving transfers.',
     );
   }
 }
 
-final paymentProfileProvider = NotifierProvider<PaymentProfileNotifier, PaymentProfileState>(() {
+final paymentProfileProvider =
+    NotifierProvider<PaymentProfileNotifier, PaymentProfileState>(() {
   return PaymentProfileNotifier();
 });
 
@@ -100,125 +108,298 @@ class PrivacySettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(paymentProfileProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Privacy & Payment-ID'),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SimulatedBanner(),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20.0),
+    return GradientHeaderScaffold(
+      header: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppTokens.space20, AppTokens.space12, AppTokens.space20, AppTokens.space16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  if (profile.message != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryGreen.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.primaryGreen.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          profile.message!,
-                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.privacy_tip_outlined, color: AppColors.primaryGreen),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Payment Identity Registry',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Control how your mobile number appears to other LankaPay users during peer-to-peer directory lookup.',
-                              style: TextStyle(fontSize: 13, height: 1.4),
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(height: 1),
-                            SwitchListTile(
-                              key: const Key('privacy_discoverable_switch'),
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Enable Phone Number Discovery', style: TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: const Text(
-                                'When disabled, payers searching for your mobile number will see "Not Discoverable".',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                              value: profile.isDiscoverable,
-                              onChanged: profile.isLoading
-                                  ? null
-                                  : (val) {
-                                      ref.read(paymentProfileProvider.notifier).toggleDiscoverability(val);
-                                    },
-                            ),
-                          ],
-                        ),
+                  if (Navigator.of(context).canPop()) ...[
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                      tooltip: 'Back',
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                    const SizedBox(width: AppTokens.space8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      'Privacy & Payment-ID',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTokens.space4),
+              Padding(
+                padding: EdgeInsets.only(left: Navigator.of(context).canPop() ? 48.0 : 0.0),
+                child: Text(
+                  'Manage directory discovery and receiving state',
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 13,
+                    color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      bodyPadding: const EdgeInsets.all(AppTokens.space20),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SimulatedBanner(),
+          const SizedBox(height: AppTokens.space16),
 
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.ac_unit_rounded, color: AppColors.warning),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Freeze Payment Identity',
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Emergency kill switch: Temporarily reject all incoming peer-to-peer transfers and payment requests to this phone number.',
-                              style: TextStyle(fontSize: 13, height: 1.4),
-                            ),
-                            const SizedBox(height: 16),
-                            const Divider(height: 1),
-                            SwitchListTile(
-                              key: const Key('privacy_freeze_switch'),
-                              contentPadding: EdgeInsets.zero,
-                              activeColor: AppColors.error,
-                              title: const Text('Freeze Identity & Receiving', style: TextStyle(fontWeight: FontWeight.w600)),
-                              subtitle: const Text(
-                                'Immediately stops incoming transfers until you unfreeze.',
-                                style: TextStyle(fontSize: 12),
-                              ),
-                              value: profile.isFrozen,
-                              onChanged: (val) {
-                                ref.read(paymentProfileProvider.notifier).toggleFreezePaymentIdentity(val);
-                              },
-                            ),
-                          ],
-                        ),
+          if (profile.message != null) ...[
+            Container(
+              padding: const EdgeInsets.all(AppTokens.space12),
+              decoration: BoxDecoration(
+                color: profile.isFrozen
+                    ? AppTokens.warningLight
+                    : AppTokens.success.withOpacity(0.12),
+                borderRadius: AppTokens.borderRadiusSmall,
+                border: Border.all(
+                  color: profile.isFrozen
+                      ? AppTokens.warning.withOpacity(0.3)
+                      : AppTokens.success.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    profile.isFrozen
+                        ? Icons.warning_amber_rounded
+                        : Icons.check_circle_outline_rounded,
+                    color: profile.isFrozen ? AppTokens.warning : AppTokens.success,
+                    size: 20,
+                  ),
+                  const SizedBox(width: AppTokens.space8),
+                  Expanded(
+                    child: Text(
+                      profile.message!,
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: profile.isFrozen ? AppTokens.warning : AppTokens.success,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),
+            const SizedBox(height: AppTokens.space16),
           ],
+
+          // Card 1: Payment Identity Registry
+          Material(
+            color: isDark ? AppTokens.cardDark : AppTokens.cardLight,
+            borderRadius: AppTokens.borderRadiusCard,
+            child: Container(
+              padding: const EdgeInsets.all(AppTokens.space20),
+              decoration: BoxDecoration(
+                borderRadius: AppTokens.borderRadiusCard,
+                border: Border.all(
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
+              ),
+              child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTokens.primaryViolet.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.privacy_tip_outlined,
+                        color: AppTokens.primaryViolet,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: AppTokens.space12),
+                    Expanded(
+                      child: Text(
+                        'Payment Identity Registry',
+                        style: TextStyle(
+                          fontFamily: AppTokens.fontFamily,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTokens.space12),
+                Text(
+                  'Control how your mobile number appears to other LankaPay users during peer-to-peer directory lookup.',
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 13,
+                    height: 1.45,
+                    color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.space16),
+                Divider(
+                  height: 1,
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
+                const SizedBox(height: AppTokens.space12),
+                Semantics(
+                  label: 'Enable Phone Number Discovery switch',
+                  child: SwitchListTile.adaptive(
+                    key: AppTestKeys.privacyDiscoverableSwitch,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTokens.primaryViolet,
+                    title: Text(
+                      'Enable Phone Number Discovery',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'When disabled, payers searching for your mobile number will see "Not Discoverable".',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 12,
+                        color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                      ),
+                    ),
+                    value: profile.isDiscoverable,
+                    onChanged: profile.isLoading
+                        ? null
+                        : (val) {
+                            HapticFeedback.lightImpact();
+                            ref.read(paymentProfileProvider.notifier).toggleDiscoverability(val);
+                          },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
+          const SizedBox(height: AppTokens.space16),
+
+          // Card 2: Freeze Payment Identity
+          Material(
+            color: isDark ? AppTokens.cardDark : AppTokens.cardLight,
+            borderRadius: AppTokens.borderRadiusCard,
+            child: Container(
+              padding: const EdgeInsets.all(AppTokens.space20),
+              decoration: BoxDecoration(
+                borderRadius: AppTokens.borderRadiusCard,
+                border: Border.all(
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
+              ),
+              child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppTokens.warning.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.ac_unit_rounded,
+                        color: AppTokens.warning,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: AppTokens.space12),
+                    Expanded(
+                      child: Text(
+                        'Freeze Payment Identity',
+                        style: TextStyle(
+                          fontFamily: AppTokens.fontFamily,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTokens.space12),
+                Text(
+                  'Emergency kill switch: Temporarily reject all incoming peer-to-peer transfers and payment requests to this phone number.',
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 13,
+                    height: 1.45,
+                    color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                  ),
+                ),
+                const SizedBox(height: AppTokens.space16),
+                Divider(
+                  height: 1,
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
+                const SizedBox(height: AppTokens.space12),
+                Semantics(
+                  label: 'Freeze Identity and Receiving switch',
+                  child: SwitchListTile.adaptive(
+                    key: AppTestKeys.privacyFreezeSwitch,
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTokens.error,
+                    title: Text(
+                      'Freeze Identity & Receiving',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: profile.isFrozen ? AppTokens.error : (isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight),
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Immediately stops incoming transfers until you unfreeze.',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 12,
+                        color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                      ),
+                    ),
+                    value: profile.isFrozen,
+                    onChanged: (val) {
+                      HapticFeedback.lightImpact();
+                      ref.read(paymentProfileProvider.notifier).toggleFreezePaymentIdentity(val);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+          const SizedBox(height: AppTokens.space32),
+        ],
       ),
     );
   }

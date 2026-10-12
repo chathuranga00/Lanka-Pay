@@ -22,10 +22,10 @@ export const FraudAlertsView: React.FC<FraudAlertsViewProps> = ({ alerts, onRefr
 
     setUpdatingId(alertId);
     try {
-      await adminApi.updateFraudAlertStatus(alertId, newStatus, notes);
+      await adminApi.updateFraudAlertStatus(alertId, newStatus as import('../types/admin').FraudAlertStatus, notes);
       onRefresh();
-    } catch (err: any) {
-      alert(`Update failed: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Update failed: ${(err as Error).message}`);
     } finally {
       setUpdatingId(null);
     }
@@ -55,7 +55,7 @@ export const FraudAlertsView: React.FC<FraudAlertsViewProps> = ({ alerts, onRefr
         >
           <option value="ALL">All Alert Statuses</option>
           <option value="OPEN">OPEN</option>
-          <option value="INVESTIGATING">INVESTIGATING</option>
+          <option value="UNDER_REVIEW">UNDER REVIEW</option>
           <option value="RESOLVED">RESOLVED</option>
           <option value="DISMISSED">DISMISSED</option>
         </select>

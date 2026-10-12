@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -791,6 +792,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
                   controller: _pageController,
                   itemCount: accounts.length,
                   onPageChanged: (index) {
+                    HapticFeedback.lightImpact();
                     setState(() {
                       _selectedIndex = index;
                     });
@@ -798,25 +800,33 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
                   itemBuilder: (context, index) {
                     final account = accounts[index];
                     final isCharcoal = index.isEven;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: AccountCard(
-                        bankName: '${account.institutionCode} (SIMULATED)',
-                        nickname: account.label?.isNotEmpty == true
-                            ? account.label!
-                            : account.accountName,
-                        maskedNumber: account.maskedNumber,
-                        isDefault: account.isDefault,
-                        isDiscoverable: account.discoverable,
-                        isPaused: !account.receivingEnabled,
-                        style: isCharcoal ? AccountCardStyle.charcoal : AccountCardStyle.lavender,
-                        showDigitToggle: true,
-                        isDigitsRevealed: _digitsRevealed,
-                        onToggleVisibility: () {
-                          setState(() {
-                            _digitsRevealed = !_digitsRevealed;
-                          });
-                        },
+                    final isCurrent = index == safeIndex;
+                    final reduceMotion = MediaQuery.of(context).disableAnimations;
+
+                    return AnimatedScale(
+                      scale: (!reduceMotion && !isCurrent) ? 0.94 : 1.0,
+                      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                        child: AccountCard(
+                          bankName: '${account.institutionCode} (SIMULATED)',
+                          nickname: account.label?.isNotEmpty == true
+                              ? account.label!
+                              : account.accountName,
+                          maskedNumber: account.maskedNumber,
+                          isDefault: account.isDefault,
+                          isDiscoverable: account.discoverable,
+                          isPaused: !account.receivingEnabled,
+                          style: isCharcoal ? AccountCardStyle.charcoal : AccountCardStyle.lavender,
+                          showDigitToggle: true,
+                          isDigitsRevealed: _digitsRevealed,
+                          onToggleVisibility: () {
+                            setState(() {
+                              _digitsRevealed = !_digitsRevealed;
+                            });
+                          },
+                        ),
                       ),
                     );
                   },

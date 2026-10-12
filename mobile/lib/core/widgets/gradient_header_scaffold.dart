@@ -7,6 +7,7 @@ class GradientHeaderScaffold extends StatelessWidget {
   final Widget? header;
   final Widget body;
   final Widget? bottomNavigationBar;
+  final Widget? floatingActionButton;
   final bool scrollable;
   final EdgeInsetsGeometry? headerPadding;
   final EdgeInsetsGeometry? bodyPadding;
@@ -16,6 +17,7 @@ class GradientHeaderScaffold extends StatelessWidget {
     this.header,
     required this.body,
     this.bottomNavigationBar,
+    this.floatingActionButton,
     this.scrollable = true,
     this.headerPadding,
     this.bodyPadding,
@@ -29,6 +31,7 @@ class GradientHeaderScaffold extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDark ? AppTokens.backgroundDark : AppTokens.lightHeaderStart,
       bottomNavigationBar: bottomNavigationBar,
+      floatingActionButton: floatingActionButton,
       body: Stack(
         children: [
           // Background Gradient Animation
@@ -63,8 +66,6 @@ class GradientHeaderScaffold extends StatelessWidget {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: themeExt.sheetColor,
-                      borderRadius: AppTokens.borderRadiusSheetTop,
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.04),
@@ -73,8 +74,10 @@ class GradientHeaderScaffold extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: ClipRRect(
+                    child: Material(
+                      color: themeExt.sheetColor,
                       borderRadius: AppTokens.borderRadiusSheetTop,
+                      clipBehavior: Clip.antiAlias,
                       child: scrollable
                           ? SingleChildScrollView(
                               padding: bodyPadding ??

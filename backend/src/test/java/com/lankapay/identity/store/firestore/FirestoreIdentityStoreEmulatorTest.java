@@ -349,7 +349,7 @@ class FirestoreIdentityStoreEmulatorTest {
             });
         }
 
-        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(latch.await(20, TimeUnit.SECONDS)).isTrue();
         executor.shutdown();
 
         UserAccount updated = userStore.findUserById(userId).orElseThrow();

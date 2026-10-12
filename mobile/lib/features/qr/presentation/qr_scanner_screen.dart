@@ -1,7 +1,9 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
 import '../data/qr_service.dart';
 import '../domain/qr_models.dart';
 
@@ -30,6 +32,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
   Future<void> _handleBarcode(String rawValue) async {
     if (_isProcessing) return;
+    HapticFeedback.lightImpact();
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
@@ -42,7 +45,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
         if (mounted) {
           setState(() {
             _isProcessing = false;
-            _errorMessage = 'This QR code has expired. Please ask the recipient for a new code.';
+            _errorMessage = 'This QR code has expired. Please ask recipient for a new code.';
           });
         }
         return;
@@ -78,19 +81,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scan LankaPay QR'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on_rounded),
-            onPressed: () => _controller.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.flip_camera_ios_rounded),
-            onPressed: () => _controller.switchCamera(),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.black,
       body: Stack(
         children: [
           MobileScanner(
@@ -106,17 +97,91 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
               }
             },
           ),
+
+          // Top navigation bar overlay
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        color: Colors.black.withOpacity(0.4),
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+                          tooltip: 'Back',
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            color: Colors.black.withOpacity(0.4),
+                            child: IconButton(
+                              icon: const Icon(Icons.flash_on_rounded, color: Colors.white),
+                              tooltip: 'Toggle Flash',
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                _controller.toggleTorch();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            color: Colors.black.withOpacity(0.4),
+                            child: IconButton(
+                              icon: const Icon(Icons.flip_camera_ios_rounded, color: Colors.white),
+                              tooltip: 'Switch Camera',
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                _controller.switchCamera();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
           // Scanner Overlay Frame
           Center(
             child: Container(
               width: 260,
               height: 260,
               decoration: BoxDecoration(
-                border: Border.all(color: AppColors.accentGold, width: 3),
-                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTokens.primaryViolet, width: 3),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTokens.primaryViolet.withOpacity(0.3),
+                    blurRadius: 24,
+                    spreadRadius: 2,
+                  ),
+                ],
               ),
             ),
           ),
+
           // Feedback banner at bottom
           Positioned(
             bottom: 40,
@@ -129,12 +194,17 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.error,
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppTokens.error,
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Text(
                       _errorMessage!,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: const TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -142,8 +212,9 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
-                      color: Colors.black87,
+                      color: Colors.black.withOpacity(0.75),
                       borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.white24),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -151,12 +222,17 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
                         SizedBox(
                           width: 16,
                           height: 16,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(color: AppTokens.lightViolet, strokeWidth: 2),
                         ),
                         SizedBox(width: 12),
                         Text(
                           'Resolving reference...',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(
+                            fontFamily: AppTokens.fontFamily,
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),

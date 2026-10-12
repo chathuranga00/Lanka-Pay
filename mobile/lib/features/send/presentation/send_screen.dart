@@ -45,6 +45,20 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   String? _searchError;
   LookupResultModel? _lookupResult;
   EligibleAccountModel? _selectedPayeeAccount;
+  int? _resolvedPayeeId;
+  String? _resolvedPayeePhone;
+
+  static const Map<String, ({String holderName, String institutionCode, String bankDisplayName, int userId})> _simulatedAccounts = {
+    '101001': (holderName: 'Kamal Perera', institutionCode: 'SIMULATED_BANK_A', bankDisplayName: 'Simulated Bank A (BOC)', userId: 1),
+    '101002': (holderName: 'Nimali Silva', institutionCode: 'SIMULATED_BANK_A', bankDisplayName: 'Simulated Bank A (BOC)', userId: 2),
+    '101003': (holderName: 'Saman Fernando', institutionCode: 'SIMULATED_BANK_A', bankDisplayName: 'Simulated Bank A (BOC)', userId: 3),
+    '201001': (holderName: 'Priya Rajapaksa', institutionCode: 'SIMULATED_BANK_B', bankDisplayName: 'Simulated Bank B (Commercial)', userId: 4),
+    '201002': (holderName: 'Asanka Bandara', institutionCode: 'SIMULATED_BANK_B', bankDisplayName: 'Simulated Bank B (Commercial)', userId: 5),
+    '201003': (holderName: 'Chamari Jayasinghe', institutionCode: 'SIMULATED_BANK_B', bankDisplayName: 'Simulated Bank B (Commercial)', userId: 6),
+    '301001': (holderName: 'Dinesh Wijesinghe', institutionCode: 'SIMULATED_BANK_C', bankDisplayName: 'Simulated Bank C (Sampath)', userId: 7),
+    '301002': (holderName: 'Sewwandi Kumari', institutionCode: 'SIMULATED_BANK_C', bankDisplayName: 'Simulated Bank C (Sampath)', userId: 8),
+    '301003': (holderName: 'Malith Gunasekara', institutionCode: 'SIMULATED_BANK_C', bankDisplayName: 'Simulated Bank C (Sampath)', userId: 9),
+  };
 
   // Debouncing & Rate Limit Cooldown
   Timer? _debounceTimer;
@@ -124,6 +138,11 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     return RegExp(r'^\+947[0-9]{8}$').hasMatch(normalized);
   }
 
+  bool _isValidAccountNumber(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[\s\-]'), '');
+    return RegExp(r'^[0-9]{6,18}$').hasMatch(cleaned) && !_isValidSriLankanMobile(raw);
+  }
+
   void _onPhoneChanged(String value) {
     _debounceTimer?.cancel();
     if (value.trim().isEmpty) {
@@ -136,7 +155,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     // Never auto-search on every keystroke. Only debounce if valid length is reached.
     final cleaned = value.replaceAll(RegExp(r'[\s\-]'), '');
     if ((cleaned.startsWith('07') && cleaned.length == 10) ||
-        (cleaned.startsWith('+947') && cleaned.length == 12)) {
+        (cleaned.startsWith('+947') && cleaned.length == 12) ||
+        (_isValidAccountNumber(value) && (cleaned.length == 6 || cleaned.length == 10 || cleaned.length == 12))) {
       _debounceTimer = Timer(const Duration(milliseconds: 900), () {
         if (mounted) {
           _performRecipientLookup();
@@ -164,6 +184,68 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     });
   }
 
+  void _performAccountNumberLookup(String accountNumber) {
+    setState(() {
+      _isSearching = true;
+      _searchError = null;
+      _lookupResult = null;
+      _selectedPayeeAccount = null;
+    });
+
+    final known = _simulatedAccounts[accountNumber];
+    final String holderName;
+    final String instCode;
+    final String bankName;
+    final int payeeId;
+
+    if (known != null) {
+      holderName = known.holderName;
+      instCode = known.institutionCode;
+      bankName = known.bankDisplayName;
+      payeeId = known.userId;
+    } else {
+      if (accountNumber.startsWith('1')) {
+        instCode = 'SIMULATED_BANK_A';
+        bankName = 'Simulated Bank A (BOC)';
+      } else if (accountNumber.startsWith('2')) {
+        instCode = 'SIMULATED_BANK_B';
+        bankName = 'Simulated Bank B (Commercial)';
+      } else if (accountNumber.startsWith('3')) {
+        instCode = 'SIMULATED_BANK_C';
+        bankName = 'Simulated Bank C (Sampath)';
+      } else {
+        instCode = 'SIMULATED_BANK_A';
+        bankName = 'LankaPay Connected Bank';
+      }
+      holderName = 'Verified Account Holder';
+      payeeId = 1;
+    }
+
+    final maskedNumber = '****${accountNumber.substring(accountNumber.length - 4)}';
+
+    _resolvedPayeeId = payeeId;
+    _resolvedPayeePhone = '+94771234567';
+
+    setState(() {
+      _isSearching = false;
+      _lookupResult = LookupResultModel(
+        resultType: 'FOUND',
+        displayName: holderName,
+        verificationStatus: 'VERIFIED',
+        accounts: [
+          EligibleAccountModel(
+            institutionCode: instCode,
+            bankDisplayName: bankName,
+            maskedNumber: maskedNumber,
+            isDefault: true,
+          ),
+        ],
+      );
+      _selectedPayeeAccount = _lookupResult!.accounts!.first;
+      _currentStep = 1;
+    });
+  }
+
   Future<void> _performRecipientLookup() async {
     _debounceTimer?.cancel();
 
@@ -174,94 +256,97 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       return;
     }
 
-    final rawPhone = _phoneController.text.trim();
-    if (rawPhone.isEmpty) {
-      setState(() => _searchError = 'Please enter a mobile phone number');
+    final rawInput = _phoneController.text.trim();
+    if (rawInput.isEmpty) {
+      setState(() => _searchError = 'Please enter a mobile phone number or account number');
       return;
     }
 
-    if (!_isValidSriLankanMobile(rawPhone)) {
+    if (_isValidSriLankanMobile(rawInput)) {
+      final normalizedPhone = AuthService.normalizePhone(rawInput);
+      _resolvedPayeePhone = normalizedPhone;
+      _resolvedPayeeId = null;
+
+      setState(() {
+        _isSearching = true;
+        _searchError = null;
+        _lookupResult = null;
+        _selectedPayeeAccount = null;
+      });
+
+      try {
+        final result = await ref.read(transferServiceProvider).lookupRecipient(normalizedPhone);
+        if (!mounted) return;
+
+        if (result.isFound) {
+          if (result.verificationStatus != null &&
+              result.verificationStatus!.isNotEmpty &&
+              result.verificationStatus != 'VERIFIED') {
+            setState(() {
+              _isSearching = false;
+              _searchError = 'Recipient verification is incomplete or pending. They cannot receive payments yet.';
+            });
+            return;
+          }
+
+          final eligible = result.accounts ?? [];
+          if (eligible.isEmpty) {
+            setState(() {
+              _isSearching = false;
+              _searchError = 'The recipient is registered but has no linked bank accounts configured to receive payments.';
+            });
+            return;
+          }
+
+          setState(() {
+            _isSearching = false;
+            _lookupResult = result;
+            _selectedPayeeAccount = eligible.firstWhere(
+              (a) => a.isDefault,
+              orElse: () => eligible.first,
+            );
+            _currentStep = 1;
+          });
+        } else {
+          setState(() {
+            _isSearching = false;
+            _searchError = _getFriendlyLookupError(result.resultType);
+          });
+        }
+      } on DioException catch (e) {
+        if (!mounted) return;
+        _handleLookupDioException(e);
+      } catch (e) {
+        if (!mounted) return;
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('429') || errStr.contains('too many attempts') || errStr.contains('rate limit')) {
+          _startCooldown();
+          setState(() {
+            _isSearching = false;
+            _searchError = 'Too many lookup attempts. Please wait a moment before trying again.';
+          });
+        } else if (errStr.contains('500') ||
+            errStr.contains('502') ||
+            errStr.contains('503') ||
+            errStr.contains('service down') ||
+            errStr.contains('unavailable')) {
+          setState(() {
+            _isSearching = false;
+            _searchError = 'Payment registry service is temporarily unavailable. Please try again later.';
+          });
+        } else {
+          setState(() {
+            _isSearching = false;
+            _searchError = 'Payment registry service is temporarily unavailable. Please try again later.';
+          });
+        }
+      }
+    } else if (_isValidAccountNumber(rawInput)) {
+      _performAccountNumberLookup(rawInput.replaceAll(RegExp(r'[\s\-]'), ''));
+    } else {
       setState(() {
         _searchError = 'Please enter a valid Sri Lankan mobile number (e.g. 0771234567 or +94771234567).';
       });
-      return;
-    }
-
-    final normalizedPhone = AuthService.normalizePhone(rawPhone);
-
-    setState(() {
-      _isSearching = true;
-      _searchError = null;
-      _lookupResult = null;
-      _selectedPayeeAccount = null;
-    });
-
-    try {
-      final result = await ref.read(transferServiceProvider).lookupRecipient(normalizedPhone);
-      if (!mounted) return;
-
-      if (result.isFound) {
-        if (result.verificationStatus != null &&
-            result.verificationStatus!.isNotEmpty &&
-            result.verificationStatus != 'VERIFIED') {
-          setState(() {
-            _isSearching = false;
-            _searchError = 'Recipient verification is incomplete or pending. They cannot receive payments yet.';
-          });
-          return;
-        }
-
-        final eligible = result.accounts ?? [];
-        if (eligible.isEmpty) {
-          setState(() {
-            _isSearching = false;
-            _searchError = 'The recipient is registered but has no linked bank accounts configured to receive payments.';
-          });
-          return;
-        }
-
-        setState(() {
-          _isSearching = false;
-          _lookupResult = result;
-          _selectedPayeeAccount = eligible.firstWhere(
-            (a) => a.isDefault,
-            orElse: () => eligible.first,
-          );
-          _currentStep = 1;
-        });
-      } else {
-        setState(() {
-          _isSearching = false;
-          _searchError = _getFriendlyLookupError(result.resultType);
-        });
-      }
-    } on DioException catch (e) {
-      if (!mounted) return;
-      _handleLookupDioException(e);
-    } catch (e) {
-      if (!mounted) return;
-      final errStr = e.toString().toLowerCase();
-      if (errStr.contains('429') || errStr.contains('too many attempts') || errStr.contains('rate limit')) {
-        _startCooldown();
-        setState(() {
-          _isSearching = false;
-          _searchError = 'Too many lookup attempts. Please wait a moment before trying again.';
-        });
-      } else if (errStr.contains('500') ||
-          errStr.contains('502') ||
-          errStr.contains('503') ||
-          errStr.contains('service down') ||
-          errStr.contains('unavailable')) {
-        setState(() {
-          _isSearching = false;
-          _searchError = 'Payment registry service is temporarily unavailable. Please try again later.';
-        });
-      } else {
-        setState(() {
-          _isSearching = false;
-          _searchError = 'Payment registry service is temporarily unavailable. Please try again later.';
-        });
-      }
     }
   }
 
@@ -332,6 +417,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final phone = recipient.receiverPhone ??
         (recipient.receiverId != null ? '+9477000${recipient.receiverId}' : '');
     _phoneController.text = phone;
+    _resolvedPayeeId = recipient.receiverId;
+    _resolvedPayeePhone = phone.isNotEmpty ? phone : null;
     if (phone.isNotEmpty) {
       await _performRecipientLookup();
     } else {
@@ -364,7 +451,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
           children: [
             Icon(Icons.credit_card_rounded, color: AppColors.primaryGreen),
             SizedBox(width: 8),
-            Text('Between Accounts'),
+            Expanded(child: Text('Between Accounts')),
           ],
         ),
         content: const Text(
@@ -495,7 +582,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
     try {
       final quote = await ref.read(transferServiceProvider).getQuote(
-            payeePhone: _phoneController.text.trim(),
+            payeePhone: _resolvedPayeePhone ?? _phoneController.text.trim(),
+            payeeId: _resolvedPayeeId,
             amount: amount,
           );
       if (mounted) {
@@ -552,7 +640,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
           children: [
             Icon(Icons.lock_outline_rounded, color: AppColors.primaryGreen),
             SizedBox(width: 8),
-            Text('Step-Up Authentication'),
+            Expanded(child: Text('Step-Up Authentication')),
           ],
         ),
         content: Column(
@@ -613,7 +701,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       final transfer = await ref.read(transferServiceProvider).initiateTransfer(
             idempotencyKey: _idempotencyKey,
             pin: pin,
-            payeePhone: _phoneController.text.trim(),
+            payeePhone: _resolvedPayeePhone ?? _phoneController.text.trim(),
+            payeeId: _resolvedPayeeId,
             amount: _quote!.amount,
             quoteReference: _quote?.quoteReference,
             note: _noteController.text.trim(),
@@ -850,7 +939,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               color: isDark ? Colors.white : AppTokens.textPrimaryLight,
             ),
             decoration: InputDecoration(
-              hintText: 'Search by mobile number',
+              hintText: 'Search by mobile number or account number',
               hintStyle: TextStyle(
                 fontFamily: AppTokens.fontFamily,
                 fontSize: 14,
@@ -1356,6 +1445,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
             return DropdownButtonFormField<BankAccountModel>(
               key: const Key('send_sender_account_dropdown'),
+              isExpanded: true,
               value: currentSender,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.account_balance_wallet_rounded),
@@ -1365,6 +1455,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                   value: acc,
                   child: Text(
                     '${acc.institutionCode} (${acc.maskedNumber})${acc.isDefault ? " [Default]" : ""}',
+                    overflow: TextOverflow.ellipsis,
                   ),
                 );
               }).toList(),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/gradient_header_scaffold.dart';
 import '../../../core/widgets/simulated_banner.dart';
 import '../data/bank_account_service.dart';
 import '../domain/bank_account_model.dart';
@@ -46,6 +48,7 @@ class _AddBankAccountScreenState extends ConsumerState<AddBankAccountScreen> {
       });
       return;
     }
+    HapticFeedback.lightImpact();
 
     setState(() {
       _isLoading = true;
@@ -77,166 +80,224 @@ class _AddBankAccountScreenState extends ConsumerState<AddBankAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add Bank Account (Simulated)'),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const SimulatedBanner(),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return GradientHeaderScaffold(
+      scrollable: true,
+      header: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SimulatedBanner(),
+          const SizedBox(height: AppTokens.space12),
+          Row(
+            children: [
+              if (Navigator.of(context).canPop())
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                  tooltip: 'Back',
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    Navigator.of(context).pop();
+                  },
+                ),
+                      Text(
+                        'Link Bank Account',
+                        style: TextStyle(
+                          fontFamily: AppTokens.fontFamily,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Add a simulated Sri Lankan bank account for instant transfers.',
+                    style: TextStyle(
+                      fontFamily: AppTokens.fontFamily,
+                      fontSize: 13,
+                      color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                    ),
+                  ),
+                ],
+              ),
+              body: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppTokens.softViolet,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTokens.lightViolet.withOpacity(0.5)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, color: AppTokens.deepViolet, size: 22),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'SIMULATED ENVIRONMENT: Enter simulated account test numbers (e.g. 101001, 202002). No real bank credentials required.',
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTokens.deepViolet,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    if (_errorMessage != null) ...[
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.accentGold.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.accentGold.withOpacity(0.3)),
+                          color: AppTokens.errorLight,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppTokens.error.withOpacity(0.4)),
                         ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.info_outline_rounded, color: AppColors.accentGoldDark, size: 22),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'SIMULATED ENVIRONMENT: Enter simulated account test numbers (e.g. 101001, 202002). No real bank credentials required.',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            fontFamily: AppTokens.fontFamily,
+                            color: AppTokens.error,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 18),
+                    ],
 
-                      if (_errorMessage != null) ...[
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.error.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.error.withOpacity(0.4)),
-                          ),
+                    DropdownButtonFormField<String>(
+                      key: const Key('add_bank_institution_dropdown'),
+                      isExpanded: true,
+                      value: _selectedInstitution,
+                      decoration: const InputDecoration(
+                        labelText: 'Select Bank Institution',
+                        prefixIcon: Icon(Icons.account_balance_rounded),
+                      ),
+                      items: _institutions.map((i) {
+                        return DropdownMenuItem(
+                          value: i.institutionCode,
                           child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.w500),
+                            i.displayName,
+                            style: const TextStyle(fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
-                      DropdownButtonFormField<String>(
-                        key: const Key('add_bank_institution_dropdown'),
-                        value: _selectedInstitution,
-                        decoration: const InputDecoration(
-                          labelText: 'Select Bank Institution',
-                          prefixIcon: Icon(Icons.account_balance_rounded),
-                        ),
-                        items: _institutions.map((i) {
-                          return DropdownMenuItem(
-                            value: i.institutionCode,
-                            child: Text(i.displayName, style: const TextStyle(fontSize: 13)),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedInstitution = val;
-                            });
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextFormField(
-                        key: const Key('add_bank_number_field'),
-                        controller: _accountNumberController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Account Number',
-                          hintText: 'e.g. 101001 or 202002',
-                          prefixIcon: Icon(Icons.numbers_rounded),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().length < 4) {
-                            return 'Enter a valid account number';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextFormField(
-                        key: const Key('add_bank_name_field'),
-                        controller: _accountNameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Account Holder Name',
-                          hintText: 'e.g. Kamal Perera',
-                          prefixIcon: Icon(Icons.person_outline_rounded),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().length < 2) {
-                            return 'Account holder name is required';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextFormField(
-                        key: const Key('add_bank_label_field'),
-                        controller: _labelController,
-                        decoration: const InputDecoration(
-                          labelText: 'Account Label (Optional)',
-                          hintText: 'e.g. Salary, Savings',
-                          prefixIcon: Icon(Icons.label_outline_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      CheckboxListTile(
-                        key: const Key('add_bank_consent_checkbox'),
-                        value: _consentGiven,
-                        onChanged: (val) {
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) {
                           setState(() {
-                            _consentGiven = val ?? true;
+                            _selectedInstitution = val;
                           });
-                        },
-                        title: const Text(
-                          'I authorize LankaPay to verify account details with the issuing bank stub and store encrypted references.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                      const SizedBox(height: 28),
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
 
-                      ElevatedButton(
+                    TextFormField(
+                      key: const Key('add_bank_number_field'),
+                      controller: _accountNumberController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Account Number',
+                        hintText: 'e.g. 101001 or 202002',
+                        prefixIcon: Icon(Icons.numbers_rounded),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().length < 4) {
+                          return 'Enter a valid account number';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      key: const Key('add_bank_name_field'),
+                      controller: _accountNameController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Account Holder Name',
+                        hintText: 'e.g. Kamal Perera',
+                        prefixIcon: Icon(Icons.person_outline_rounded),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().length < 2) {
+                          return 'Account holder name is required';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    TextFormField(
+                      key: const Key('add_bank_label_field'),
+                      controller: _labelController,
+                      decoration: const InputDecoration(
+                        labelText: 'Account Label (Optional)',
+                        hintText: 'e.g. Salary, Savings',
+                        prefixIcon: Icon(Icons.label_outline_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    CheckboxListTile(
+                      key: const Key('add_bank_consent_checkbox'),
+                      value: _consentGiven,
+                      activeColor: AppTokens.primaryViolet,
+                      onChanged: (val) {
+                        HapticFeedback.lightImpact();
+                        setState(() {
+                          _consentGiven = val ?? true;
+                        });
+                      },
+                      title: const Text(
+                        'I authorize LankaPay to verify account details with the issuing bank stub and store encrypted references.',
+                        style: TextStyle(
+                          fontFamily: AppTokens.fontFamily,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 24),
+
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 52),
+                      child: ElevatedButton(
                         key: const Key('add_bank_submit_btn'),
                         onPressed: _isLoading ? null : _submit,
                         child: _isLoading
                             ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                               )
-                            : const Text('Link Account'),
+                            : const Text(
+                                'Link Account',
+                                style: TextStyle(
+                                  fontFamily: AppTokens.fontFamily,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

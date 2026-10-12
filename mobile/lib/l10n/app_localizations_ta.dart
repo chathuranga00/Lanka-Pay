@@ -133,4 +133,22 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get navSettings => 'அமைப்புகள்';
+
+  @override
+  String get navMore => 'மேலும்';
+
+  @override
+  String get paymentQr => 'கொடுப்பனவு QR';
+
+  @override
+  String get paymentRequests => 'கொடுப்பனவு கோரிக்கைகள்';
+
+  @override
+  String get transactionHistory => 'பரிவர்த்தனை வரலாறு';
+
+  @override
+  String get privacyAndPaymentId => 'தனியுரிமை & Payment-ID';
+
+  @override
+  String get securityAndDevices => 'பாதுகாப்பு & சாதனங்கள்';
 }

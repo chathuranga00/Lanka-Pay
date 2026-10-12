@@ -154,10 +154,25 @@ Connect your mobile device to the same Wi-Fi network as your host and use your c
 flutter run --dart-define=API_BASE_URL=http://192.168.1.100:8080/api/v1
 ```
 
-### 3. Run Mobile Widget & Feature Tests
+### 3. Run Mobile Tests & Static Analysis
 ```bash
+# Run static analysis (strict zero-warning compliance)
+flutter analyze
+
+# Run complete automated test suite (91/91 unit, widget, navigation & golden tests)
 flutter test
+
+# Update visual regression golden baseline images if UI design tokens change
+flutter test --update-goldens test/screens_golden_test.dart
 ```
+
+### 4. UI Manual QA Verification
+Review the dedicated [UI QA Checklist](file:///q:/MY%20Projects/Lanka%20Pay/docs/ui-qa-checklist.md) covering:
+- Every interactive test key and navigation transition
+- Light and Dark mode contrast compliance
+- 200% text scaling without overflow
+- Offline mode and shimmer loading skeletons
+- LankaQR and payment result states
 
 ---
 

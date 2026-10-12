@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/token_storage.dart';
 import '../domain/auth_state.dart';
+import 'profile_service.dart';
 
 /// Service managing remote authentication calls against the LankaPay backend
 class AuthService {
@@ -42,6 +43,13 @@ class AuthService {
       },
     );
 
+    // Persist fullName for display before OTP verification completes
+    await _tokenStorage.saveTokens(
+      accessToken: '',
+      refreshToken: '',
+      fullName: fullName.trim(),
+    );
+
     return Map<String, dynamic>.from(response.data as Map);
   }
 
@@ -50,6 +58,7 @@ class AuthService {
     required int userId,
     required String otp,
     required String phone,
+    String? fullName,
   }) async {
     final response = await _dio.post(
       '/auth/verify-otp',
@@ -69,6 +78,7 @@ class AuthService {
         refreshToken: refreshToken,
         userId: userId.toString(),
         phone: normalizePhone(phone),
+        fullName: fullName,
       );
     }
 
@@ -92,12 +102,15 @@ class AuthService {
     final data = Map<String, dynamic>.from(response.data as Map);
     final accessToken = data['accessToken'] as String?;
     final refreshToken = data['refreshToken'] as String?;
+    // Backend may return fullName in the login response
+    final fullName = data['fullName'] as String?;
 
     if (accessToken != null) {
       await _tokenStorage.saveTokens(
         accessToken: accessToken,
         refreshToken: refreshToken ?? '',
         phone: normalizedPhone,
+        fullName: fullName,
       );
     }
 
@@ -159,10 +172,12 @@ class AuthNotifier extends Notifier<AuthState> {
     if (token != null && token.isNotEmpty) {
       final userId = await _tokenStorage.getUserId();
       final phone = await _tokenStorage.getUserPhone();
+      final fullName = await _tokenStorage.getUserFullName();
       state = AuthAuthenticated(
         accessToken: token,
         userId: userId,
         phone: phone,
+        fullName: fullName,
       );
     } else {
       state = const AuthUnauthenticated();
@@ -196,6 +211,7 @@ class AuthNotifier extends Notifier<AuthState> {
         userId: userId,
         phone: AuthService.normalizePhone(phone),
         expiresAt: expiresAt,
+        fullName: fullName.trim(),
       );
       return true;
     } on DioException catch (e) {
@@ -213,11 +229,16 @@ class AuthNotifier extends Notifier<AuthState> {
     required String phone,
   }) async {
     state = const AuthLoading(message: 'Verifying OTP code...');
+    // Carry fullName from the pending state so it survives into authenticated state
+    final pendingFullName = state is AuthOtpPending
+        ? (state as AuthOtpPending).fullName
+        : null;
     try {
       final res = await _authService.verifyOtp(
         userId: userId,
         otp: otp,
         phone: phone,
+        fullName: pendingFullName,
       );
 
       state = AuthAuthenticated(
@@ -225,6 +246,7 @@ class AuthNotifier extends Notifier<AuthState> {
         refreshToken: res['refreshToken'] as String?,
         userId: userId.toString(),
         phone: phone,
+        fullName: pendingFullName,
       );
       return true;
     } on DioException catch (e) {
@@ -247,10 +269,15 @@ class AuthNotifier extends Notifier<AuthState> {
         pin: pin,
       );
 
+      // Prefer fullName from the backend response; fall back to stored value
+      final fullName = res['fullName'] as String?
+          ?? await _tokenStorage.getUserFullName();
+
       state = AuthAuthenticated(
         accessToken: res['accessToken'] as String? ?? '',
         refreshToken: res['refreshToken'] as String?,
         phone: AuthService.normalizePhone(phone),
+        fullName: fullName,
       );
       return true;
     } on DioException catch (e) {

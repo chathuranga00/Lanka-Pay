@@ -39,5 +39,11 @@
   "navQr": "QR ගෙවීම්",
   "navHistory": "ඉතිහාසය",
   "navNotifications": "දැනුම්දීම්",
-  "navSettings": "සැකසුම්"
+  "navSettings": "සැකසුම්",
+  "navMore": "තවත්",
+  "paymentQr": "ගෙවීම් QR",
+  "paymentRequests": "ගෙවීම් ඉල්ලීම්",
+  "transactionHistory": "ගනුදෙනු ඉතිහාසය",
+  "privacyAndPaymentId": "පෞද්ගලිකත්වය සහ Payment-ID",
+  "securityAndDevices": "ආරක්ෂාව සහ උපාංග"
 }

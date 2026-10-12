@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_tokens.dart';
 
@@ -20,53 +21,66 @@ class MenuTile extends StatelessWidget {
     final themeExt = context.appTheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AppTokens.borderRadiusTile,
-        child: Container(
-          padding: const EdgeInsets.all(AppTokens.space16),
-          decoration: BoxDecoration(
-            color: themeExt.mutedSurface,
-            borderRadius: AppTokens.borderRadiusTile,
-            border: Border.all(
-              color: themeExt.border,
-              width: 1.0,
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap != null
+              ? () {
+                  HapticFeedback.lightImpact();
+                  onTap!();
+                }
+              : null,
+          borderRadius: AppTokens.borderRadiusTile,
+          child: Container(
+            padding: const EdgeInsets.all(AppTokens.space16),
+            decoration: BoxDecoration(
+              color: themeExt.mutedSurface,
+              borderRadius: AppTokens.borderRadiusTile,
+              border: Border.all(
+                color: themeExt.border,
+                width: 1.0,
+              ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppTokens.navyIconTile,
-                  borderRadius: BorderRadius.circular(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppTokens.navyIconTile,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    icon,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Icon(
-                  icon,
-                  color: Colors.white,
-                  size: 22,
+                const SizedBox(height: 12),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: AppTokens.fontFamily,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                      color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: AppTokens.fontFamily,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  height: 1.25,
-                  color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

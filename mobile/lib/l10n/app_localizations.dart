@@ -339,6 +339,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings'**
   String get navSettings;
+
+  /// No description provided for @navMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get navMore;
+
+  /// No description provided for @paymentQr.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment QR'**
+  String get paymentQr;
+
+  /// No description provided for @paymentRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment Requests'**
+  String get paymentRequests;
+
+  /// No description provided for @transactionHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Transaction History'**
+  String get transactionHistory;
+
+  /// No description provided for @privacyAndPaymentId.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy & Payment-ID'**
+  String get privacyAndPaymentId;
+
+  /// No description provided for @securityAndDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Security & Devices'**
+  String get securityAndDevices;
 }
 
 class _AppLocalizationsDelegate

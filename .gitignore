@@ -13,6 +13,9 @@
 *.jks
 secrets/
 config/secrets/
+
+# ------ Dev OTP file (TEST mode only, never commit) ----------
+otp-dev.txt
 node_modules/
 
 # ------ Java / Maven ----------------------------------------

@@ -15,7 +15,7 @@ app:
     expiry-minutes: 30
   otp:
     mode: TEST
-    expiry-seconds: 300
+    expiry-seconds: 1800
   bank-adapter:
     mode: SIMULATED
 

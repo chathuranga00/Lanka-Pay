@@ -14,8 +14,8 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
     const matchesSearch =
       log.eventType.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.entityType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.clientIp.includes(searchTerm);
+      (log.details ?? log.detailJson ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.clientIp ?? log.ipAddress ?? '').includes(searchTerm);
     const matchesEvent = eventFilter === 'ALL' || log.eventType === eventFilter;
     return matchesSearch && matchesEvent;
   });
@@ -127,10 +127,10 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
                     {log.entityType} #{log.entityId}
                   </td>
                   <td style={{ padding: '14px 18px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                    {log.clientIp}
+                    {log.clientIp ?? log.ipAddress ?? '—'}
                   </td>
                   <td style={{ padding: '14px 18px', color: 'var(--text-secondary)', maxWidth: '300px' }}>
-                    {log.details}
+                    {log.details ?? log.detailJson ?? '—'}
                   </td>
                 </tr>
               ))

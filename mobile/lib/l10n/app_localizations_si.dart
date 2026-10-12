@@ -133,4 +133,22 @@ class AppLocalizationsSi extends AppLocalizations {
 
   @override
   String get navSettings => 'සැකසුම්';
+
+  @override
+  String get navMore => 'තවත්';
+
+  @override
+  String get paymentQr => 'ගෙවීම් QR';
+
+  @override
+  String get paymentRequests => 'ගෙවීම් ඉල්ලීම්';
+
+  @override
+  String get transactionHistory => 'ගනුදෙනු ඉතිහාසය';
+
+  @override
+  String get privacyAndPaymentId => 'පෞද්ගලිකත්වය සහ Payment-ID';
+
+  @override
+  String get securityAndDevices => 'ආරක්ෂාව සහ උපාංග';
 }

@@ -155,7 +155,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final safeName = profile.safeName;
     final firstName = (safeName != null && safeName.trim().isNotEmpty)
         ? safeName.trim().split(' ').first
-        : 'James';
+        : 'User';
 
     final unreadAsync = ref.watch(unreadNotificationCountProvider);
     final unreadCount = unreadAsync.value ?? 0;
@@ -166,25 +166,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        AppAvatar(
-          name: safeName ?? 'James Taylor',
-          size: 42,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            'Hello, $firstName',
-            style: TextStyle(
-              fontFamily: AppTokens.fontFamily,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: iconColor,
-              letterSpacing: -0.2,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+        GestureDetector(
+          onTap: () => context.push('/settings'),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppAvatar(
+                name: safeName ?? firstName,
+                size: 42,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Hello, $firstName',
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: iconColor,
+                  letterSpacing: -0.2,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
+        const Spacer(),
         IconButton(
           key: const Key('home_search'),
           icon: Icon(Icons.search_rounded, color: iconColor, size: 24),

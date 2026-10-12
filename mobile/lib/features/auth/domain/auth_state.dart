@@ -17,12 +17,14 @@ class AuthAuthenticated extends AuthState {
   final String? refreshToken;
   final String? userId;
   final String? phone;
+  final String? fullName;
 
   const AuthAuthenticated({
     required this.accessToken,
     this.refreshToken,
     this.userId,
     this.phone,
+    this.fullName,
   });
 }
 
@@ -30,11 +32,13 @@ class AuthOtpPending extends AuthState {
   final String userId;
   final String phone;
   final DateTime? expiresAt;
+  final String? fullName;
 
   const AuthOtpPending({
     required this.userId,
     required this.phone,
     this.expiresAt,
+    this.fullName,
   });
 }
 
