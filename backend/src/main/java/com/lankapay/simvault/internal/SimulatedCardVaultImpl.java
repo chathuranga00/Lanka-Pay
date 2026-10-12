@@ -161,6 +161,76 @@ public final class SimulatedCardVaultImpl {
         return toInfo(vt);
     }
 
+    // ── Virtual Card Issuance & Reveal ─────────────────────────
+
+    private record IssuedVirtualCard(
+            String token,
+            String pan,
+            String cvv,
+            String expMonth,
+            String expYear,
+            Long userId,
+            Instant issuedAt
+    ) {}
+
+    private final ConcurrentHashMap<String, IssuedVirtualCard> issuedVirtualCards = new ConcurrentHashMap<>();
+
+    public CardTokenInfo issueVirtualCard(Long userId) {
+        String pan = generateSimulatedPan();
+        String cvv = String.format("%03d", 100 + new java.security.SecureRandom().nextInt(900));
+        String expMonth = "12";
+        String expYear = "29";
+        String token = UUID.randomUUID().toString();
+        String last4 = pan.substring(pan.length() - 4);
+
+        issuedVirtualCards.put(token, new IssuedVirtualCard(token, pan, cvv, expMonth, expYear, userId, Instant.now()));
+        VaultToken vt = vc.tokenStore().issue(token, last4, expMonth, expYear, userId, VaultScenario.ALWAYS_APPROVED);
+
+        log.info("[SIMVAULT] Virtual card issued userId={} last4={}", userId, last4);
+        return new CardTokenInfo(token, last4, expMonth, expYear, "TEST CARD", userId,
+                CardScenario.ALWAYS_APPROVED, false, true, vt.expiresAt(), vt.issuedAt());
+    }
+
+    public CardRevealDetails revealVirtualCard(String cardToken, Long userId) {
+        IssuedVirtualCard card = issuedVirtualCards.get(cardToken);
+        if (card == null) {
+            throw new com.lankapay.common.exception.ValidationException(
+                    "NOT_VIRTUAL_CARD", "This card was not issued by the virtual card simulator");
+        }
+        if (!card.userId().equals(userId)) {
+            throw new com.lankapay.common.exception.AuthorizationException(
+                    "CARD_WRONG_USER", "Card does not belong to this user");
+        }
+        log.info("[SIMVAULT] Virtual card reveal userId={}", userId);
+        return new CardRevealDetails(cardToken, card.pan(), card.cvv(), card.expMonth(), card.expYear(), "TEST CARD", 30, true);
+    }
+
+    private String generateSimulatedPan() {
+        StringBuilder sb = new StringBuilder("9900");
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        for (int i = 0; i < 11; i++) {
+            sb.append(random.nextInt(10));
+        }
+        int checkDigit = computeLuhnCheckDigit(sb.toString());
+        sb.append(checkDigit);
+        return sb.toString();
+    }
+
+    private int computeLuhnCheckDigit(String prefix15) {
+        int sum = 0;
+        boolean doubleIt = true;
+        for (int i = prefix15.length() - 1; i >= 0; i--) {
+            int d = prefix15.charAt(i) - '0';
+            if (doubleIt) {
+                d *= 2;
+                if (d > 9) d -= 9;
+            }
+            sum += d;
+            doubleIt = !doubleIt;
+        }
+        return (10 - (sum % 10)) % 10;
+    }
+
     // ── helpers ───────────────────────────────────────────────
 
     private CardTokenInfo toInfo(VaultToken vt) {

@@ -46,7 +46,7 @@ public class CardSensitiveBodyFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        if (path != null && path.contains("/sim-vault/")) {
+        if (path != null && (path.contains("/sim-vault/") || path.contains("/reveal"))) {
             // Signal to any logging infrastructure to skip body
             request.setAttribute(SUPPRESS_BODY_ATTR, "true");
             // Wrap so body can be read by the controller but not re-read by loggers

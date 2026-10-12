@@ -66,4 +66,6 @@ public class SimulatedCardVault implements CardProvider {
     @Override public CardAuthResponse   queryPayment(String opRef, String t)       { return impl.queryPayment(opRef, t); }
     @Override public CardProviderResponse setStatus(CardStatusRequest r)           { return impl.setStatus(r); }
     @Override public CardTokenInfo      revealDetails(String t, Long u, String cr) { return impl.revealDetails(t, u, cr); }
+    @Override public CardTokenInfo      issueVirtualCard(Long u)                   { return impl.issueVirtualCard(u); }
+    @Override public CardRevealDetails  revealVirtualCard(String t, Long u)        { return impl.revealVirtualCard(t, u); }
 }

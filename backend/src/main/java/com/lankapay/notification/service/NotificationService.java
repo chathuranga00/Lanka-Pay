@@ -98,6 +98,54 @@ public class NotificationService {
         dispatch(paymentRequest.getPayer(), NotificationType.PAYMENT_REQUEST_RECEIVED, formatted.title(), formatted.message());
     }
 
+    public void notifyCardAdded(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardAdded();
+        dispatch(user, NotificationType.CARD_ADDED, formatted.title(), formatted.message());
+    }
+
+    public void notifyCardVerified(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardVerified();
+        dispatch(user, NotificationType.CARD_VERIFIED, formatted.title(), formatted.message());
+    }
+
+    public void notifyCardFrozen(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardFrozen();
+        dispatch(user, NotificationType.CARD_FROZEN, formatted.title(), formatted.message());
+    }
+
+    public void notifyCardUnfrozen(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardUnfrozen();
+        dispatch(user, NotificationType.CARD_UNFROZEN, formatted.title(), formatted.message());
+    }
+
+    public void notifyCardLimitChanged(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardLimitChanged();
+        dispatch(user, NotificationType.CARD_LIMIT_CHANGED, formatted.title(), formatted.message());
+    }
+
+    public void notifyCardDetailsViewed(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardDetailsViewed();
+        dispatch(user, NotificationType.CARD_DETAILS_VIEWED, formatted.title(), formatted.message());
+    }
+
+    public void notifyCardRemoved(User user) {
+        if (user == null) return;
+        var formatted = formatter.formatCardRemoved();
+        dispatch(user, NotificationType.CARD_REMOVED, formatted.title(), formatted.message());
+    }
+
+    public void notifySuspiciousCardActivity(User user, String reason) {
+        if (user == null) return;
+        var formatted = formatter.formatCardSuspiciousActivity(reason);
+        dispatch(user, NotificationType.SECURITY_ALERT, formatted.title(), formatted.message());
+    }
+
     // ── Core Safe Dispatch Engine ──────────────────────────────
 
     /**

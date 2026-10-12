@@ -86,6 +86,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/bank-accounts/**").authenticated()
                 .requestMatchers("/api/v1/bank-institutions").authenticated()
 
+                // cards require a valid JWT
+                .requestMatchers("/api/v1/cards/**").authenticated()
+
                 // simulated card vault — requires JWT (abuse is attributable to a user)
                 .requestMatchers("/sim-vault/**").authenticated()
 

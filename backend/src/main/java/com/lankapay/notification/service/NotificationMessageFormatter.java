@@ -71,6 +71,39 @@ public class NotificationMessageFormatter {
         return create(title != null ? title : "Account Notice", message);
     }
 
+    public FormattedMessage formatCardAdded() {
+        return create("Card Added", "A new card has been added to your profile.");
+    }
+
+    public FormattedMessage formatCardVerified() {
+        return create("Card Verified", "Your card verification was completed successfully.");
+    }
+
+    public FormattedMessage formatCardFrozen() {
+        return create("Card Frozen", "Your card has been temporarily frozen.");
+    }
+
+    public FormattedMessage formatCardUnfrozen() {
+        return create("Card Unfrozen", "Your card has been unfrozen and is ready for use.");
+    }
+
+    public FormattedMessage formatCardLimitChanged() {
+        return create("Card Limits Updated", "Your card spending limits were updated.");
+    }
+
+    public FormattedMessage formatCardDetailsViewed() {
+        return create("Card Details Viewed", "Your virtual card details were accessed.");
+    }
+
+    public FormattedMessage formatCardRemoved() {
+        return create("Card Removed", "A card was removed from your profile.");
+    }
+
+    public FormattedMessage formatCardSuspiciousActivity(String reason) {
+        String detail = reason != null && !reason.isBlank() ? reason : "Suspicious activity detected on your card.";
+        return create("Security Alert", sanitize(detail) + " If this was not you, contact support immediately.");
+    }
+
     private FormattedMessage create(String title, String rawMessage) {
         String sanitizedMessage = sanitize(rawMessage);
         assertPrivacySafe(sanitizedMessage);

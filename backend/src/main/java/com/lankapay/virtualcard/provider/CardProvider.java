@@ -82,4 +82,16 @@ public interface CardProvider {
      * in the current prototype. Extend this when a UI reveal flow is needed.
      */
     CardTokenInfo revealDetails(String cardToken, Long userId, String challengeRef);
+
+    /**
+     * Ask the simulator to issue a new virtual card tied to the user.
+     * Generates a new simulated card in the vault and returns token and safe metadata.
+     */
+    CardTokenInfo issueVirtualCard(Long userId);
+
+    /**
+     * Reveal sensitive details (PAN, CVV, expiry) for a simulator-issued virtual card.
+     * Refuses for linked cards or cards not issued by simulator.
+     */
+    CardRevealDetails revealVirtualCard(String cardToken, Long userId);
 }
