@@ -13,6 +13,9 @@ public enum TransactionStatus {
     /** Transfer accepted, pre-flight checks passed. */
     PENDING,
 
+    /** Card scenario requires bank OTP challenge confirmation before processing. */
+    CHALLENGE_REQUIRED,
+
     /** Sent to BankAdapter, awaiting response. */
     PROCESSING,
 

@@ -92,4 +92,8 @@ public interface TransactionStore {
             String failureReason,
             Long expectedVersion
     );
+
+    long getCardDailySpentMinor(Long cardId, LocalDate date);
+
+    TransactionRecord updateTransferChallenge(Long transferId, String challengeRef, int attempts);
 }

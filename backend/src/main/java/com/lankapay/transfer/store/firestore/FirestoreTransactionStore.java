@@ -5,6 +5,7 @@ import com.google.cloud.firestore.*;
 import com.lankapay.common.exception.ConflictException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.common.firestore.FirestoreTransactionHelper;
+import com.lankapay.card.domain.CardKind;
 import com.lankapay.transfer.domain.*;
 import com.lankapay.transfer.web.dto.TransferDirection;
 import org.slf4j.Logger;
@@ -174,6 +175,16 @@ public class FirestoreTransactionStore implements TransactionStore {
             data.put("qrCodeId", transfer.qrCodeId());
             data.put("version", 1L);
             data.put("participantIds", List.of(transfer.senderId(), transfer.receiverId()));
+            data.put("fundingType", transfer.fundingType() != null ? transfer.fundingType().name() : FundingType.ACCOUNT.name());
+            data.put("cardId", transfer.cardId());
+            data.put("cardLast4", transfer.cardLast4());
+            data.put("cardKind", transfer.cardKind() != null ? transfer.cardKind().name() : null);
+            data.put("feeMinor", transfer.fee() != null ? transfer.fee().movePointRight(2).longValue() : 0L);
+            data.put("fee", transfer.fee() != null ? transfer.fee().toPlainString() : "0.00");
+            data.put("totalAmountMinor", transfer.totalAmount() != null ? transfer.totalAmount().movePointRight(2).longValue() : amountMinor);
+            data.put("totalAmount", transfer.totalAmount() != null ? transfer.totalAmount().toPlainString() : (transfer.amount() != null ? transfer.amount().toPlainString() : "0.00"));
+            data.put("challengeRef", transfer.challengeRef());
+            data.put("challengeAttempts", transfer.challengeAttempts() != null ? transfer.challengeAttempts() : 0);
             data.put("createdAt", FieldValue.serverTimestamp());
             data.put("updatedAt", FieldValue.serverTimestamp());
 
@@ -205,7 +216,13 @@ public class FirestoreTransactionStore implements TransactionStore {
                         transfer.status() != null ? transfer.status() : TransactionStatus.PENDING,
                         transfer.failureReason(), transfer.bankTxRef(), transfer.providerReference(),
                         transfer.note(), transfer.simulated(), transfer.initiatedVia(),
-                        transfer.qrCodeId(), 1L, Instant.now(), Instant.now()
+                        transfer.qrCodeId(), 1L, Instant.now(), Instant.now(),
+                        transfer.fundingType() != null ? transfer.fundingType() : FundingType.ACCOUNT,
+                        transfer.cardId(), transfer.cardLast4(), transfer.cardKind(),
+                        transfer.fee() != null ? transfer.fee() : BigDecimal.ZERO,
+                        transfer.totalAmount() != null ? transfer.totalAmount() : transfer.amount(),
+                        transfer.challengeRef(),
+                        transfer.challengeAttempts() != null ? transfer.challengeAttempts() : 0
                 );
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -296,6 +313,16 @@ public class FirestoreTransactionStore implements TransactionStore {
             txData.put("qrCodeId", transfer.qrCodeId());
             txData.put("version", 1L);
             txData.put("participantIds", List.of(transfer.senderId(), transfer.receiverId()));
+            txData.put("fundingType", transfer.fundingType() != null ? transfer.fundingType().name() : FundingType.ACCOUNT.name());
+            txData.put("cardId", transfer.cardId());
+            txData.put("cardLast4", transfer.cardLast4());
+            txData.put("cardKind", transfer.cardKind() != null ? transfer.cardKind().name() : null);
+            txData.put("feeMinor", transfer.fee() != null ? transfer.fee().movePointRight(2).longValue() : 0L);
+            txData.put("fee", transfer.fee() != null ? transfer.fee().toPlainString() : "0.00");
+            txData.put("totalAmountMinor", transfer.totalAmount() != null ? transfer.totalAmount().movePointRight(2).longValue() : amountMinor);
+            txData.put("totalAmount", transfer.totalAmount() != null ? transfer.totalAmount().toPlainString() : (transfer.amount() != null ? transfer.amount().toPlainString() : "0.00"));
+            txData.put("challengeRef", transfer.challengeRef());
+            txData.put("challengeAttempts", transfer.challengeAttempts() != null ? transfer.challengeAttempts() : 0);
             txData.put("createdAt", FieldValue.serverTimestamp());
             txData.put("updatedAt", FieldValue.serverTimestamp());
 
@@ -331,7 +358,13 @@ public class FirestoreTransactionStore implements TransactionStore {
                     transfer.amount(), transfer.currency(),
                     TransactionStatus.PENDING, null, null, null,
                     transfer.note(), transfer.simulated(), transfer.initiatedVia(),
-                    transfer.qrCodeId(), 1L, Instant.now(), Instant.now()
+                    transfer.qrCodeId(), 1L, Instant.now(), Instant.now(),
+                    transfer.fundingType() != null ? transfer.fundingType() : FundingType.ACCOUNT,
+                    transfer.cardId(), transfer.cardLast4(), transfer.cardKind(),
+                    transfer.fee() != null ? transfer.fee() : BigDecimal.ZERO,
+                    transfer.totalAmount() != null ? transfer.totalAmount() : transfer.amount(),
+                    transfer.challengeRef(),
+                    transfer.challengeAttempts() != null ? transfer.challengeAttempts() : 0
             );
         });
     }
@@ -406,7 +439,9 @@ public class FirestoreTransactionStore implements TransactionStore {
                     providerRef != null ? providerRef : existing.providerReference(),
                     existing.note(), existing.simulated(), existing.initiatedVia(),
                     existing.qrCodeId(), currentVersion + 1,
-                    existing.createdAt(), Instant.now()
+                    existing.createdAt(), Instant.now(),
+                    existing.fundingType(), existing.cardId(), existing.cardLast4(), existing.cardKind(),
+                    existing.fee(), existing.totalAmount(), existing.challengeRef(), existing.challengeAttempts()
             );
         });
     }
@@ -797,6 +832,20 @@ public class FirestoreTransactionStore implements TransactionStore {
         TransferInitiatedVia via = viaStr != null ? TransferInitiatedVia.valueOf(viaStr) : TransferInitiatedVia.APP;
         Boolean sim = doc.getBoolean("simulated");
 
+        String ftStr = doc.getString("fundingType");
+        FundingType fundingType = ftStr != null ? FundingType.valueOf(ftStr) : FundingType.ACCOUNT;
+        Long cardId = doc.getLong("cardId");
+        String cardLast4 = doc.getString("cardLast4");
+        String ckStr = doc.getString("cardKind");
+        CardKind cardKind = ckStr != null ? CardKind.valueOf(ckStr) : null;
+        Long feeMinor = doc.getLong("feeMinor");
+        BigDecimal fee = feeMinor != null ? BigDecimal.valueOf(feeMinor, 2) : (doc.getString("fee") != null ? new BigDecimal(doc.getString("fee")) : BigDecimal.ZERO);
+        Long totalAmountMinor = doc.getLong("totalAmountMinor");
+        BigDecimal totalAmount = totalAmountMinor != null ? BigDecimal.valueOf(totalAmountMinor, 2) : (doc.getString("totalAmount") != null ? new BigDecimal(doc.getString("totalAmount")) : amount.add(fee));
+        String challengeRef = doc.getString("challengeRef");
+        Long attemptsLong = doc.getLong("challengeAttempts");
+        Integer challengeAttempts = attemptsLong != null ? attemptsLong.intValue() : 0;
+
         return new TransactionRecord(
                 id,
                 doc.getString("reference"),
@@ -821,7 +870,15 @@ public class FirestoreTransactionStore implements TransactionStore {
                 doc.getLong("qrCodeId"),
                 doc.getLong("version") != null ? doc.getLong("version") : 1L,
                 toInstant(doc.getTimestamp("createdAt")),
-                toInstant(doc.getTimestamp("updatedAt"))
+                toInstant(doc.getTimestamp("updatedAt")),
+                fundingType,
+                cardId,
+                cardLast4,
+                cardKind,
+                fee,
+                totalAmount,
+                challengeRef,
+                challengeAttempts
         );
     }
 
@@ -881,5 +938,57 @@ public class FirestoreTransactionStore implements TransactionStore {
 
     private Instant toInstant(Timestamp ts) {
         return ts != null ? Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()) : Instant.now();
+    }
+
+    @Override
+    public long getCardDailySpentMinor(Long cardId, LocalDate date) {
+        if (cardId == null) return 0L;
+        try {
+            QuerySnapshot snap = firestore.collection(TRANSACTIONS_COLLECTION)
+                    .whereEqualTo("cardId", cardId)
+                    .get().get();
+            long total = 0L;
+            for (QueryDocumentSnapshot doc : snap) {
+                String status = doc.getString("status");
+                if ("FAILED".equalsIgnoreCase(status) || "REVERSED".equalsIgnoreCase(status)) {
+                    continue;
+                }
+                Timestamp ts = doc.getTimestamp("createdAt");
+                if (ts != null && date != null) {
+                    LocalDate txDate = ts.toDate().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+                    if (!date.equals(txDate)) {
+                        continue;
+                    }
+                }
+                Long amtMinor = doc.getLong("amountMinor");
+                if (amtMinor != null) {
+                    total += amtMinor;
+                }
+            }
+            return total;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public TransactionRecord updateTransferChallenge(Long transferId, String challengeRef, int attempts) {
+        DocumentReference ref = firestore.collection(TRANSACTIONS_COLLECTION).document(String.valueOf(transferId));
+        try {
+            Map<String, Object> data = new HashMap<>();
+            if (challengeRef != null) data.put("challengeRef", challengeRef);
+            data.put("challengeAttempts", attempts);
+            data.put("updatedAt", FieldValue.serverTimestamp());
+            ref.set(data, SetOptions.merge()).get();
+            return findTransferById(transferId).orElse(null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

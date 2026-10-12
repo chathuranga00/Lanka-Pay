@@ -7,15 +7,21 @@ import com.lankapay.bank.adapter.BankAdapterRegistry;
 import com.lankapay.bank.adapter.TransferStatusRequest;
 import com.lankapay.bank.domain.BankAccountStatus;
 import com.lankapay.bank.domain.LinkedAccountStore;
+import com.lankapay.card.domain.Card;
+import com.lankapay.card.domain.CardStore;
 import com.lankapay.common.exception.AuthorizationException;
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.identity.domain.User;
+import com.lankapay.transfer.domain.FundingType;
 import com.lankapay.transfer.domain.TransactionEvent;
 import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.TransactionStore;
 import com.lankapay.transfer.domain.Transfer;
 import com.lankapay.transfer.web.dto.ReconcileResultResponse;
+import com.lankapay.virtualcard.provider.CardAuthResponse;
+import com.lankapay.virtualcard.provider.CardAuthStatus;
+import com.lankapay.virtualcard.provider.CardProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,18 +50,35 @@ public class ReconciliationService {
     private final BankAdapterRegistry bankAdapterRegistry;
     private final DailyLimitService dailyLimitService;
     private final AuditService auditService;
+    private final CardStore cardStore;
+    private final CardProvider cardProvider;
+    private final CardDailyLimitService cardDailyLimitService;
+
+    public ReconciliationService(TransactionStore transactionStore,
+                                 LinkedAccountStore linkedAccountStore,
+                                 BankAdapterRegistry bankAdapterRegistry,
+                                 DailyLimitService dailyLimitService,
+                                 AuditService auditService) {
+        this(transactionStore, linkedAccountStore, bankAdapterRegistry, dailyLimitService, auditService, null, null, null);
+    }
 
     @Autowired
     public ReconciliationService(TransactionStore transactionStore,
                                  @Autowired(required = false) LinkedAccountStore linkedAccountStore,
                                  BankAdapterRegistry bankAdapterRegistry,
                                  DailyLimitService dailyLimitService,
-                                 AuditService auditService) {
+                                 AuditService auditService,
+                                 @Autowired(required = false) CardStore cardStore,
+                                 @Autowired(required = false) CardProvider cardProvider,
+                                 @Autowired(required = false) CardDailyLimitService cardDailyLimitService) {
         this.transactionStore = transactionStore;
         this.linkedAccountStore = linkedAccountStore;
         this.bankAdapterRegistry = bankAdapterRegistry;
         this.dailyLimitService = dailyLimitService;
         this.auditService = auditService;
+        this.cardStore = cardStore;
+        this.cardProvider = cardProvider;
+        this.cardDailyLimitService = cardDailyLimitService;
     }
 
     /**
@@ -88,6 +111,12 @@ public class ReconciliationService {
         transfer.setVersion(r.version());
         transfer.setSenderBankCode(r.senderBankCode());
         transfer.setReceiverBankCode(r.receiverBankCode());
+        transfer.setFundingType(r.fundingType());
+        transfer.setCardId(r.cardId());
+        transfer.setCardLast4(r.cardLast4());
+        transfer.setCardKind(r.cardKind());
+        transfer.setFee(r.fee());
+        transfer.setTotalAmount(r.totalAmount());
 
         if (authenticatedUserId != null) {
             boolean isSender = transfer.getSender() != null && transfer.getSender().getId().equals(authenticatedUserId);
@@ -110,6 +139,90 @@ public class ReconciliationService {
                     false,
                     "Transfer is already in terminal state: " + prevStatus
             );
+        }
+
+        // ── Card Reconciliation ────────────────────────────────────
+        if (transfer.getFundingType() == FundingType.CARD) {
+            if (cardProvider == null || cardStore == null) {
+                throw new IllegalStateException("Card services unavailable for reconciliation");
+            }
+            Card card = cardStore.findById(transfer.getCardId())
+                    .orElseThrow(() -> new ResourceNotFoundException("CARD_NOT_FOUND", "Card not found: " + transfer.getCardId()));
+
+            log.info("Reconciling card transfer id={}, ref={} with cardProvider",
+                    transfer.getId(), transfer.getReference());
+
+            CardAuthResponse authResp = cardProvider.queryPayment(transfer.getReference(), card.cardToken());
+
+            log.info("Card reconciliation response for transfer id={}: approved={}, status={}, authCode={}",
+                    transfer.getId(), authResp.approved(), authResp.status(), authResp.authCode());
+
+            if (authResp.approved() && authResp.status() == CardAuthStatus.APPROVED) {
+                TransactionEvent event = transfer.recordCardCaptured(authResp.authCode() != null ? authResp.authCode() : transfer.getReference());
+                persistReconciliation(transfer, event);
+                if (cardDailyLimitService != null) {
+                    cardDailyLimitService.commit(card, transfer.getAmount());
+                }
+                auditService.log(null, "CARD_TRANSFER_RECONCILED_COMPLETED", "TRANSFER",
+                        transfer.getId(), "{\"authCode\":\"" + authResp.authCode() + "\"}", "SYSTEM");
+
+                return new ReconcileResultResponse(
+                        transfer.getId(),
+                        transfer.getReference(),
+                        prevStatus,
+                        TransactionStatus.COMPLETED,
+                        true,
+                        "Reconciled successfully to COMPLETED"
+                );
+            } else if (authResp.status() == CardAuthStatus.REVERSED || "Authorization reversed by issuer".equalsIgnoreCase(authResp.declineReason())) {
+                if (transfer.getStatus() == TransactionStatus.COMPLETED) {
+                    TransactionEvent pendingRev = transfer.requestReversal("REVERSAL_REPORTED_BY_PROVIDER");
+                    persistReconciliation(transfer, pendingRev);
+                }
+                TransactionEvent revEvent = transfer.reversed(authResp.authCode());
+                persistReconciliation(transfer, revEvent);
+                if (cardDailyLimitService != null) {
+                    cardDailyLimitService.release(card, transfer.getAmount());
+                }
+                auditService.log(null, "CARD_TRANSFER_RECONCILED_REVERSED", "TRANSFER",
+                        transfer.getId(), "{\"reason\":\"" + authResp.declineReason() + "\"}", "SYSTEM");
+
+                return new ReconcileResultResponse(
+                        transfer.getId(),
+                        transfer.getReference(),
+                        prevStatus,
+                        TransactionStatus.REVERSED,
+                        true,
+                        "Reconciled successfully to REVERSED"
+                );
+            } else if (authResp.status() == CardAuthStatus.DECLINED || (!authResp.approved() && authResp.status() != CardAuthStatus.TIMEOUT && authResp.status() != CardAuthStatus.PENDING_CHALLENGE)) {
+                String reason = authResp.declineReason() != null ? authResp.declineReason() : "CARD_DECLINED";
+                TransactionEvent failEvent = transfer.recordCardDeclined(reason);
+                persistReconciliation(transfer, failEvent);
+                if (cardDailyLimitService != null) {
+                    cardDailyLimitService.release(card, transfer.getAmount());
+                }
+                auditService.log(null, "CARD_TRANSFER_RECONCILED_FAILED", "TRANSFER",
+                        transfer.getId(), "{\"reason\":\"" + reason + "\"}", "SYSTEM");
+
+                return new ReconcileResultResponse(
+                        transfer.getId(),
+                        transfer.getReference(),
+                        prevStatus,
+                        TransactionStatus.FAILED,
+                        true,
+                        "Reconciled to FAILED: " + reason
+                );
+            } else {
+                return new ReconcileResultResponse(
+                        transfer.getId(),
+                        transfer.getReference(),
+                        prevStatus,
+                        transfer.getStatus(),
+                        false,
+                        "Provider reported status " + authResp.status() + "; still requires reconciliation"
+                );
+            }
         }
 
         // Resolve bank institution code from sender's default account or transfer record

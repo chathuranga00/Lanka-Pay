@@ -1,5 +1,6 @@
 package com.lankapay.transfer.web.dto;
 
+import com.lankapay.transfer.domain.FundingSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -32,5 +33,21 @@ public record InitiateTransferRequest(
         String note,
 
         @Schema(description = "6-digit PIN for step-up authentication (can also be passed via X-Step-Up-Pin header)", example = "123456")
-        String pin
-) {}
+        String pin,
+
+        @Schema(description = "Funding source specification (ACCOUNT or CARD)")
+        FundingSource fundingSource
+) {
+
+    public InitiateTransferRequest(
+            Long payeeId,
+            String payeePhone,
+            BigDecimal amount,
+            String currency,
+            String quoteReference,
+            String note,
+            String pin
+    ) {
+        this(payeeId, payeePhone, amount, currency, quoteReference, note, pin, null);
+    }
+}

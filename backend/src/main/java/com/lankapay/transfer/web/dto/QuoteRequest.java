@@ -1,5 +1,6 @@
 package com.lankapay.transfer.web.dto;
 
+import com.lankapay.transfer.domain.FundingSource;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
@@ -21,5 +22,12 @@ public record QuoteRequest(
         BigDecimal amount,
 
         @Schema(description = "Currency code (default LKR)", example = "LKR")
-        String currency
-) {}
+        String currency,
+
+        @Schema(description = "Funding source specification (ACCOUNT or CARD)")
+        FundingSource fundingSource
+) {
+    public QuoteRequest(Long payeeId, String payeePhone, BigDecimal amount, String currency) {
+        this(payeeId, payeePhone, amount, currency, null);
+    }
+}

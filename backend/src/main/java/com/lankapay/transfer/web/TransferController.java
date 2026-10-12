@@ -214,6 +214,34 @@ public class TransferController {
         return ResponseEntity.ok(TransferResponse.from(transfer));
     }
 
+    // ── POST /transfers/{id}/challenge ─────────────────────────
+
+    @Operation(summary = "Submit OTP challenge for card transfer",
+               description = "Submits OTP to satisfy card challenge requirement and proceed with payment processing.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Challenge verified and transfer processed"),
+        @ApiResponse(responseCode = "400", description = "Validation error",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "Forbidden (not party to transfer)",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "404", description = "Transfer not found",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "409", description = "Transfer not awaiting challenge",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "422", description = "Challenge failed or maximum attempts exceeded",
+                     content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/{id}/challenge")
+    public ResponseEntity<TransferResponse> challengeTransfer(
+            @PathVariable Long id,
+            @Valid @RequestBody TransferChallengeRequest request,
+            @AuthenticationPrincipal Long userId,
+            HttpServletRequest httpRequest) {
+
+        TransferResponse response = transferService.challengeTransfer(id, request.otp(), userId, extractIp(httpRequest));
+        return ResponseEntity.ok(response);
+    }
+
     // ── Helpers ────────────────────────────────────────────────
 
     private User getUser(Long userId) {

@@ -62,13 +62,22 @@ public final class SimulatedCardVaultImpl {
 
     // ── ownership challenge ───────────────────────────────────
 
+    private final ConcurrentHashMap<String, String> challengeToToken = new ConcurrentHashMap<>();
+    private final java.util.Set<String> confirmedTokens = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public String startOwnershipChallenge(String cardToken, Long userId, String ip) {
         vc.tokenStore().requireValid(cardToken, userId);
-        return vc.challengeService().startChallenge(userId, ip);
+        String ref = vc.challengeService().startChallenge(userId, ip);
+        challengeToToken.put(ref, cardToken);
+        return ref;
     }
 
     public CardProviderResponse confirmChallenge(String ref, Long userId, String otp) {
         String confirmed = vc.challengeService().confirmChallenge(ref, userId, otp);
+        String token = challengeToToken.get(ref);
+        if (token != null) {
+            confirmedTokens.add(token);
+        }
         return CardProviderResponse.ok("Challenge confirmed: " + confirmed);
     }
 
@@ -90,8 +99,13 @@ public final class SimulatedCardVaultImpl {
                 CardAuthResponse.declined("Insufficient funds", vt.token(), vt.last4(), vs.cardScenario);
             case CARD_EXPIRED ->
                 CardAuthResponse.declined("Card expired", vt.token(), vt.last4(), vs.cardScenario);
-            case REQUIRES_OTP_CHALLENGE ->
-                CardAuthResponse.pendingChallenge(vt.token(), vt.last4());
+            case REQUIRES_OTP_CHALLENGE -> {
+                if (confirmedTokens.contains(vt.token())) {
+                    String ac = "AUTH-" + uuid8();
+                    yield CardAuthResponse.approved(ac, vt.token(), vt.last4(), vs.cardScenario);
+                }
+                yield CardAuthResponse.pendingChallenge(vt.token(), vt.last4());
+            }
             case PROVIDER_TIMEOUT -> {
                 pendingAuths.put(request.operationReference(), vt.token());
                 yield CardAuthResponse.timeout(vt.token(), vt.last4(), vs.cardScenario);

@@ -1,5 +1,8 @@
 package com.lankapay.transfer.web.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.lankapay.card.domain.CardKind;
+import com.lankapay.transfer.domain.FundingType;
 import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
@@ -13,6 +16,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 
 @Schema(description = "Structured transaction receipt data")
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record ReceiptResponse(
         @Schema(description = "Unique receipt reference", example = "REC-550E8400")
         String receiptNumber,
@@ -23,7 +27,7 @@ public record ReceiptResponse(
         @Schema(description = "External transfer reference UUID", example = "550e8400-e29b-41d4-a716-446655440000")
         String reference,
 
-        @Schema(description = "Bank adapter provider reference", example = "SIM-TX-9999")
+        @Schema(description = "Bank adapter provider reference or card auth code", example = "SIM-TX-9999")
         String bankTxRef,
 
         @Schema(description = "Transaction status (never SUCCESS unless confirmed COMPLETED)", example = "COMPLETED")
@@ -63,7 +67,22 @@ public record ReceiptResponse(
         boolean simulated,
 
         @Schema(description = "Digital verification hash for tamper detection", example = "e3b0c442...")
-        String digitalSignature
+        String digitalSignature,
+
+        @Schema(description = "Funding source type", example = "CARD")
+        FundingType fundingType,
+
+        @Schema(description = "Card ID if card-funded", example = "10")
+        Long cardId,
+
+        @Schema(description = "Card last 4 digits if card-funded", example = "0010")
+        String cardLast4,
+
+        @Schema(description = "Card kind", example = "LINKED")
+        CardKind cardKind,
+
+        @Schema(description = "Friendly payment method display", example = "Paid with card •••• 0010 (TEST CARD)")
+        String paymentMethod
 ) {
 
     public record ReceiptParty(
@@ -72,6 +91,35 @@ public record ReceiptResponse(
             String maskedPhone,
             String bankCode
     ) {}
+
+    /**
+     * Backward-compatible 17-arg constructor.
+     */
+    public ReceiptResponse(
+            String receiptNumber,
+            Long transferId,
+            String reference,
+            String bankTxRef,
+            TransactionStatus status,
+            BigDecimal amount,
+            String currency,
+            BigDecimal fee,
+            BigDecimal totalDebited,
+            ReceiptParty sender,
+            ReceiptParty receiver,
+            TransferInitiatedVia initiatedVia,
+            String note,
+            Instant createdAt,
+            Instant completedAt,
+            boolean simulated,
+            String digitalSignature
+    ) {
+        this(
+                receiptNumber, transferId, reference, bankTxRef, status, amount, currency,
+                fee, totalDebited, sender, receiver, initiatedVia, note, createdAt, completedAt,
+                simulated, digitalSignature, FundingType.ACCOUNT, null, null, null, "Paid with bank account"
+        );
+    }
 
     public static ReceiptResponse from(TransactionRecord transfer) {
         String receiptNum = "REC-" + (transfer.reference() != null && transfer.reference().length() >= 8
@@ -99,10 +147,19 @@ public record ReceiptResponse(
                 transfer.receiverBankCode()
         );
 
-        BigDecimal fee = BigDecimal.ZERO.setScale(2);
-        BigDecimal total = transfer.amount().add(fee);
+        BigDecimal fee = transfer.fee() != null ? transfer.fee().setScale(2) : BigDecimal.ZERO.setScale(2);
+        BigDecimal total = transfer.totalAmount() != null ? transfer.totalAmount() : transfer.amount().add(fee);
 
         String signature = computeSignature(transfer.reference(), transfer.amount(), transfer.status(), transfer.createdAt());
+
+        FundingType ft = transfer.fundingType() != null ? transfer.fundingType() : FundingType.ACCOUNT;
+        String paymentMethod;
+        if (ft == FundingType.CARD) {
+            String last4 = transfer.cardLast4() != null ? transfer.cardLast4() : "••••";
+            paymentMethod = "Paid with card •••• " + last4 + " (TEST CARD)";
+        } else {
+            paymentMethod = "Paid with bank account";
+        }
 
         return new ReceiptResponse(
                 receiptNum,
@@ -121,7 +178,12 @@ public record ReceiptResponse(
                 transfer.createdAt(),
                 transfer.updatedAt(),
                 transfer.simulated(),
-                signature
+                signature,
+                ft,
+                transfer.cardId(),
+                transfer.cardLast4(),
+                transfer.cardKind(),
+                paymentMethod
         );
     }
 
@@ -144,10 +206,19 @@ public record ReceiptResponse(
                 transfer.getReceiverBankCode()
         );
 
-        BigDecimal fee = BigDecimal.ZERO.setScale(2);
-        BigDecimal total = transfer.getAmount().add(fee);
+        BigDecimal fee = transfer.getFee() != null ? transfer.getFee().setScale(2) : BigDecimal.ZERO.setScale(2);
+        BigDecimal total = transfer.getTotalAmount() != null ? transfer.getTotalAmount() : transfer.getAmount().add(fee);
 
         String signature = computeSignature(transfer);
+
+        FundingType ft = transfer.getFundingType() != null ? transfer.getFundingType() : FundingType.ACCOUNT;
+        String paymentMethod;
+        if (ft == FundingType.CARD) {
+            String last4 = transfer.getCardLast4() != null ? transfer.getCardLast4() : "••••";
+            paymentMethod = "Paid with card •••• " + last4 + " (TEST CARD)";
+        } else {
+            paymentMethod = "Paid with bank account";
+        }
 
         return new ReceiptResponse(
                 receiptNum,
@@ -166,22 +237,34 @@ public record ReceiptResponse(
                 transfer.getCreatedAt(),
                 transfer.getUpdatedAt(),
                 transfer.isSimulated(),
-                signature
+                signature,
+                ft,
+                transfer.getCardId(),
+                transfer.getCardLast4(),
+                transfer.getCardKind(),
+                paymentMethod
         );
     }
 
     private static String computeSignature(Transfer transfer) {
-        return computeSignature(transfer.getReference(), transfer.getAmount(), transfer.getStatus(), transfer.getCreatedAt());
+        return computeSignature(transfer.getReference(), transfer.getAmount(),
+                transfer.getStatus(), transfer.getCreatedAt());
     }
 
-    private static String computeSignature(String reference, BigDecimal amount, TransactionStatus status, Instant createdAt) {
+    private static String computeSignature(String reference, BigDecimal amount,
+                                           TransactionStatus status, Instant createdAt) {
         try {
-            String raw = reference + ":" + amount + ":" + status + ":" + createdAt;
+            String raw = String.join(":",
+                    reference != null ? reference : "",
+                    amount != null ? amount.toPlainString() : "0.00",
+                    status != null ? status.name() : "",
+                    createdAt != null ? createdAt.toString() : ""
+            );
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (Exception e) {
-            return "SIGNATURE_UNAVAILABLE";
+            return "SIG_UNAVAILABLE";
         }
     }
 }

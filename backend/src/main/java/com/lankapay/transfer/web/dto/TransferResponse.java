@@ -1,6 +1,8 @@
 package com.lankapay.transfer.web.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.lankapay.card.domain.CardKind;
+import com.lankapay.transfer.domain.FundingType;
 import com.lankapay.transfer.domain.TransactionRecord;
 import com.lankapay.transfer.domain.TransactionStatus;
 import com.lankapay.transfer.domain.Transfer;
@@ -59,12 +61,77 @@ public record TransferResponse(
         Instant createdAt,
 
         @Schema(description = "Last update timestamp")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "Funding source type", example = "CARD")
+        FundingType fundingType,
+
+        @Schema(description = "Card ID if card-funded", example = "10")
+        Long cardId,
+
+        @Schema(description = "Card last 4 digits if card-funded", example = "0010")
+        String cardLast4,
+
+        @Schema(description = "Card kind", example = "LINKED")
+        CardKind cardKind,
+
+        @Schema(description = "Card processing fee", example = "22.50")
+        BigDecimal fee,
+
+        @Schema(description = "Total debited amount", example = "1522.50")
+        BigDecimal totalAmount,
+
+        @Schema(description = "Friendly payment method display", example = "Paid with card •••• 0010 (TEST CARD)")
+        String paymentMethod,
+
+        @Schema(description = "Operation result summary", example = "COMPLETED")
+        String result
 ) {
+
+    /**
+     * Backward-compatible 16-arg constructor.
+     */
+    public TransferResponse(
+            Long transferId,
+            String reference,
+            TransactionStatus status,
+            BigDecimal amount,
+            String currency,
+            Long senderId,
+            String senderPhone,
+            Long receiverId,
+            String receiverDisplayName,
+            String bankTxRef,
+            String providerReference,
+            String note,
+            String failureReason,
+            boolean simulated,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        this(
+                transferId, reference, status, amount, currency, senderId, senderPhone,
+                receiverId, receiverDisplayName, bankTxRef, providerReference, note,
+                failureReason, simulated, createdAt, updatedAt,
+                FundingType.ACCOUNT, null, null, null, BigDecimal.ZERO, amount,
+                "Paid with bank account", status != null ? status.name() : null
+        );
+    }
 
     public static TransferResponse from(TransactionRecord transfer) {
         String receiverName = transfer.receiverFullName();
         String senderPhoneMasked = transfer.senderPhone() != null ? maskPhone(transfer.senderPhone()) : null;
+
+        FundingType ft = transfer.fundingType() != null ? transfer.fundingType() : FundingType.ACCOUNT;
+        String paymentMethod;
+        if (ft == FundingType.CARD) {
+            String last4 = transfer.cardLast4() != null ? transfer.cardLast4() : "••••";
+            paymentMethod = "Paid with card •••• " + last4 + " (TEST CARD)";
+        } else {
+            paymentMethod = "Paid with bank account";
+        }
+
+        String res = transfer.status() != null ? transfer.status().name() : null;
 
         return new TransferResponse(
                 transfer.id(),
@@ -82,13 +149,32 @@ public record TransferResponse(
                 transfer.failureReason(),
                 transfer.simulated(),
                 transfer.createdAt(),
-                transfer.updatedAt()
+                transfer.updatedAt(),
+                ft,
+                transfer.cardId(),
+                transfer.cardLast4(),
+                transfer.cardKind(),
+                transfer.fee() != null ? transfer.fee() : BigDecimal.ZERO,
+                transfer.totalAmount() != null ? transfer.totalAmount() : transfer.amount(),
+                paymentMethod,
+                res
         );
     }
 
     public static TransferResponse from(Transfer transfer) {
         String receiverName = transfer.getReceiver() != null ? transfer.getReceiver().getFullName() : null;
         String senderPhoneMasked = transfer.getSender() != null ? maskPhone(transfer.getSender().getPhone()) : null;
+
+        FundingType ft = transfer.getFundingType() != null ? transfer.getFundingType() : FundingType.ACCOUNT;
+        String paymentMethod;
+        if (ft == FundingType.CARD) {
+            String last4 = transfer.getCardLast4() != null ? transfer.getCardLast4() : "••••";
+            paymentMethod = "Paid with card •••• " + last4 + " (TEST CARD)";
+        } else {
+            paymentMethod = "Paid with bank account";
+        }
+
+        String res = transfer.getStatus() != null ? transfer.getStatus().name() : null;
 
         return new TransferResponse(
                 transfer.getId(),
@@ -106,7 +192,15 @@ public record TransferResponse(
                 transfer.getFailureReason(),
                 transfer.isSimulated(),
                 transfer.getCreatedAt(),
-                transfer.getUpdatedAt()
+                transfer.getUpdatedAt(),
+                ft,
+                transfer.getCardId(),
+                transfer.getCardLast4(),
+                transfer.getCardKind(),
+                transfer.getFee(),
+                transfer.getTotalAmount(),
+                paymentMethod,
+                res
         );
     }
 

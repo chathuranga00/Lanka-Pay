@@ -36,6 +36,12 @@ public final class TransactionStateMachine {
 
         map.put(TransactionStatus.PENDING,
                 EnumSet.of(TransactionStatus.PROCESSING,
+                           TransactionStatus.FAILED,
+                           TransactionStatus.CHALLENGE_REQUIRED,
+                           TransactionStatus.REQUIRES_RECONCILIATION));
+
+        map.put(TransactionStatus.CHALLENGE_REQUIRED,
+                EnumSet.of(TransactionStatus.PROCESSING,
                            TransactionStatus.FAILED));
 
         map.put(TransactionStatus.PROCESSING,
@@ -45,7 +51,8 @@ public final class TransactionStateMachine {
 
         map.put(TransactionStatus.REQUIRES_RECONCILIATION,
                 EnumSet.of(TransactionStatus.COMPLETED,
-                           TransactionStatus.FAILED));
+                           TransactionStatus.FAILED,
+                           TransactionStatus.REVERSED));
 
         map.put(TransactionStatus.COMPLETED,
                 EnumSet.of(TransactionStatus.REVERSAL_PENDING));
