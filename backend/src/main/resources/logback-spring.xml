@@ -4,17 +4,28 @@
 
   Rules enforced here:
   - correlationId is included on every line via MDC.
-  - No PII is ever logged; the application code is responsible for masking
-    before calling any logger.
+  - CardFieldMaskingConverter redacts pan/cvv/cardNumber/expiry from EVERY log line.
+  - SQL logging is OFF.
   - Stack traces appear in logs (for debugging) but NEVER in API responses.
 -->
 <configuration>
 
+    <!--
+      Register the card-field masking converter as the %masked conversion word.
+      It replaces %msg in the pattern to sanitise every message before output.
+    -->
+    <conversionRule conversionWord="masked"
+                    converterClass="com.lankapay.simvault.logging.CardFieldMaskingConverter"/>
+
     <springProfile name="!test">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
+                <!--
+                  %masked replaces %msg — every message passes through
+                  CardFieldMaskingConverter before being written to the console.
+                -->
                 <pattern>
-                    %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId:-NO_CID}] %-5level %logger{40} - %msg%n
+                    %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId:-NO_CID}] %-5level %logger{40} - %masked%n
                 </pattern>
                 <charset>UTF-8</charset>
             </encoder>
@@ -30,12 +41,16 @@
 
         <!-- Suppress noisy framework loggers -->
         <logger name="org.springframework.security"            level="INFO"/>
+
+        <!-- Suppress Google Cloud Firestore debug output that may echo document values -->
+        <logger name="com.google.cloud.firestore"              level="WARN"/>
+        <logger name="io.grpc"                                 level="WARN"/>
     </springProfile>
 
     <springProfile name="test">
         <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
-                <pattern>%d{HH:mm:ss.SSS} [%X{correlationId:-NO_CID}] %-5level %logger{30} - %msg%n</pattern>
+                <pattern>%d{HH:mm:ss.SSS} [%X{correlationId:-NO_CID}] %-5level %logger{30} - %masked%n</pattern>
             </encoder>
         </appender>
 
@@ -46,6 +61,8 @@
         <logger name="com.lankapay" level="INFO" additivity="false">
             <appender-ref ref="CONSOLE"/>
         </logger>
+
+        <logger name="com.google.cloud.firestore" level="WARN"/>
     </springProfile>
 
 </configuration>

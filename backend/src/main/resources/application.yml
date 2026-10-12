@@ -86,6 +86,22 @@ app:
     # Generate with: openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
     bank-account-key: ${BANK_ACCOUNT_ENCRYPTION_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
 
+    # AES-256-GCM key for encrypting vault card records at rest.
+    # MUST be different from bank-account-key.
+    # Generate with: openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+    vault-card-key: ${VAULT_ENCRYPTION_KEY:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=}
+
+  sim-vault:
+    # Active only when app.mode=SIMULATED (the default).
+    # Tokenize rate limits (Bucket4j, in-memory).
+    tokenize-rate-limit-per-user-per-minute: ${VAULT_TOKENIZE_RATE_USER:3}
+    tokenize-rate-limit-per-ip-per-minute:   ${VAULT_TOKENIZE_RATE_IP:5}
+    # After this many consecutive failures the user is locked for the lockout window.
+    tokenize-max-failures: ${VAULT_TOKENIZE_MAX_FAILURES:5}
+    tokenize-lockout-minutes: ${VAULT_TOKENIZE_LOCKOUT_MINUTES:15}
+    # Token validity after tokenize before it must be used to link a card.
+    token-ttl-minutes: ${VAULT_TOKEN_TTL_MINUTES:15}
+
   base-url: ${APP_BASE_URL:http://localhost:8080}
 
 # ── Logging ───────────────────────────────────────────────
