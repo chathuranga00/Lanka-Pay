@@ -43,6 +43,7 @@ import '../../features/split/presentation/split_create_screen.dart';
 import '../../features/split/presentation/split_details_screen.dart';
 import '../../features/split/presentation/split_pay_request_screen.dart';
 import '../../features/analytics/presentation/activity_screen.dart';
+import '../../features/rewards/presentation/rewards_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -239,10 +240,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/rewards',
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(title: const Text('Rewards')),
-          body: const Center(child: Text('Rewards & Offers')),
-        ),
+        builder: (context, state) => const RewardsScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

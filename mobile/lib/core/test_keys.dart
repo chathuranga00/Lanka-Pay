@@ -405,6 +405,18 @@ abstract final class AppTestKeys {
   static Key cat(String name) => Key('cat_$name');
   static const Key receiptShare = Key('receipt_share');
   static const Key receiptDownload = Key('receipt_download');
+
+  // ---------------------------------------------------------------------------
+  // Rewards (rewards_*)
+  // ---------------------------------------------------------------------------
+  static Key rewardsOffer(dynamic id) => Key('rewards_offer_$id');
+  static const Key rewardsRedeem = Key('rewards_redeem');
+  static const Key rewardsPointsPill = Key('rewards_points_pill');
+  static const Key rewardsTierBadge = Key('rewards_tier_badge');
+  static const Key rewardsExpiring = Key('rewards_expiring');
+  static const Key rewardsLedger = Key('rewards_ledger');
+  static const Key rewardsRedeemConfirm = Key('rewards_redeem_confirm');
+  static const Key rewardsPinField = Key('rewards_pin_field');
 }
 
 typedef TestKeys = AppTestKeys;
