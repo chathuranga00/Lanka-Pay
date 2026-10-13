@@ -120,7 +120,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
             size: 20,
           ),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.pop(),
         ),
         titleSpacing: 0,
         title: Padding(

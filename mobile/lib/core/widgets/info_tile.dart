@@ -33,8 +33,8 @@ class InfoTile extends StatelessWidget {
     final shadows = isDark ? AppTokens.softShadowDark : AppTokens.softShadowLight;
 
     final content = Container(
-      height: height,
-      padding: const EdgeInsets.all(16),
+      constraints: BoxConstraints(minHeight: height ?? 110.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: cardBg,
         borderRadius: AppTokens.borderRadiusTile,

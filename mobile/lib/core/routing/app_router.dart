@@ -219,6 +219,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
+        path: '/rewards',
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: const Text('Rewards')),
+          body: const Center(child: Text('Rewards & Offers')),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/bills',
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: const Text('Pay Bills')),
+          body: const Center(child: Text('Bill Payments')),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/goals',
+        builder: (context, state) => Scaffold(
+          appBar: AppBar(title: const Text('Savings Goals')),
+          body: const Center(child: Text('Savings Goals')),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
         path: '/dev/design-system',
         builder: (context, state) => const DevDesignSystemScreen(),
       ),

@@ -2,6 +2,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../history/data/history_service.dart';
 import '../../notifications/data/notification_service.dart';
 import '../../send/domain/transfer_models.dart';
+import 'home_api_model.dart';
+import 'home_api_service.dart';
+
+/// Aggregator provider fetching complete dashboard from GET /api/v1/home.
+final homeAggregateProvider = FutureProvider<HomeAggregateResponseModel>((ref) async {
+  final service = ref.watch(homeApiServiceProvider);
+  return await service.getHome();
+});
+
+/// Client-side set of dismissed nudge IDs for the active session.
+class DismissedNudgesNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => <String>{};
+
+  void dismiss(String id) {
+    state = {...state, id};
+  }
+}
+
+final dismissedNudgeIdsProvider =
+    NotifierProvider<DismissedNudgesNotifier, Set<String>>(() {
+  return DismissedNudgesNotifier();
+});
 
 /// Provider for unread notifications count, derived from GET /notifications.
 final unreadNotificationCountProvider = FutureProvider<int>((ref) async {

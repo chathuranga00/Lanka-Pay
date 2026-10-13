@@ -11,6 +11,7 @@ import 'package:lankapay_id/features/accounts/data/bank_account_service.dart';
 import 'package:lankapay_id/features/accounts/domain/bank_account_model.dart';
 import 'package:lankapay_id/features/accounts/presentation/accounts_screen.dart';
 import 'package:lankapay_id/features/history/data/history_service.dart';
+import 'package:lankapay_id/features/history/presentation/history_screen.dart';
 import 'package:lankapay_id/features/notifications/data/notification_service.dart';
 import 'package:lankapay_id/features/notifications/domain/notification_models.dart';
 import 'package:lankapay_id/features/send/presentation/send_screen.dart';
@@ -24,8 +25,90 @@ import 'package:dio/dio.dart';
 import 'package:lankapay_id/features/cards/data/card_service.dart';
 import 'package:lankapay_id/features/cards/domain/card_model.dart';
 import 'package:lankapay_id/features/settings/presentation/privacy_settings_screen.dart';
+import 'package:lankapay_id/features/home/data/home_api_model.dart';
+import 'package:lankapay_id/features/home/data/home_providers.dart';
 import 'package:lankapay_id/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+final fakeHomeResponseAllKeys = HomeAggregateResponseModel(
+  greeting: const HomeSectionModel(
+    status: 'OK',
+    data: GreetingDataModel(fullName: 'Kamal Perera', initial: 'K', salutation: 'Hello, Kamal'),
+  ),
+  unreadNotifications: const HomeSectionModel(
+    status: 'OK',
+    data: NotificationDataModel(unreadCount: 0),
+  ),
+  wallet: const HomeSectionModel(
+    status: 'OK',
+    data: WalletDataModel(
+      primaryBalanceMinor: 12545000,
+      primaryBalanceLkr: '125,450.00',
+      currency: 'LKR',
+      isSimulated: true,
+      defaultAccount: LinkedAccountSummaryModel(
+        id: 101,
+        bankCode: 'BANK_A',
+        bankName: 'Bank of Ceylon',
+        maskedAccountNumber: '•••• 5678',
+        accountName: 'Primary Account',
+        isDefault: true,
+      ),
+      activeCard: CardSummaryModel(
+        cardId: 201,
+        maskedNumber: '•••• 0010',
+        brandLabel: 'TEST CARD',
+        frozen: false,
+        expiry: '12/28',
+      ),
+      totalAccounts: 1,
+      totalCards: 1,
+    ),
+  ),
+  recentActivity: const HomeSectionModel(
+    status: 'OK',
+    data: [],
+  ),
+  rewardsPoints: const HomeSectionModel(
+    status: 'OK',
+    data: RewardsPointsDataModel(
+      pointsBalance: 1250,
+      formattedPoints: '1,250',
+      hasNewOffers: true,
+    ),
+  ),
+  stories: const HomeSectionModel(
+    status: 'UNAVAILABLE',
+    data: null,
+    error: 'MODULE_NOT_YET_IMPLEMENTED',
+  ),
+  spendSummary: const HomeSectionModel(
+    status: 'OK',
+    data: SpendSummaryDataModel(
+      totalSpentMinor: 150000,
+      totalSpentLkr: '1,500.00',
+      budgetMinor: 5000000,
+      budgetLkr: '50,000.00',
+      budgetUsedFraction: 0.03,
+      month: 'April',
+      hasTransactions: true,
+    ),
+  ),
+  nudge: const HomeSectionModel(
+    status: 'OK',
+    data: NudgeDataModel(
+      nudgeId: 'nudge_1',
+      type: 'SECURITY_TIP',
+      message: 'Never share your PIN, OTP, or password with anyone',
+      actionLabel: 'Learn more',
+      actionRoute: '/profile/security',
+    ),
+  ),
+  shortcuts: const HomeSectionModel(
+    status: 'OK',
+    data: [],
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // Mock Services
@@ -484,6 +567,7 @@ Widget createE2ETestApp({
       notificationServiceProvider
           .overrideWithValue(notifService ?? FakeAllKeysNotificationService()),
       qrServiceProvider.overrideWithValue(qrService ?? FakeAllKeysQrService()),
+      homeAggregateProvider.overrideWith((ref) => Future.value(fakeHomeResponseAllKeys)),
     ],
     child: Consumer(
       builder: (context, ref, _) {
@@ -539,108 +623,70 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('••••••••'), findsNothing);
 
-      // 3. AppTestKeys.homeSearch -> navigates to /send
+      // 3. AppTestKeys.homeSearch -> navigates to /search
       expect(find.byKey(AppTestKeys.homeSearch), findsOneWidget);
       await tester.tap(find.byKey(AppTestKeys.homeSearch));
       await tester.pumpAndSettle();
-      // Back to Home
       final searchBack = find.byKey(const Key('search_back_btn'));
-      if (searchBack.evaluate().isNotEmpty) {
-        await tester.tap(searchBack);
-      } else {
-        Navigator.of(tester.element(find.byKey(const Key('search_screen')))).pop();
-      }
+      expect(searchBack, findsOneWidget);
+      await tester.tap(searchBack);
       await tester.pumpAndSettle();
 
-      // 4. AppTestKeys.homeBell -> navigates to /notifications
-      expect(find.byKey(AppTestKeys.homeBell), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.homeBell));
+      // 4. home_profile -> opens AvatarSheet
+      expect(find.byKey(const Key('home_profile')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('home_profile')));
       await tester.pumpAndSettle();
-      expect(find.text('Notifications'), findsOneWidget);
-      // Pop back
-      final backFinder = find.byTooltip('Back');
-      if (backFinder.evaluate().isNotEmpty) {
-        await tester.tap(backFinder.first);
-        await tester.pumpAndSettle();
-      } else {
-        await tester.tap(find.byKey(AppTestKeys.navHome));
-        await tester.pumpAndSettle();
-      }
-
-      // 5. AppTestKeys.homeAddAccount -> navigates to /accounts/add
-      expect(find.byKey(AppTestKeys.homeAddAccount), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.homeAddAccount));
-      await tester.pumpAndSettle();
-      expect(find.text('Link Bank Account'), findsOneWidget);
-      // Pop back
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-        await tester.pumpAndSettle();
-      }
-
-      // 6. AppTestKeys.homeAccount(1) -> opens Accounts tab
-      final accountCardKey = AppTestKeys.homeAccount(1);
-      expect(find.byKey(accountCardKey), findsOneWidget);
-      await tester.tap(find.byKey(accountCardKey));
-      await tester.pumpAndSettle();
-      expect(find.byKey(AppTestKeys.accountsAdd), findsOneWidget);
-      // Return to Home
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-      } else {
-        Navigator.of(tester.element(find.byType(AccountsScreen))).pop();
-      }
+      expect(find.byKey(const Key('avatar_sheet')), findsOneWidget);
+      // Close sheet
+      await tester.tapAt(const Offset(20, 20));
       await tester.pumpAndSettle();
 
-      // 7. Quick Actions: qaSend, qaScan, qaRequest, qaMyQr
-      expect(find.byKey(AppTestKeys.qaSend), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.qaSend));
+      // 5. home_rewards -> navigates to /rewards
+      expect(find.byKey(const Key('home_rewards')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('home_rewards')));
       await tester.pumpAndSettle();
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-      } else {
-        Navigator.of(tester.element(find.byType(SendScreen))).pop();
-      }
+      Navigator.of(tester.element(find.text('Rewards & Offers'))).pop();
       await tester.pumpAndSettle();
 
-      expect(find.byKey(AppTestKeys.qaScan), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.qaScan));
+      // 6. tile_activity -> opens History
+      expect(find.byKey(const Key('tile_activity')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('tile_activity')));
       await tester.pumpAndSettle();
-      expect(find.text('LANKAQR'), findsOneWidget);
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-        await tester.pumpAndSettle();
-      }
+      Navigator.of(tester.element(find.byType(HistoryScreen))).pop();
+      await tester.pumpAndSettle();
 
-      expect(find.byKey(AppTestKeys.qaRequest), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.qaRequest));
+      // 7. tile_rewards -> opens Rewards
+      expect(find.byKey(const Key('tile_rewards')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('tile_rewards')));
       await tester.pumpAndSettle();
-      expect(find.text('LANKAQR'), findsOneWidget);
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-        await tester.pumpAndSettle();
-      }
+      Navigator.of(tester.element(find.text('Rewards & Offers'))).pop();
+      await tester.pumpAndSettle();
 
-      // 8. AppTestKeys.homeSeeAll -> opens History
-      expect(find.byKey(AppTestKeys.homeSeeAll), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.homeSeeAll));
+      // 8. home_wallet -> opens Accounts
+      expect(find.byKey(const Key('home_wallet')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('home_wallet')));
       await tester.pumpAndSettle();
-      expect(find.text('History'), findsOneWidget);
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-        await tester.pumpAndSettle();
-      }
+      Navigator.of(tester.element(find.byType(AccountsScreen))).pop();
+      await tester.pumpAndSettle();
 
-      // 9. AppTestKeys.tx(101) -> opens Receipt
-      final txKey = AppTestKeys.tx(101);
-      expect(find.byKey(txKey), findsOneWidget);
-      await tester.tap(find.byKey(txKey));
+      // 9. tile_bills and tile_goals
+      expect(find.byKey(const Key('tile_bills')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('tile_bills')));
       await tester.pumpAndSettle();
-      expect(find.text('Receipt'), findsOneWidget);
-      if (find.byTooltip('Back').evaluate().isNotEmpty) {
-        await tester.tap(find.byTooltip('Back').first);
-        await tester.pumpAndSettle();
-      }
+      Navigator.of(tester.element(find.text('Bill Payments'))).pop();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('tile_goals')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('tile_goals')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(AppTestKeys.navHome));
+      await tester.pumpAndSettle();
+
+      // 10. nudge_dismiss
+      expect(find.byKey(const Key('nudge_dismiss')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('nudge_dismiss')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('home_nudge')), findsNothing);
     });
 
     testWidgets('Tapping all keys on Accounts screen triggers settings, freeze, rename, and add',

@@ -1,31 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
+import '../../../core/config/feature_flags.dart';
 import '../../../core/theme/app_tokens.dart';
-import '../../../core/widgets/account_card.dart';
 import '../../../core/widgets/app_avatar.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_retry.dart';
-import '../../../core/widgets/gradient_header_scaffold.dart';
-import '../../../core/widgets/quick_action_tile.dart';
-import '../../../core/widgets/section_header.dart';
+import '../../../core/widgets/search_bar_field.dart';
 import '../../../core/widgets/shimmer_skeletons.dart';
 import '../../../core/widgets/simulated_badge.dart';
-import '../../../core/widgets/transaction_tile.dart';
-import '../../accounts/data/bank_account_service.dart';
-import '../../accounts/domain/bank_account_model.dart';
-import '../../auth/data/auth_service.dart';
-import '../../auth/domain/auth_state.dart';
-import '../../history/data/history_service.dart';
-import '../../history/presentation/receipt_screen.dart';
-import '../../send/domain/transfer_models.dart';
-import '../../settings/presentation/privacy_settings_screen.dart';
-import 'widgets/avatar_sheet.dart';
+import '../data/home_api_model.dart';
 import '../data/home_providers.dart';
+import 'widgets/avatar_sheet.dart';
 
-/// Redesigned Neo-Banking Home Dashboard tab matching the target design language.
+/// Pixel-perfect Neo-Banking Home Dashboard tab matching the target design language.
+/// Driven by GET /api/v1/home with resilient per-section shimmers, errors, and empty states.
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,114 +24,60 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  bool _isSummaryHidden = false;
+  bool _isBalanceHidden = false;
 
-  Future<void> _refreshAll() async {
-    ref.invalidate(bankAccountsProvider);
-    ref.invalidate(unreadNotificationCountProvider);
-    ref.invalidate(recentTransactionsProvider);
-    ref.invalidate(monthlyReceivedProvider);
-  }
-
-  Future<void> _openTransactionDetail(TransferModel item) async {
+  Future<void> _refreshHome() async {
+    ref.invalidate(homeAggregateProvider);
     try {
-      final receipt = await ref.read(historyServiceProvider).getReceipt(item.transferId);
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ReceiptScreen(receipt: receipt)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      final fallbackReceipt = ReceiptModel(
-        receiptNumber: 'REC-${item.reference}',
-        transferId: item.transferId,
-        reference: item.reference,
-        status: item.status.name.toUpperCase(),
-        amount: item.amount,
-        totalDebited: item.amount,
-        receiver: ReceiptPartyModel(displayName: item.receiverDisplayName ?? 'Payee'),
-        note: item.note,
-        createdAt: item.createdAt,
-        simulated: item.simulated,
-      );
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ReceiptScreen(receipt: fallbackReceipt)),
-      );
-    }
-  }
-
-  bool _isIncomingTransfer(TransferModel item, String? currentUserId, String? currentUserPhone) {
-    if (currentUserId != null && currentUserId.isNotEmpty && item.receiverId != null) {
-      if (item.receiverId.toString() == currentUserId) return true;
-    }
-    if (currentUserPhone != null && currentUserPhone.isNotEmpty && item.senderPhone != null) {
-      if (item.senderPhone != currentUserPhone) return true;
-    }
-    final receiver = item.receiverDisplayName?.toLowerCase() ?? '';
-    final note = item.note?.toLowerCase() ?? '';
-    if (receiver.contains('received') || note.contains('received') || receiver.contains('from')) {
-      return true;
-    }
-    return false;
-  }
-
-  String _formatStatusLabel(TransferStatusType status) {
-    switch (status) {
-      case TransferStatusType.completed:
-        return 'Completed';
-      case TransferStatusType.pending:
-      case TransferStatusType.processing:
-      case TransferStatusType.requiresReconciliation:
-        return 'Pending';
-      case TransferStatusType.failed:
-        return 'Failed';
-      case TransferStatusType.reversed:
-      case TransferStatusType.reversalPending:
-        return 'Reversed';
-      default:
-        return 'Completed';
-    }
+      await ref.read(homeAggregateProvider.future);
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final homeAsync = ref.watch(homeAggregateProvider);
 
-    return GradientHeaderScaffold(
-      scrollable: false,
-      bodyPadding: EdgeInsets.zero,
-      header: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeaderRow(context, isDark),
-          const SizedBox(height: 16),
-          _buildSummary(context, isDark),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refreshAll,
-        color: AppTokens.primaryViolet,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppTokens.screenHorizontalPadding,
-            vertical: AppTokens.space16,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 3. ACCOUNTS Section
-              _buildAccountsSection(context, isDark),
-              const SizedBox(height: 20),
+    return Scaffold(
+      backgroundColor: isDark ? AppTokens.backgroundDark : AppTokens.backgroundLight,
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _refreshHome,
+          color: AppTokens.primaryViolet,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTokens.screenHorizontalPadding,
+              vertical: AppTokens.space12,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1. Header: AppAvatar + first name + chevron [home_profile] & Rewards [home_rewards]
+                _buildHeader(context, isDark, homeAsync),
+                const SizedBox(height: 14),
 
-              // 4. QUICK ACTIONS Section
-              _buildQuickActionsSection(context, isDark),
-              const SizedBox(height: 20),
+                // 2. Search bar [home_search]
+                _buildSearchBar(context, isDark),
+                const SizedBox(height: 18),
 
-              // 5. LAST TRANSACTIONS Section
-              _buildLastTransactionsSection(context, isDark),
-              const SizedBox(height: 24),
-            ],
+                // 3. Stories row [home_stories]
+                _buildStoriesRow(context, isDark, homeAsync),
+                const SizedBox(height: 16),
+
+                // 4. Two InfoTiles: "All activity" [tile_activity] & "Rewards" [tile_rewards]
+                _buildInfoTiles(context, isDark, homeAsync),
+                const SizedBox(height: 16),
+
+                // 5. WalletCard [home_wallet] with NudgeBanner & [nudge_dismiss]
+                _buildWalletCard(context, isDark, homeAsync),
+                const SizedBox(height: 16),
+
+                // 6. Two ProductTiles: "Pay bills" [tile_bills] & "Savings goals" [tile_goals]
+                _buildProductTiles(context, isDark),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
@@ -151,314 +87,94 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // ---------------------------------------------------------------------------
   // 1. Header Row
   // ---------------------------------------------------------------------------
-  Widget _buildHeaderRow(BuildContext context, bool isDark) {
-    final profile = ref.watch(paymentProfileProvider);
-    final safeName = profile.safeName;
-    final firstName = (safeName != null && safeName.trim().isNotEmpty)
-        ? safeName.trim().split(' ').first
-        : 'User';
+  Widget _buildHeader(BuildContext context, bool isDark, AsyncValue<HomeAggregateResponseModel> homeAsync) {
+    final textColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
 
-    final unreadAsync = ref.watch(unreadNotificationCountProvider);
-    final unreadCount = unreadAsync.value ?? 0;
-    final hasUnread = unreadCount > 0;
+    final greeting = homeAsync.value?.greeting.data;
+    final fullName = greeting?.fullName ?? 'Mikhail';
+    final firstName = greeting != null && greeting.fullName.trim().isNotEmpty
+        ? greeting.fullName.trim().split(' ').first
+        : 'Mikhail';
 
-    final iconColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+    final hasNewOffers = homeAsync.value?.rewardsPoints.data?.hasNewOffers ?? false;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        GestureDetector(
-          key: const Key('home_avatar'),
+        // AppAvatar + first name + chevron [home_profile]
+        InkWell(
+          key: const Key('home_profile'),
           onTap: () => AvatarSheet.show(context),
+          borderRadius: BorderRadius.circular(24),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               AppAvatar(
-                name: safeName ?? firstName,
-                size: 42,
+                key: const Key('home_avatar'),
+                name: fullName,
+                size: 40,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Text(
-                'Hello, $firstName',
+                firstName,
                 style: TextStyle(
                   fontFamily: AppTokens.fontFamily,
-                  fontSize: 18,
+                  fontSize: 22,
                   fontWeight: FontWeight.w800,
-                  color: iconColor,
-                  letterSpacing: -0.2,
+                  color: textColor,
+                  letterSpacing: -0.4,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 22,
+                color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
               ),
             ],
           ),
         ),
         const Spacer(),
-        IconButton(
-          key: const Key('home_search'),
-          icon: Icon(Icons.search_rounded, color: iconColor, size: 24),
-          tooltip: 'Search',
-          onPressed: () => context.push('/search'),
-        ),
-        KeyedSubtree(
-          key: const Key('home_notifications_icon_btn'),
-          child: IconButton(
-            key: const Key('home_bell'),
-            tooltip: 'Notifications',
-            icon: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  Icons.notifications_none_rounded,
-                  color: iconColor,
-                  size: 24,
+
+        // Rewards button [home_rewards] with new offers dot [home_rewards_dot]
+        InkWell(
+          key: const Key('home_rewards'),
+          onTap: () => context.push('/rewards'),
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: AppTokens.primaryViolet,
+                  shape: BoxShape.circle,
                 ),
-                if (hasUnread)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      key: const Key('home_bell_unread_dot'),
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        color: AppTokens.error,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: isDark ? AppTokens.backgroundDark : AppTokens.lightHeaderStart,
-                          width: 1.5,
-                        ),
+                child: const Icon(
+                  Icons.card_giftcard_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+              ),
+              if (hasNewOffers)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    key: const Key('home_rewards_dot'),
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: AppTokens.warning,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isDark ? AppTokens.backgroundDark : AppTokens.backgroundLight,
+                        width: 2,
                       ),
                     ),
                   ),
-              ],
-            ),
-            onPressed: () => context.push('/notifications'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 2. Summary: Simulated balance / Received this month
-  // ---------------------------------------------------------------------------
-  Widget _buildSummary(BuildContext context, bool isDark) {
-    final simulatedBalance = ref.watch(simulatedBalanceProvider);
-    final monthlyReceivedAsync = ref.watch(monthlyReceivedProvider);
-
-    final isSimulated = simulatedBalance != null;
-    final amount = isSimulated ? simulatedBalance : (monthlyReceivedAsync.value ?? 0.0);
-    final formattedAmount = 'LKR ${NumberFormat('#,##0.00').format(amount)}';
-
-    final labelColor = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
-    final valueColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              isSimulated ? 'Simulated balance' : 'Received this month',
-              style: TextStyle(
-                fontFamily: AppTokens.fontFamily,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: labelColor,
-              ),
-            ),
-            if (isSimulated) ...[
-              const SizedBox(width: 8),
-              const SimulatedBadge(compact: true),
-            ],
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Text(
-              _isSummaryHidden ? '••••••••' : formattedAmount,
-              style: TextStyle(
-                fontFamily: AppTokens.fontFamily,
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: valueColor,
-                letterSpacing: -0.4,
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              key: const Key('home_toggle_balance'),
-              icon: Icon(
-                _isSummaryHidden ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                color: labelColor,
-                size: 20,
-              ),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              tooltip: 'Toggle balance',
-              onPressed: () => setState(() => _isSummaryHidden = !_isSummaryHidden),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 3. ACCOUNTS Section
-  // ---------------------------------------------------------------------------
-  Widget _buildAccountsSection(BuildContext context, bool isDark) {
-    final accountsAsync = ref.watch(bankAccountsProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(
-          title: 'ACCOUNTS',
-          actionLabel: 'Add +',
-          actionKey: const Key('home_add_account'),
-          onActionTap: () => context.push('/accounts/add'),
-        ),
-        const SizedBox(height: 8),
-        if (accountsAsync.hasError && !accountsAsync.hasValue)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: ErrorRetry(
-              key: const Key('home_accounts_error'),
-              message: 'Failed to load bank accounts',
-              onRetry: () => ref.refresh(bankAccountsProvider),
-            ),
-          )
-        else
-          accountsAsync.when(
-            loading: () => const SizedBox(
-              height: 200,
-              child: SkeletonAccountCard(),
-            ),
-            error: (error, _) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: ErrorRetry(
-                key: const Key('home_accounts_error'),
-                message: 'Failed to load bank accounts',
-                onRetry: () => ref.refresh(bankAccountsProvider),
-              ),
-            ),
-            data: (accounts) {
-            if (accounts.isEmpty) {
-              return EmptyState(
-                key: const Key('home_accounts_empty'),
-                icon: Icons.account_balance_outlined,
-                title: 'No linked accounts',
-                description: 'Link your bank account to start transacting.',
-                actionLabel: 'Add Account',
-                actionKey: const Key('home_add_account_empty_btn'),
-                onActionTap: () => context.push('/accounts/add'),
-              );
-            }
-
-            final sorted = List<BankAccountModel>.from(accounts)
-              ..sort((a, b) => (b.isDefault ? 1 : 0).compareTo(a.isDefault ? 1 : 0));
-
-            return SizedBox(
-              height: 200,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                itemCount: sorted.length,
-                separatorBuilder: (_, _) => const SizedBox(width: AppTokens.space12),
-                itemBuilder: (context, index) {
-                  final acc = sorted[index];
-                  final isSingle = sorted.length == 1;
-                  final width = isSingle
-                      ? MediaQuery.of(context).size.width - (AppTokens.screenHorizontalPadding * 2)
-                      : 310.0;
-
-                  return SizedBox(
-                    width: width,
-                    child: AccountCard(
-                      key: Key('home_account_${acc.id}'),
-                      bankName: acc.institutionCode,
-                      nickname: acc.label ?? acc.accountName,
-                      maskedNumber: acc.maskedNumber,
-                      balance: 'LKR 125,450.00',
-                      isDefault: acc.isDefault,
-                      style: index.isEven ? AccountCardStyle.charcoal : AccountCardStyle.lavender,
-                      onTap: () => context.push('/accounts'),
-                    ),
-                  );
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 4. QUICK ACTIONS Section
-  // ---------------------------------------------------------------------------
-  Widget _buildQuickActionsSection(BuildContext context, bool isDark) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SectionHeader(title: 'QUICK ACTIONS'),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            children: [
-              KeyedSubtree(
-                key: const Key('home_quick_send_btn'),
-                child: QuickActionTile(
-                  key: const Key('qa_send'),
-                  icon: Icons.send_rounded,
-                  label: 'Send money',
-                  gradient: QuickActionGradient.violet,
-                  width: 86,
-                  height: 96,
-                  onTap: () => context.push('/send'),
                 ),
-              ),
-              const SizedBox(width: AppTokens.space12),
-              KeyedSubtree(
-                key: const Key('home_quick_scan_btn'),
-                child: QuickActionTile(
-                  key: const Key('qa_scan'),
-                  icon: Icons.qr_code_scanner_rounded,
-                  label: 'Scan QR',
-                  gradient: QuickActionGradient.orange,
-                  width: 86,
-                  height: 96,
-                  onTap: () => context.push('/qr'),
-                ),
-              ),
-              const SizedBox(width: AppTokens.space12),
-              KeyedSubtree(
-                key: const Key('home_quick_request_btn'),
-                child: QuickActionTile(
-                  key: const Key('qa_request'),
-                  icon: Icons.call_received_rounded,
-                  label: 'Request money',
-                  gradient: QuickActionGradient.pink,
-                  width: 86,
-                  height: 96,
-                  onTap: () => context.push('/qr'),
-                ),
-              ),
-              const SizedBox(width: AppTokens.space12),
-              QuickActionTile(
-                key: const Key('qa_my_qr'),
-                icon: Icons.qr_code_2_rounded,
-                label: 'My payment ID/QR',
-                gradient: QuickActionGradient.cyan,
-                width: 86,
-                height: 96,
-                onTap: () => context.push('/qr'),
-              ),
             ],
           ),
         ),
@@ -467,96 +183,684 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 5. LAST TRANSACTIONS Section
+  // 2. Search Bar
   // ---------------------------------------------------------------------------
-  Widget _buildLastTransactionsSection(BuildContext context, bool isDark) {
-    final recentAsync = ref.watch(recentTransactionsProvider);
-    final authState = ref.watch(authStateProvider);
-    final String? currentUserId = authState is AuthAuthenticated ? authState.userId : null;
-    final String? currentUserPhone = authState is AuthAuthenticated ? authState.phone : null;
+  Widget _buildSearchBar(BuildContext context, bool isDark) {
+    return GestureDetector(
+      key: const Key('home_search'),
+      onTap: () => context.push('/search'),
+      behavior: HitTestBehavior.opaque,
+      child: IgnorePointer(
+        child: SearchBarField(
+          key: const Key('home_search_input'),
+          hintText: 'Search',
+          readOnly: true,
+          onTap: () => context.push('/search'),
+        ),
+      ),
+    );
+  }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  // ---------------------------------------------------------------------------
+  // 3. Stories Row
+  // ---------------------------------------------------------------------------
+  Widget _buildStoriesRow(BuildContext context, bool isDark, AsyncValue<HomeAggregateResponseModel> homeAsync) {
+    return SizedBox(
+      key: const Key('home_stories'),
+      height: 104,
+      child: const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. Two InfoTiles: "All activity" & "Rewards"
+  // ---------------------------------------------------------------------------
+  Widget _buildInfoTiles(BuildContext context, bool isDark, AsyncValue<HomeAggregateResponseModel> homeAsync) {
+    final response = homeAsync.value;
+
+    return Row(
       children: [
-        KeyedSubtree(
-          key: const Key('home_view_all_history_btn'),
-          child: SectionHeader(
-            title: 'LAST TRANSACTIONS',
-            actionLabel: 'See all >',
-            actionKey: const Key('home_see_all'),
-            onActionTap: () => context.push('/history'),
+        // Left InfoTile: "All activity" [tile_activity]
+        Expanded(
+          child: _buildActivityTile(context, isDark, homeAsync, response?.spendSummary),
+        ),
+        const SizedBox(width: 12),
+
+        // Right InfoTile: "Rewards" [tile_rewards]
+        Expanded(
+          child: _buildRewardsTile(context, isDark, homeAsync, response?.rewardsPoints),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityTile(
+    BuildContext context,
+    bool isDark,
+    AsyncValue<HomeAggregateResponseModel> homeAsync,
+    HomeSectionModel<SpendSummaryDataModel>? spendSummary,
+  ) {
+    final tileBg = isDark ? AppTokens.cardDark : Colors.white;
+    final textPrimary = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+    final textSecondary = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
+
+    if (homeAsync.isLoading) {
+      return const SkeletonInfoTile(key: Key('tile_activity_skeleton'));
+    }
+
+    if (spendSummary != null && spendSummary.isFailed) {
+      return Container(
+        height: 110,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Center(
+          child: ErrorRetry(
+            key: const Key('tile_activity_error'),
+            message: 'Activity unavailable',
+            compact: true,
+            onRetry: _refreshHome,
           ),
         ),
-        Text(
-          'Recent Activity',
-          style: TextStyle(
-            fontFamily: AppTokens.fontFamily,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
-          ),
+      );
+    }
+
+    final data = spendSummary?.data;
+    final subtitleText = (data != null && data.hasTransactions)
+        ? 'Spent Rs ${data.totalSpentLkr} this month'
+        : 'No spending in ${data?.month ?? 'this month'}';
+    final progress = data?.budgetUsedFraction ?? 0.0;
+
+    return InkWell(
+      key: const Key('tile_activity'),
+      onTap: () => context.push('/history'),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 110),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isDark ? [] : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        if (recentAsync.hasError && !recentAsync.hasValue)
-          ErrorRetry(
-            key: const Key('home_transactions_error'),
-            message: 'Could not load recent transactions',
-            onRetry: () => ref.refresh(recentTransactionsProvider),
-          )
-        else
-          recentAsync.when(
-            loading: () => const Column(
-              key: Key('home_transactions_loading'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SkeletonTransactionTile(key: Key('skeleton_tx_0')),
-                SkeletonTransactionTile(key: Key('skeleton_tx_1')),
-                SkeletonTransactionTile(key: Key('skeleton_tx_2')),
+                Text(
+                  'All activity',
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitleText,
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: textSecondary,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
             ),
-            error: (error, _) => ErrorRetry(
-              key: const Key('home_transactions_error'),
-              message: 'Could not load recent transactions',
-              onRetry: () => ref.refresh(recentTransactionsProvider),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: progress.clamp(0.0, 1.0),
+                minHeight: 4,
+                backgroundColor: isDark ? Colors.white12 : const Color(0xFFEBEBF0),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppTokens.primaryViolet),
+              ),
             ),
-            data: (transfers) {
-            if (transfers.isEmpty) {
-              return const EmptyState(
-                key: Key('home_transactions_empty'),
-                icon: Icons.receipt_long_outlined,
-                title: 'No transactions yet',
-                description: 'Your recent payments and transfers will appear here.',
-              );
-            }
+          ],
+        ),
+      ),
+    );
+  }
 
-            final recent = transfers.take(5).toList();
+  Widget _buildRewardsTile(
+    BuildContext context,
+    bool isDark,
+    AsyncValue<HomeAggregateResponseModel> homeAsync,
+    HomeSectionModel<RewardsPointsDataModel>? rewardsPoints,
+  ) {
+    final tileBg = isDark ? AppTokens.cardDark : Colors.white;
+    final textPrimary = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+    final textSecondary = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
 
-            return Column(
-              children: recent.map((item) {
-                final isIncoming = _isIncomingTransfer(item, currentUserId, currentUserPhone);
-                final isConfirmedSuccess = item.status.isConfirmedSuccess;
-                final isPositive = isIncoming && isConfirmedSuccess;
-                final prefix = isPositive ? '+' : '-';
-                final amountText = '$prefix LKR ${NumberFormat('#,##0.00').format(item.amount)}';
-                final statusLabel = _formatStatusLabel(item.status);
-                final subtitle = (item.createdAt != null && item.createdAt!.length >= 10)
-                    ? item.createdAt!.substring(0, 10)
-                    : 'Recent transfer';
+    if (homeAsync.isLoading) {
+      return const SkeletonInfoTile(key: Key('tile_rewards_skeleton'));
+    }
 
-                return TransactionTile(
-                  key: Key('tx_${item.transferId}'),
-                  icon: isIncoming ? Icons.south_west_rounded : Icons.north_east_rounded,
-                  title: item.receiverDisplayName ?? (item.senderPhone != null ? 'From ${item.senderPhone}' : item.reference),
-                  subtitle: subtitle,
-                  amount: amountText,
-                  status: statusLabel,
-                  isPositive: isPositive,
-                  onTap: () => _openTransactionDetail(item),
+    if (rewardsPoints != null && rewardsPoints.isFailed) {
+      return Container(
+        height: 110,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Center(
+          child: ErrorRetry(
+            key: const Key('tile_rewards_error'),
+            message: 'Rewards unavailable',
+            compact: true,
+            onRetry: _refreshHome,
+          ),
+        ),
+      );
+    }
+
+    final pointsStr = rewardsPoints?.data?.formattedPoints ?? '1,250 pts';
+
+    return InkWell(
+      key: const Key('tile_rewards'),
+      onTap: () => context.push('/rewards'),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 110),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isDark ? [] : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Rewards',
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  pointsStr,
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: textSecondary,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3B82F6),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. WalletCard with NudgeBanner & Dismissal
+  // ---------------------------------------------------------------------------
+  Widget _buildWalletCard(BuildContext context, bool isDark, AsyncValue<HomeAggregateResponseModel> homeAsync) {
+    if (homeAsync.isLoading) {
+      return const SkeletonWalletCard(key: Key('home_wallet_loading'));
+    }
+
+    final response = homeAsync.value;
+    final walletSection = response?.wallet;
+
+    if (walletSection != null && walletSection.isFailed) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppTokens.cardDark : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Center(
+          child: ErrorRetry(
+            key: const Key('home_wallet_error'),
+            message: 'Wallet unavailable',
+            compact: true,
+            onRetry: _refreshHome,
+          ),
+        ),
+      );
+    }
+
+    final wallet = walletSection?.data;
+    if (wallet == null) {
+      return EmptyState(
+        key: const Key('home_wallet_empty'),
+        icon: Icons.account_balance_wallet_outlined,
+        title: 'No wallet found',
+        description: 'Link an account or card to view your wallet.',
+        actionLabel: 'Link Account',
+        actionKey: const Key('home_wallet_link_btn'),
+        onActionTap: () => context.push('/accounts/add'),
+      );
+    }
+
+    final cardBg = isDark ? AppTokens.cardDark : Colors.white;
+    final textPrimary = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+    final textSecondary = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
+
+    final balanceDisplay = _isBalanceHidden ? '••••••••' : 'LKR ${wallet.primaryBalanceLkr}';
+    final accountName = wallet.defaultAccount?.bankName ??
+        wallet.defaultAccount?.accountName ??
+        'Bank of Ceylon';
+
+    final dismissedNudges = ref.watch(dismissedNudgeIdsProvider);
+    final nudgeData = response?.nudge.data;
+    final showNudge = nudgeData != null && !dismissedNudges.contains(nudgeData.nudgeId);
+
+    return InkWell(
+      key: const Key('home_wallet'),
+      onTap: () => context.push('/accounts'),
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: isDark ? [] : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Top Row: Round icon + Balance + Points Pill
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Round icon
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF3B82F6),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'LP',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Balance & Account Name
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              balanceDisplay,
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: textPrimary,
+                                letterSpacing: -0.3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const SimulatedBadge(compact: true),
+                          IconButton(
+                            key: const Key('home_toggle_balance'),
+                            icon: Icon(
+                              _isBalanceHidden ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              size: 18,
+                              color: textSecondary,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Toggle balance',
+                            onPressed: () => setState(() => _isBalanceHidden = !_isBalanceHidden),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        accountName,
+                        style: TextStyle(
+                          fontFamily: AppTokens.fontFamily,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Dark Points Pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E28) : const Color(0xFF2C2C35),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.workspace_premium_rounded, size: 13, color: Color(0xFFFFD700)),
+                      const SizedBox(width: 4),
+                      Text(
+                        response?.rewardsPoints.data?.formattedPoints ?? '1,250 pts',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Card Thumbnail (TEST CARD)
+            Row(
+              children: [
+                const SizedBox(width: 56),
+                Container(
+                  width: 58,
+                  height: 42,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'TEST CARD',
+                        style: TextStyle(color: Colors.white70, fontSize: 6, fontWeight: FontWeight.w700),
+                      ),
+                      Text(
+                        wallet.activeCard != null ? wallet.activeCard!.maskedNumber.replaceAll('•••• ', '') : '0010',
+                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // NudgeBanner at bottom
+            if (showNudge) ...[
+              const SizedBox(height: 12),
+              _buildNudgeBanner(context, isDark, nudgeData),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNudgeBanner(BuildContext context, bool isDark, NudgeDataModel nudge) {
+    return Container(
+      key: const Key('home_nudge'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF332915) : const Color(0xFFFEF3C7),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                if (nudge.actionRoute.isNotEmpty) {
+                  context.push(nudge.actionRoute);
+                }
+              },
+              child: Text(
+                nudge.message,
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            key: const Key('nudge_dismiss'),
+            icon: Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+            ),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Dismiss nudge',
+            onPressed: () {
+              ref.read(dismissedNudgeIdsProvider.notifier).dismiss(nudge.nudgeId);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. Two ProductTiles: "Pay bills" & "Savings goals"
+  // ---------------------------------------------------------------------------
+  Widget _buildProductTiles(BuildContext context, bool isDark) {
+    final flags = ref.watch(featureFlagsProvider);
+    final billsEnabled = flags[FeatureFlagKeys.bills] ?? true;
+    final goalsEnabled = flags[FeatureFlagKeys.goals] ?? true;
+
+    return Row(
+      children: [
+        // "Pay bills" [tile_bills]
+        Expanded(
+          child: _buildSingleProductTile(
+            context: context,
+            tileKey: const Key('tile_bills'),
+            icon: Icons.receipt_long_rounded,
+            iconBg: const Color(0xFFF59E0B),
+            title: 'Pay bills',
+            subtitle: 'Utilities & more',
+            isEnabled: billsEnabled,
+            onTap: () {
+              if (billsEnabled) {
+                context.push('/bills');
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Pay bills is coming soon!')),
                 );
-              }).toList(),
-            );
-          },
+              }
+            },
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(width: 12),
+
+        // "Savings goals" [tile_goals]
+        Expanded(
+          child: _buildSingleProductTile(
+            context: context,
+            tileKey: const Key('tile_goals'),
+            icon: Icons.savings_rounded,
+            iconBg: const Color(0xFF10B981),
+            title: 'Savings goals',
+            subtitle: 'Target & save',
+            isEnabled: goalsEnabled,
+            onTap: () {
+              if (goalsEnabled) {
+                context.push('/explore');
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Savings goals is coming soon!')),
+                );
+              }
+            },
+            isDark: isDark,
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildSingleProductTile({
+    required BuildContext context,
+    required Key tileKey,
+    required IconData icon,
+    required Color iconBg,
+    required String title,
+    required String subtitle,
+    required bool isEnabled,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    final tileBg = isDark ? AppTokens.cardDark : Colors.white;
+    final textPrimary = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+    final textSecondary = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
+
+    return InkWell(
+      key: tileKey,
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: 94,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: tileBg,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isDark ? [] : [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconBg.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconBg, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: AppTokens.fontFamily,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  if (!isEnabled)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'Coming soon',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey),
+                      ),
+                    )
+                  else
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

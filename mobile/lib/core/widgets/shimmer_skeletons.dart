@@ -131,3 +131,86 @@ class SkeletonQuickActionTile extends StatelessWidget {
     );
   }
 }
+
+/// Shimmer skeleton simulating the Stories horizontal row.
+class SkeletonStoriesRow extends StatelessWidget {
+  const SkeletonStoriesRow({super.key = const Key('skeleton_stories_row')});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerWrapper(
+      child: SizedBox(
+        height: 104,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 4,
+          separatorBuilder: (_, __) => const SizedBox(width: 12),
+          itemBuilder: (_, index) => Container(
+            width: 88,
+            height: 104,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer skeleton simulating an InfoTile (All activity or Rewards).
+class SkeletonInfoTile extends StatelessWidget {
+  const SkeletonInfoTile({super.key = const Key('skeleton_info_tile')});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerWrapper(
+      child: Container(
+        height: 104,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer skeleton simulating the WalletCard.
+class SkeletonWalletCard extends StatelessWidget {
+  const SkeletonWalletCard({super.key = const Key('skeleton_wallet_card')});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerWrapper(
+      child: Container(
+        height: 148,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shimmer skeleton simulating a ProductTile (Bills or Goals).
+class SkeletonProductTile extends StatelessWidget {
+  const SkeletonProductTile({super.key = const Key('skeleton_product_tile')});
+
+  @override
+  Widget build(BuildContext context) {
+    return ShimmerWrapper(
+      child: Container(
+        height: 90,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
+      ),
+    );
+  }
+}

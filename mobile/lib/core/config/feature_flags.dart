@@ -9,6 +9,7 @@ class FeatureFlagKeys {
   static const String explore = 'explore';
   static const String cards = 'cards';
   static const String bills = 'bills';
+  static const String goals = 'goals';
 }
 
 /// Notifier managing dynamic feature flags in Riverpod.
@@ -28,6 +29,7 @@ class FeatureFlagsNotifier extends Notifier<Map<String, bool>> {
           FeatureFlagKeys.explore: true,
           FeatureFlagKeys.cards: true,
           FeatureFlagKeys.bills: true,
+          FeatureFlagKeys.goals: true,
         };
   }
 

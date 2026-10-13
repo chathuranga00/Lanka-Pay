@@ -14,9 +14,9 @@ public record HomeAggregateResponse(
         HomeSection<NotificationData> unreadNotifications,
         HomeSection<WalletData> wallet,
         HomeSection<List<RecentActivityItem>> recentActivity,
-        HomeSection<Object> rewardsPoints,
+        HomeSection<RewardsPointsData> rewardsPoints,
         HomeSection<Object> stories,
-        HomeSection<Object> spendSummary,
-        HomeSection<Object> nudge,
+        HomeSection<SpendSummaryData> spendSummary,
+        HomeSection<NudgeData> nudge,
         HomeSection<List<ShortcutItem>> shortcuts
 ) {}

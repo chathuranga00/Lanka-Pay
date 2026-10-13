@@ -7,6 +7,7 @@ class ErrorRetry extends StatelessWidget {
   final VoidCallback onRetry;
   final Key? retryKey;
   final String retryLabel;
+  final bool compact;
 
   const ErrorRetry({
     super.key,
@@ -14,11 +15,62 @@ class ErrorRetry extends StatelessWidget {
     required this.onRetry,
     this.retryKey,
     this.retryLabel = 'Try Again',
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (compact) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                message,
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              InkWell(
+                key: retryKey ?? const Key('error_retry_btn'),
+                onTap: onRetry,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.refresh_rounded, size: 14, color: AppTokens.primaryBlue),
+                      const SizedBox(width: 4),
+                      Text(
+                        retryLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppTokens.primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Center(
       child: Padding(

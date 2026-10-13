@@ -18,8 +18,90 @@ import 'package:lankapay_id/features/home/presentation/home_screen.dart';
 import 'package:lankapay_id/features/more/presentation/more_screen.dart';
 import 'package:lankapay_id/features/pay/presentation/pay_hub_screen.dart';
 import 'package:lankapay_id/features/send/presentation/send_screen.dart';
+import 'package:lankapay_id/features/home/data/home_api_model.dart';
+import 'package:lankapay_id/features/home/data/home_providers.dart';
 import 'package:lankapay_id/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+final fakeHomeResponse = HomeAggregateResponseModel(
+  greeting: const HomeSectionModel(
+    status: 'OK',
+    data: GreetingDataModel(fullName: 'Kamal Perera', initial: 'K', salutation: 'Hello, Kamal'),
+  ),
+  unreadNotifications: const HomeSectionModel(
+    status: 'OK',
+    data: NotificationDataModel(unreadCount: 0),
+  ),
+  wallet: const HomeSectionModel(
+    status: 'OK',
+    data: WalletDataModel(
+      primaryBalanceMinor: 12545000,
+      primaryBalanceLkr: '125,450.00',
+      currency: 'LKR',
+      isSimulated: true,
+      defaultAccount: LinkedAccountSummaryModel(
+        id: 101,
+        bankCode: 'BANK_A',
+        bankName: 'Bank of Ceylon',
+        maskedAccountNumber: '•••• 5678',
+        accountName: 'Primary Account',
+        isDefault: true,
+      ),
+      activeCard: CardSummaryModel(
+        cardId: 201,
+        maskedNumber: '•••• 0010',
+        brandLabel: 'TEST CARD',
+        frozen: false,
+        expiry: '12/28',
+      ),
+      totalAccounts: 1,
+      totalCards: 1,
+    ),
+  ),
+  recentActivity: const HomeSectionModel(
+    status: 'OK',
+    data: [],
+  ),
+  rewardsPoints: const HomeSectionModel(
+    status: 'OK',
+    data: RewardsPointsDataModel(
+      pointsBalance: 1250,
+      formattedPoints: '1,250',
+      hasNewOffers: true,
+    ),
+  ),
+  stories: const HomeSectionModel(
+    status: 'UNAVAILABLE',
+    data: null,
+    error: 'MODULE_NOT_YET_IMPLEMENTED',
+  ),
+  spendSummary: const HomeSectionModel(
+    status: 'OK',
+    data: SpendSummaryDataModel(
+      totalSpentMinor: 150000,
+      totalSpentLkr: '1,500.00',
+      budgetMinor: 5000000,
+      budgetLkr: '50,000.00',
+      budgetUsedFraction: 0.03,
+      month: 'April',
+      hasTransactions: true,
+    ),
+  ),
+  nudge: const HomeSectionModel(
+    status: 'OK',
+    data: NudgeDataModel(
+      nudgeId: 'nudge_1',
+      type: 'SECURITY_TIP',
+      message: 'Never share your PIN, OTP, or password with anyone',
+      actionLabel: 'Learn more',
+      actionRoute: '/profile/security',
+    ),
+  ),
+  shortcuts: const HomeSectionModel(
+    status: 'OK',
+    data: [],
+  ),
+);
 
 // Fake Bank Account Service for predictable shell tab rendering
 class FakeBankAccountService implements BankAccountService {
@@ -87,6 +169,7 @@ Widget createTestShellApp({
     overrides: [
       initialLocationProvider.overrideWithValue(initialLocation),
       bankAccountServiceProvider.overrideWithValue(FakeBankAccountService()),
+      homeAggregateProvider.overrideWith((ref) => Future.value(fakeHomeResponse)),
       ...overrides.cast(),
     ],
     child: Consumer(

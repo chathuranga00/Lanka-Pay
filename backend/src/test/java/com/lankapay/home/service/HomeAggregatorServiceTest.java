@@ -10,7 +10,8 @@ import com.lankapay.card.domain.CardStore;
 import com.lankapay.feature.service.FeatureFlagService;
 import com.lankapay.home.domain.HomeSectionStatus;
 import com.lankapay.home.web.dto.HomeAggregateResponse;
-import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
+import com.lankapay.identity.domain.UserStatus;
 import com.lankapay.identity.domain.UserStore;
 import com.lankapay.notification.domain.NotificationStore;
 import com.lankapay.transfer.domain.FundingType;
@@ -37,7 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("HomeAggregatorService Unit & Resilience Tests")
+@DisplayName("HomeAggregatorService Unit, Resilience, & Nudge Priority Tests")
 class HomeAggregatorServiceTest {
 
     @Mock private UserStore userStore;
@@ -64,10 +65,11 @@ class HomeAggregatorServiceTest {
     }
 
     @Test
-    @DisplayName("Happy path: Returns real data for existing sections and UNAVAILABLE for future modules")
+    @DisplayName("Happy path: Returns real data for existing sections and UNAVAILABLE for stories")
     void aggregateHomeHappyPath() {
-        // 1. Mock user
-        com.lankapay.identity.domain.UserAccount user = new com.lankapay.identity.domain.UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash");
+        // 1. Mock user (ACTIVE)
+        UserAccount user = new UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash")
+                .withStatus(UserStatus.ACTIVE);
         when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(user));
 
         // 2. Mock notifications
@@ -134,19 +136,26 @@ class HomeAggregatorServiceTest {
         assertThat(response.recentActivity().data().get(0).amountLkr()).isEqualTo("1,500.00");
         assertThat(response.recentActivity().data().get(0).direction()).isEqualTo("OUTGOING");
 
-        // Assert not-yet-implemented modules are marked UNAVAILABLE with error messages
-        assertThat(response.rewardsPoints().status()).isEqualTo(HomeSectionStatus.UNAVAILABLE);
-        assertThat(response.rewardsPoints().data()).isNull();
-        assertThat(response.rewardsPoints().error()).isEqualTo("MODULE_NOT_YET_IMPLEMENTED");
+        // Assert rewards points returns real data
+        assertThat(response.rewardsPoints().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.rewardsPoints().data()).isNotNull();
+        assertThat(response.rewardsPoints().data().pointsBalance()).isEqualTo(1250L);
+        assertThat(response.rewardsPoints().data().hasNewOffers()).isTrue();
 
+        // Assert stories is UNAVAILABLE
         assertThat(response.stories().status()).isEqualTo(HomeSectionStatus.UNAVAILABLE);
         assertThat(response.stories().data()).isNull();
+        assertThat(response.stories().error()).isEqualTo("MODULE_NOT_YET_IMPLEMENTED");
 
-        assertThat(response.spendSummary().status()).isEqualTo(HomeSectionStatus.UNAVAILABLE);
-        assertThat(response.spendSummary().data()).isNull();
+        // Assert spend summary returns real data
+        assertThat(response.spendSummary().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.spendSummary().data()).isNotNull();
+        assertThat(response.spendSummary().data().budgetMinor()).isEqualTo(5000000L);
 
-        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.UNAVAILABLE);
-        assertThat(response.nudge().data()).isNull();
+        // Assert nudge returns security tip since all higher priority rules passed
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().data()).isNotNull();
+        assertThat(response.nudge().data().type()).isEqualTo("SECURITY_TIP");
 
         // Assert shortcuts respect feature flags
         assertThat(response.shortcuts().status()).isEqualTo(HomeSectionStatus.OK);
@@ -157,31 +166,152 @@ class HomeAggregatorServiceTest {
     }
 
     @Test
+    @DisplayName("Nudge Priority 1: Phone not verified -> VERIFY_PHONE")
+    void nudgePriority1PhoneNotVerified() {
+        UserAccount unverifiedUser = new UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash")
+                .withStatus(UserStatus.PENDING_VERIFICATION);
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(unverifiedUser));
+
+        HomeAggregateResponse response = homeAggregatorService.aggregateHome(USER_ID);
+
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().data().type()).isEqualTo("VERIFY_PHONE");
+        assertThat(response.nudge().data().actionLabel()).isEqualTo("Verify now");
+    }
+
+    @Test
+    @DisplayName("Nudge Priority 2: No linked account -> LINK_ACCOUNT")
+    void nudgePriority2NoLinkedAccount() {
+        UserAccount verifiedUser = new UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash")
+                .withStatus(UserStatus.ACTIVE);
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(verifiedUser));
+        when(linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(USER_ID)).thenReturn(List.of());
+
+        HomeAggregateResponse response = homeAggregatorService.aggregateHome(USER_ID);
+
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().data().type()).isEqualTo("LINK_ACCOUNT");
+        assertThat(response.nudge().data().actionLabel()).isEqualTo("Link account");
+    }
+
+    @Test
+    @DisplayName("Nudge Priority 3: Card pending OTP verification -> VERIFY_CARD_OTP")
+    void nudgePriority3CardPendingOtp() {
+        UserAccount verifiedUser = new UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash")
+                .withStatus(UserStatus.ACTIVE);
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(verifiedUser));
+
+        LinkedAccount acct = new LinkedAccount(
+                101L, USER_ID, "BANK_A", "hash1", "•••• 5678", "Kasun Perera",
+                "Primary", true, true, "enc", BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now()
+        );
+        when(linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(USER_ID)).thenReturn(List.of(acct));
+
+        Card pendingCard = new Card(
+                201L, USER_ID, 101L, "vlt_tok_test", "9988", 12, 2028,
+                "TEST CARD", "My Test Card", CardKind.VIRTUAL, CardStatus.PENDING_VERIFICATION,
+                true, 5000000L, 20000000L, Instant.now(), Instant.now(), null, null, 1L, null, true
+        );
+        when(cardStore.findAllByUserId(USER_ID)).thenReturn(List.of(pendingCard));
+
+        HomeAggregateResponse response = homeAggregatorService.aggregateHome(USER_ID);
+
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().data().type()).isEqualTo("VERIFY_CARD_OTP");
+        assertThat(response.nudge().data().message()).contains("9988");
+    }
+
+    @Test
+    @DisplayName("Nudge Priority 4: Transfer pending -> TRANSFER_PENDING")
+    void nudgePriority4TransferPending() {
+        UserAccount verifiedUser = new UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash")
+                .withStatus(UserStatus.ACTIVE);
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(verifiedUser));
+
+        LinkedAccount acct = new LinkedAccount(
+                101L, USER_ID, "BANK_A", "hash1", "•••• 5678", "Kasun Perera",
+                "Primary", true, true, "enc", BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now()
+        );
+        when(linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(USER_ID)).thenReturn(List.of(acct));
+
+        Card card = new Card(
+                201L, USER_ID, 101L, "vlt_tok_test", "1122", 12, 2028,
+                "TEST CARD", "My Card", CardKind.VIRTUAL, CardStatus.ACTIVE,
+                true, 5000000L, 20000000L, Instant.now(), Instant.now(), Instant.now(), null, 1L, null, true
+        );
+        when(cardStore.findAllByUserId(USER_ID)).thenReturn(List.of(card));
+
+        TransactionRecord pendingTx = new TransactionRecord(
+                302L, "TX-REF-02", "IDEM-02", USER_ID, "+94771234567", "Kasun Perera",
+                2L, "+94779876543", "Amara Silva", "BANK_A", "BANK_B",
+                new BigDecimal("2000.00"), "LKR", TransactionStatus.PROCESSING,
+                null, "BTX-2", "PROV-2", "Pending payment", true, null, null, 1L,
+                Instant.now(), Instant.now(), FundingType.ACCOUNT, null, null, null,
+                BigDecimal.ZERO, new BigDecimal("2000.00"), null, 0
+        );
+        when(transactionStore.findTransfersByUserId(eq(USER_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(pendingTx)));
+
+        HomeAggregateResponse response = homeAggregatorService.aggregateHome(USER_ID);
+
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().data().type()).isEqualTo("TRANSFER_PENDING");
+    }
+
+    @Test
+    @DisplayName("Nudge Priority 5: Budget used >= 80% -> BUDGET_WARNING")
+    void nudgePriority5BudgetWarning() {
+        UserAccount verifiedUser = new UserAccount("+94771234567", "Kasun Perera", "199012345678", "hash")
+                .withStatus(UserStatus.ACTIVE);
+        when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(verifiedUser));
+
+        LinkedAccount acct = new LinkedAccount(
+                101L, USER_ID, "BANK_A", "hash1", "•••• 5678", "Kasun Perera",
+                "Primary", true, true, "enc", BankAccountStatus.ACTIVE, true, Instant.now(), Instant.now()
+        );
+        when(linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(USER_ID)).thenReturn(List.of(acct));
+
+        Card card = new Card(
+                201L, USER_ID, 101L, "vlt_tok_test", "1122", 12, 2028,
+                "TEST CARD", "My Card", CardKind.VIRTUAL, CardStatus.ACTIVE,
+                true, 5000000L, 20000000L, Instant.now(), Instant.now(), Instant.now(), null, 1L, null, true
+        );
+        when(cardStore.findAllByUserId(USER_ID)).thenReturn(List.of(card));
+
+        // 45,000 LKR spent out of 50,000 LKR budget = 90%
+        TransactionRecord heavyTx = new TransactionRecord(
+                303L, "TX-REF-03", "IDEM-03", USER_ID, "+94771234567", "Kasun Perera",
+                2L, "+94779876543", "Amara Silva", "BANK_A", "BANK_B",
+                new BigDecimal("45000.00"), "LKR", TransactionStatus.COMPLETED,
+                null, "BTX-3", "PROV-3", "Big purchase", true, null, null, 1L,
+                Instant.now(), Instant.now(), FundingType.ACCOUNT, null, null, null,
+                BigDecimal.ZERO, new BigDecimal("45000.00"), null, 0
+        );
+        when(transactionStore.findTransfersByUserId(eq(USER_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(heavyTx)));
+
+        HomeAggregateResponse response = homeAggregatorService.aggregateHome(USER_ID);
+
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().data().type()).isEqualTo("BUDGET_WARNING");
+    }
+
+    @Test
     @DisplayName("Resilience: A failing section (e.g. database timeout) returns FAILED with error code and does NOT crash other sections")
     void failingSectionDoesNotBreakResponse() {
-        // 1. userStore throws a sudden runtime exception (e.g. connection timeout)
         when(userStore.findUserById(USER_ID)).thenThrow(new RuntimeException("Firestore connection timeout"));
-
-        // 2. notificationStore functions normally
         when(notificationStore.countUnreadNotifications(USER_ID)).thenReturn(2L);
-
-        // 3. linkedAccountStore functions normally
         when(linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(USER_ID)).thenReturn(List.of());
         when(cardStore.findAllByUserId(USER_ID)).thenReturn(List.of());
-
-        // 4. transactionStore functions normally
         when(transactionStore.findTransfersByUserId(eq(USER_ID), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        // Call aggregateHome
         HomeAggregateResponse response = homeAggregatorService.aggregateHome(USER_ID);
 
-        // Greeting failed gracefully
         assertThat(response.greeting().status()).isEqualTo(HomeSectionStatus.FAILED);
         assertThat(response.greeting().data()).isNull();
         assertThat(response.greeting().error()).isEqualTo("USER_LOOKUP_FAILED");
 
-        // Other sections succeeded completely!
         assertThat(response.unreadNotifications().status()).isEqualTo(HomeSectionStatus.OK);
         assertThat(response.unreadNotifications().data().unreadCount()).isEqualTo(2L);
 
@@ -189,17 +319,20 @@ class HomeAggregatorServiceTest {
         assertThat(response.wallet().data().isSimulated()).isTrue();
 
         assertThat(response.recentActivity().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.rewardsPoints().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.stories().status()).isEqualTo(HomeSectionStatus.UNAVAILABLE);
+        assertThat(response.spendSummary().status()).isEqualTo(HomeSectionStatus.OK);
+        assertThat(response.nudge().status()).isEqualTo(HomeSectionStatus.OK);
         assertThat(response.shortcuts().status()).isEqualTo(HomeSectionStatus.OK);
     }
 
     @Test
     @DisplayName("Resilience: Wallet failure does not break greeting or notifications")
     void walletFailureDoesNotBreakGreetingOrNotifications() {
-        com.lankapay.identity.domain.UserAccount user = new com.lankapay.identity.domain.UserAccount("+94771234567", "Nimal Perera", "199012345678", "hash");
+        UserAccount user = new UserAccount("+94771234567", "Nimal Perera", "199012345678", "hash");
         when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(user));
         when(notificationStore.countUnreadNotifications(USER_ID)).thenReturn(0L);
 
-        // linkedAccountStore throws error
         when(linkedAccountStore.findAccountsByUserIdOrderByLinkedAtDesc(USER_ID))
                 .thenThrow(new IllegalStateException("Account store unavailable"));
 
@@ -210,7 +343,6 @@ class HomeAggregatorServiceTest {
 
         assertThat(response.unreadNotifications().status()).isEqualTo(HomeSectionStatus.OK);
 
-        // Wallet failed cleanly
         assertThat(response.wallet().status()).isEqualTo(HomeSectionStatus.FAILED);
         assertThat(response.wallet().data()).isNull();
         assertThat(response.wallet().error()).isEqualTo("WALLET_UNAVAILABLE");
