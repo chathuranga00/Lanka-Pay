@@ -10,6 +10,10 @@ import type {
   Story,
   CreateStoryPayload,
   UpdateStoryPayload,
+  SupportConversation,
+  SupportConversationDetail,
+  SupportMessage,
+  CannedReply,
 } from '../types/admin';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
@@ -293,6 +297,59 @@ class AdminApiClient {
     });
     if (!res.ok) throw new Error('Failed to archive story');
     return (await res.json()) as Story;
+  }
+
+  // ── Support ──────────────────────────────────────────────────
+
+  async getSupportConversations(status?: string, search?: string): Promise<SupportConversation[]> {
+    const params = new URLSearchParams();
+    if (status && status !== 'ALL') params.append('status', status);
+    if (search && search.trim()) params.append('search', search.trim());
+    const query = params.toString() ? `?${params.toString()}` : '';
+
+    const res = await fetch(`${BASE_URL}/admin/support/conversations${query}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch support conversations');
+    return (await res.json()) as SupportConversation[];
+  }
+
+  async getSupportConversation(id: string): Promise<SupportConversationDetail> {
+    const res = await fetch(`${BASE_URL}/admin/support/conversations/${encodeURIComponent(id)}`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch support conversation details');
+    return (await res.json()) as SupportConversationDetail;
+  }
+
+  async replySupportConversation(id: string, text: string): Promise<SupportMessage> {
+    const res = await fetch(`${BASE_URL}/admin/support/conversations/${encodeURIComponent(id)}/reply`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+      throw new Error((err['message'] as string) || 'Failed to send reply');
+    }
+    return (await res.json()) as SupportMessage;
+  }
+
+  async resolveSupportConversation(id: string): Promise<SupportConversation> {
+    const res = await fetch(`${BASE_URL}/admin/support/conversations/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to resolve conversation');
+    return (await res.json()) as SupportConversation;
+  }
+
+  async getCannedReplies(): Promise<CannedReply[]> {
+    const res = await fetch(`${BASE_URL}/admin/support/canned-replies`, {
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch canned replies');
+    return (await res.json()) as CannedReply[];
   }
 }
 

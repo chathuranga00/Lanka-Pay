@@ -428,6 +428,17 @@ abstract final class AppTestKeys {
   static const Key citySearchInput = Key('city_search_input');
   static const Key cityOffersRow = Key('city_offers_row');
   static const Key cityMerchantsList = Key('city_merchants_list');
+
+  // ---------------------------------------------------------------------------
+  // Support & Chat (chat_*, faq_*)
+  // ---------------------------------------------------------------------------
+  static const Key chatInput = Key('chat_input');
+  static const Key chatSend = Key('chat_send');
+  static const Key chatAttach = Key('chat_attach');
+  static const Key chatSafetyBanner = Key('chat_safety_banner');
+  static const Key chatStatusChip = Key('chat_status_chip');
+  static Key faq(String id) => Key(id.startsWith('faq_') ? id : 'faq_$id');
+  static Key chatMsg(dynamic id) => Key('chat_msg_$id');
 }
 
 typedef TestKeys = AppTestKeys;

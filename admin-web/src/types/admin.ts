@@ -186,3 +186,55 @@ export interface UpdateStoryPayload {
   endsAt?: string;
   priority?: number;
 }
+
+// ── Support ─────────────────────────────────────────────────────────────
+export type SupportStatus = 'OPEN' | 'WAITING' | 'RESOLVED';
+export type MessageSender = 'USER' | 'AGENT' | 'BOT';
+
+export interface SupportConversation {
+  id: string;
+  userId: number;
+  status: SupportStatus;
+  category: string;
+  subject: string;
+  attachedTransactionRef?: string;
+  createdAt: string;
+  updatedAt: string;
+  unreadCount?: number;
+  lastMessage?: SupportMessage;
+}
+
+export interface SupportMessage {
+  id: string;
+  conversationId: string;
+  sender: MessageSender;
+  text: string;
+  createdAt: string;
+  readAt?: string;
+  attachedTransactionRef?: string;
+}
+
+export interface MaskedTransactionSummary {
+  reference: string;
+  amount: number;
+  currency: string;
+  status: string;
+  senderMasked: string;
+  receiverMasked: string;
+  createdAt: string;
+  isAttachedByCustomer: boolean;
+}
+
+export interface SupportConversationDetail {
+  conversation: SupportConversation;
+  messages: SupportMessage[];
+  attachedTransaction?: MaskedTransactionSummary | null;
+  safetyNotice: string;
+}
+
+export interface CannedReply {
+  id: string;
+  title: string;
+  text: string;
+}
+

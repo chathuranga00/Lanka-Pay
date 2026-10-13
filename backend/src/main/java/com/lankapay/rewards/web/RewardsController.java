@@ -2,6 +2,7 @@ package com.lankapay.rewards.web;
 
 import com.lankapay.common.exception.ResourceNotFoundException;
 import com.lankapay.identity.domain.User;
+import com.lankapay.identity.domain.UserAccount;
 import com.lankapay.identity.domain.UserStore;
 import com.lankapay.rewards.service.RewardsService;
 import com.lankapay.rewards.web.dto.PointsLedgerEntryDto;

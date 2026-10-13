@@ -58,11 +58,11 @@ public class CityController {
             return user;
         } else if (principal instanceof Long l) {
             if (userStore != null) {
-                return userStore.findUserById(l).orElse(null);
+                return userStore.findUserById(l).map(UserAccount::toUser).orElse(null);
             }
         }
         if (queryUserId != null && userStore != null) {
-            return userStore.findUserById(queryUserId).orElse(null);
+            return userStore.findUserById(queryUserId).map(UserAccount::toUser).orElse(null);
         }
         return null;
     }
