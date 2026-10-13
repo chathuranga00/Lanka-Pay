@@ -194,7 +194,6 @@ class CardService {
     }
     final response = await dio.post(
       '/cards/$id/unfreeze',
-      queryParameters: pin != null ? {'pin': pin} : null,
       options: headers.isNotEmpty ? Options(headers: headers) : null,
     );
     return CardModel.fromJson(Map<String, dynamic>.from(response.data as Map));
@@ -209,7 +208,6 @@ class CardService {
     }
     final response = await dio.post(
       '/cards/$id/reveal',
-      queryParameters: pin != null ? {'pin': pin} : null,
       options: headers.isNotEmpty ? Options(headers: headers) : null,
     );
     return CardRevealModel.fromJson(Map<String, dynamic>.from(response.data as Map));
@@ -244,9 +242,16 @@ class CardService {
     return CardModel.fromJson(Map<String, dynamic>.from(response.data as Map));
   }
 
-  /// Soft-delete / remove card.
-  Future<void> removeCard(int id) async {
-    await dio.delete('/cards/$id');
+  /// Soft-delete / remove card with optional step-up PIN.
+  Future<void> removeCard(int id, {String? pin}) async {
+    final headers = <String, dynamic>{};
+    if (pin != null && pin.isNotEmpty) {
+      headers['X-Step-Up-Pin'] = pin;
+    }
+    await dio.delete(
+      '/cards/$id',
+      options: headers.isNotEmpty ? Options(headers: headers) : null,
+    );
   }
 }
 

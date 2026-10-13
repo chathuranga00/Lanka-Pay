@@ -23,4 +23,13 @@ public record PatchCardRequest(
 
         @Schema(description = "User's 6-digit PIN for step-up auth (required if raising limits; can alternatively pass X-Step-Up-Pin header)", example = "123456")
         String pin
-) {}
+) {
+    @Override
+    public String toString() {
+        return "PatchCardRequest[nickname=" + nickname
+                + ", perPaymentLimitMinor=" + perPaymentLimitMinor
+                + ", dailyLimitMinor=" + dailyLimitMinor
+                + ", onlinePaymentsEnabled=" + onlinePaymentsEnabled
+                + ", pin=***]";
+    }
+}

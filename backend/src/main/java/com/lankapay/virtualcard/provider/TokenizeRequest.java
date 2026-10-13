@@ -17,5 +17,21 @@ public record TokenizeRequest(
         String cvv,          // 3-4 digits — discarded, never stored
         String holderName,
         Long   requestingUserId,
-        String operationReference
-) {}
+        String operationReference,
+        String clientIp
+) {
+    public TokenizeRequest(String pan, String expMonth, String expYear, String cvv,
+                           String holderName, Long requestingUserId, String operationReference) {
+        this(pan, expMonth, expYear, cvv, holderName, requestingUserId, operationReference, "127.0.0.1");
+    }
+
+    @Override
+    public String toString() {
+        String last4 = (pan != null && pan.length() >= 4) ? pan.substring(pan.length() - 4) : "****";
+        return "TokenizeRequest[pan=****" + last4
+                + ", expMonth=**, expYear=**, cvv=***, holderName=" + holderName
+                + ", requestingUserId=" + requestingUserId
+                + ", operationReference=" + operationReference
+                + ", clientIp=" + clientIp + "]";
+    }
+}

@@ -18,11 +18,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks Secret Scanner
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Scan for Luhn-Valid Card Numbers (PCI-DSS Strict Prohibition)
+        run: python scripts/scan-luhn-cards.py
+
+      - name: Run Gitleaks Secret & PII Scanner
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
+          GITLEAKS_CONFIG: .gitleaks.toml
+        continue-on-error: false
 
   dependency-scan-backend:
     name: Backend Dependency Check (OWASP)

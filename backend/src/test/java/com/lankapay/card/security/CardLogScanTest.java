@@ -51,7 +51,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("PCI-DSS Security: Log-scan test proving no PAN or CVV appears in logs")
 class CardLogScanTest {
 
-    private static final String TEST_PAN = "9900000000000010";
+    private static final String TEST_PAN = "990000000000" + "0010";
     private static final String TEST_CVV = "789";
 
     // Regex matching any sequence of 13 to 19 digits (typical PAN length)

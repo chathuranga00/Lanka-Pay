@@ -24,4 +24,11 @@ public record CreateCardRequest(
 
         @Schema(description = "User's 6-digit PIN for step-up auth (can alternatively pass X-Step-Up-Pin header)", example = "123456")
         String pin
-) {}
+) {
+    @Override
+    public String toString() {
+        return "CreateCardRequest[cardToken=" + cardToken + ", nickname=" + nickname
+                + ", linkedBankAccountId=" + linkedBankAccountId
+                + ", consentGiven=" + consentGiven + ", pin=***]";
+    }
+}

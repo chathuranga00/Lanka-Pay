@@ -77,6 +77,7 @@ final class VaultOtpChallengeService {
         }
         if (!otpEncoder.matches(otp, ch.otpHash())) {
             int attempts = ch.attempts() + 1;
+            auditService.log(userId, "VAULT_CHALLENGE_FAILED", "USER", userId, "{\"attempts\":" + attempts + "}", null);
             if (attempts >= MAX_ATTEMPTS) {
                 pending.remove(challengeRef);
                 throw OtpException.maxAttemptsReached();
@@ -86,6 +87,7 @@ final class VaultOtpChallengeService {
             throw OtpException.invalid();
         }
         pending.remove(challengeRef);
+        auditService.log(userId, "VAULT_CHALLENGE_CONFIRMED", "USER", userId, null, null);
         return challengeRef;
     }
 

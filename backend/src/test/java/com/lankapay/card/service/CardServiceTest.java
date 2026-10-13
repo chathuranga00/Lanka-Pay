@@ -371,12 +371,13 @@ class CardServiceTest {
             when(userStore.findUserById(USER_ID)).thenReturn(Optional.of(userAccount(USER_ID)));
             when(cardStore.findByIdAndUserId(CARD_ID, USER_ID)).thenReturn(Optional.of(virtualCard));
             when(passwordEncoder.matches(CORRECT_PIN, "$2a$12$hashedPassword")).thenReturn(true);
+            String testPan = "990000000000" + "0010";
             when(cardProvider.revealVirtualCard(CARD_TOKEN, USER_ID)).thenReturn(
-                    new CardRevealDetails(CARD_TOKEN, "9900000000000010", "123", "12", "29", "TEST CARD", 30, true));
+                    new CardRevealDetails(CARD_TOKEN, testPan, "123", "12", "29", "TEST CARD", 30, true));
 
             var response = service.revealCard(CARD_ID, USER_ID, CORRECT_PIN, null, IP);
 
-            assertThat(response.pan()).isEqualTo("9900000000000010");
+            assertThat(response.pan()).isEqualTo(testPan);
             assertThat(response.cvv()).isEqualTo("123");
             assertThat(response.expiresInSeconds()).isEqualTo(30);
 

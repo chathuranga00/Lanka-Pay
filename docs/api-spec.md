@@ -423,3 +423,214 @@ Query the audit log.
 ```
 
 Stack traces are **never** included in responses.
+
+---
+
+## 8. Cards & Simulated Vault – `/cards` and `/sim-vault`
+
+> ⚠ **SIMULATED PROTOTYPE ONLY**: All card operations are test demonstrations. Never enter real card data.
+
+### POST `/sim-vault/v1/tokenize`
+Tokenize a test card. Validates against the seeded sandbox table.
+
+**Request**
+```json
+{
+  "pan": "9900XXXXXXXX0010",
+  "expMonth": "12",
+  "expYear": "27",
+  "cvv": "111",
+  "holderName": "Test Approved"
+}
+```
+
+**Response 200**
+```json
+{
+  "cardToken": "8ca8826a-2826-4cc3-af97-7e202d2b12fa",
+  "last4": "0010",
+  "expMonth": "12",
+  "expYear": "27",
+  "brandLabel": "TEST CARD",
+  "simulated": true,
+  "tokenExpiresAt": "2026-10-13T12:15:00Z"
+}
+```
+
+---
+
+### GET `/api/v1/cards`
+List active, pending, and frozen cards owned by the authenticated user.
+
+**Response 200**
+```json
+[
+  {
+    "id": 101,
+    "last4": "0010",
+    "expMonth": "12",
+    "expYear": "27",
+    "brandLabel": "TEST CARD",
+    "nickname": "Daily Card",
+    "cardKind": "LINKED",
+    "status": "ACTIVE",
+    "onlinePaymentsEnabled": true,
+    "perPaymentLimitMinor": 5000000,
+    "dailyLimitMinor": 20000000,
+    "remainingDailyLimitMinor": 19000000,
+    "simulated": true
+  }
+]
+```
+
+---
+
+### POST `/api/v1/cards`
+Link an existing tokenized card with user consent and step-up PIN. Initiates bank OTP challenge (`PENDING_VERIFICATION`).
+
+**Headers:** `X-Step-Up-Pin: 123456` (or in body)
+
+**Request**
+```json
+{
+  "cardToken": "8ca8826a-2826-4cc3-af97-7e202d2b12fa",
+  "nickname": "Daily Card",
+  "linkedBankAccountId": 1,
+  "consentGiven": true
+}
+```
+
+**Response 201**
+```json
+{
+  "id": 101,
+  "last4": "0010",
+  "status": "PENDING_VERIFICATION",
+  "challengeRef": "chal-778899"
+}
+```
+
+---
+
+### POST `/api/v1/cards/{id}/verify`
+Complete the bank OTP ownership challenge to transition card from `PENDING_VERIFICATION` to `ACTIVE`.
+
+**Request**
+```json
+{
+  "otp": "112233"
+}
+```
+
+**Response 200**
+```json
+{
+  "id": 101,
+  "status": "ACTIVE"
+}
+```
+
+---
+
+### POST `/api/v1/cards/virtual`
+Issue an instant virtual card tied to an active bank account.
+
+**Headers:** `X-Step-Up-Pin: 123456`
+
+**Request**
+```json
+{
+  "linkedBankAccountId": 1,
+  "nickname": "Online Shopping"
+}
+```
+
+**Response 201**
+```json
+{
+  "id": 102,
+  "last4": "0010",
+  "cardKind": "VIRTUAL",
+  "status": "ACTIVE"
+}
+```
+
+---
+
+### POST `/api/v1/cards/{id}/freeze`
+Freeze a card immediately to stop all future debits.
+
+**Response 200**
+```json
+{
+  "id": 101,
+  "status": "FROZEN"
+}
+```
+
+---
+
+### POST `/api/v1/cards/{id}/unfreeze`
+Unfreeze a card back to `ACTIVE`. Requires step-up PIN in `X-Step-Up-Pin` header.
+
+**Headers:** `X-Step-Up-Pin: 123456`
+
+**Response 200**
+```json
+{
+  "id": 101,
+  "status": "ACTIVE"
+}
+```
+
+---
+
+### POST `/api/v1/cards/{id}/reveal`
+Reveal virtual card PAN, CVV, and full expiry. Strictly limited to `VIRTUAL` cards.
+Protected by step-up PIN and rate limited to 3 reveals per hour. Returns `Cache-Control: no-store`.
+
+**Headers:** `X-Step-Up-Pin: 123456`
+
+**Response 200**
+```json
+{
+  "cardId": 102,
+  "last4": "0010",
+  "pan": "9900XXXXXXXX0010",
+  "cvv": "111",
+  "expMonth": "12",
+  "expYear": "27",
+  "brandLabel": "TEST CARD",
+  "expiresInSeconds": 30,
+  "simulated": true
+}
+```
+
+---
+
+### PATCH `/api/v1/cards/{id}`
+Update nickname, limits, or toggle online payments. Requires step-up PIN.
+
+**Headers:** `X-Step-Up-Pin: 123456`
+
+**Request**
+```json
+{
+  "nickname": "Personal Card",
+  "perPaymentLimitMinor": 2500000,
+  "dailyLimitMinor": 10000000,
+  "onlinePaymentsEnabled": false
+}
+```
+
+**Response 200** – updated card object.
+
+---
+
+### DELETE `/api/v1/cards/{id}`
+Soft-delete / remove card (`REMOVED` status). Requires step-up PIN in `X-Step-Up-Pin` header.
+
+**Headers:** `X-Step-Up-Pin: 123456`
+
+**Response 204 No Content**
+

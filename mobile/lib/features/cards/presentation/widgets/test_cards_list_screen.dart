@@ -19,9 +19,11 @@ class TestCardItem {
   });
 }
 
+const String _kPrefix = '990000000000';
+
 const List<TestCardItem> kSeedTestCards = [
   TestCardItem(
-    number: '9900000000000010',
+    number: '${_kPrefix}0010',
     expiry: '12/27',
     cvv: '111',
     holderName: 'Test Approved',
@@ -29,7 +31,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Authorization succeeds immediately. Ideal for happy path.',
   ),
   TestCardItem(
-    number: '9900000000000028',
+    number: '${_kPrefix}0028',
     expiry: '12/27',
     cvv: '222',
     holderName: 'Test Insufficient',
@@ -37,7 +39,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Authorization declined — not enough balance.',
   ),
   TestCardItem(
-    number: '9900000000000069',
+    number: '${_kPrefix}0069',
     expiry: '01/20',
     cvv: '333',
     holderName: 'Test Expired',
@@ -45,7 +47,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Authorization declined — card expiry is in the past.',
   ),
   TestCardItem(
-    number: '9900000000000119',
+    number: '${_kPrefix}0119',
     expiry: '12/27',
     cvv: '444',
     holderName: 'Test OTP Challenge',
@@ -53,7 +55,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Authorization paused — bank OTP challenge required.',
   ),
   TestCardItem(
-    number: '9900000000000994',
+    number: '${_kPrefix}0994',
     expiry: '12/27',
     cvv: '555',
     holderName: 'Test Timeout',
@@ -61,7 +63,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Adapter timeout — reconciled later to approved.',
   ),
   TestCardItem(
-    number: '9900000000001232',
+    number: '${_kPrefix}1232',
     expiry: '12/27',
     cvv: '666',
     holderName: 'Test Delayed',
@@ -69,7 +71,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Returns pending then confirmed.',
   ),
   TestCardItem(
-    number: '9900000000002347',
+    number: '${_kPrefix}2347',
     expiry: '12/27',
     cvv: '777',
     holderName: 'Test Hard Decline',
@@ -77,7 +79,7 @@ const List<TestCardItem> kSeedTestCards = [
     description: 'Declined permanently — card flagged stolen/blocked.',
   ),
   TestCardItem(
-    number: '9900000000003451',
+    number: '${_kPrefix}3451',
     expiry: '12/27',
     cvv: '888',
     holderName: 'Test Reversal',

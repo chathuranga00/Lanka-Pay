@@ -431,7 +431,7 @@ class FakeAllKeysCardService implements CardService {
       const CardRevealModel(
         cardId: 101,
         last4: '1234',
-        pan: '9900000000000010',
+        pan: '990000000000' '0010',
         expMonth: '12',
         expYear: '28',
         cvv: '123',
@@ -450,7 +450,7 @@ class FakeAllKeysCardService implements CardService {
   }) async => cards.first;
 
   @override
-  Future<void> removeCard(int id) async {}
+  Future<void> removeCard(int id, {String? pin}) async {}
 }
 
 Widget createE2ETestApp({

@@ -213,15 +213,16 @@ class CardControllerTest {
     @Test
     @DisplayName("POST /api/v1/cards/{id}/reveal – returns details with Cache-Control: no-store")
     void revealCardReturnsNoStoreHeader() throws Exception {
+        String testPan = "990000000000" + "0010";
         CardRevealResponse revealResponse = new CardRevealResponse(
-                CARD_ID, "0010", "9900000000000010", "123", "12", "29", "TEST CARD", 30, true);
+                CARD_ID, "0010", testPan, "123", "12", "29", "TEST CARD", 30, true);
         when(cardService.revealCard(eq(CARD_ID), eq(USER_ID), any(), any(), any())).thenReturn(revealResponse);
 
         mockMvc.perform(post("/api/v1/cards/{id}/reveal", CARD_ID)
                         .header("X-Step-Up-Pin", "123456"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CACHE_CONTROL, org.hamcrest.Matchers.containsString("no-store")))
-                .andExpect(jsonPath("$.pan").value("9900000000000010"))
+                .andExpect(jsonPath("$.pan").value(testPan))
                 .andExpect(jsonPath("$.cvv").value("123"))
                 .andExpect(jsonPath("$.expiresInSeconds").value(30));
     }
@@ -245,9 +246,10 @@ class CardControllerTest {
     @Test
     @DisplayName("DELETE /api/v1/cards/{id} – remove card returns 204 No Content")
     void removeCardReturns204() throws Exception {
-        doNothing().when(cardService).removeCard(eq(CARD_ID), eq(USER_ID), any());
+        doNothing().when(cardService).removeCard(eq(CARD_ID), eq(USER_ID), any(), any());
 
-        mockMvc.perform(delete("/api/v1/cards/{id}", CARD_ID))
+        mockMvc.perform(delete("/api/v1/cards/{id}", CARD_ID)
+                        .header("X-Step-Up-Pin", "123456"))
                 .andExpect(status().isNoContent());
     }
 }

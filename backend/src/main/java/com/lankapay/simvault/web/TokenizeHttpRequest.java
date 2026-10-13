@@ -42,5 +42,10 @@ public record TokenizeHttpRequest(
         @Size(min = 2, max = 100, message = "holderName must be 2–100 characters")
         String holderName
 ) {
-    // Deliberately no toString() override — prevents accidental logging of PAN/CVV.
+    @Override
+    public String toString() {
+        String last4 = (pan != null && pan.length() >= 4) ? pan.substring(pan.length() - 4) : "****";
+        return "TokenizeHttpRequest[pan=****" + last4
+                + ", expMonth=**, expYear=**, cvv=***, holderName=" + holderName + "]";
+    }
 }

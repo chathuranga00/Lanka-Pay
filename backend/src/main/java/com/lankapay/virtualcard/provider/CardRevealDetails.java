@@ -13,4 +13,12 @@ public record CardRevealDetails(
         String  brandLabel,
         int     expiresInSeconds,
         boolean simulated
-) {}
+) {
+    @Override
+    public String toString() {
+        String last4 = (pan != null && pan.length() >= 4) ? pan.substring(pan.length() - 4) : "****";
+        return "CardRevealDetails[cardToken=" + cardToken + ", pan=****" + last4
+                + ", cvv=***, expMonth=**, expYear=**, brandLabel=" + brandLabel
+                + ", expiresInSeconds=" + expiresInSeconds + ", simulated=" + simulated + "]";
+    }
+}

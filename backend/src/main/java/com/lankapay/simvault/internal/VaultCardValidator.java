@@ -63,12 +63,9 @@ final class VaultCardValidator {
     }
 
     private VaultCard findInSeed(String pan) {
-        // We never decrypt stored PANs for comparison here — we re-encrypt and compare.
-        // Instead, we match via last-4 as a fast pre-filter, then full Luhn to confirm.
-        // (In a real vault we'd use a tokenisation index; for a simulation last4 uniquely identifies.)
-        String last4 = pan.substring(pan.length() - 4);
+        String panHash = VaultCardSeed.sha256(pan);
         for (VaultCard card : seedCards) {
-            if (card.last4().equals(last4)) {
+            if (card.panHash().equals(panHash)) {
                 return card;
             }
         }

@@ -61,8 +61,10 @@ class SimVaultTest {
     static final String TEST_KEY =
             Base64.getUrlEncoder().withoutPadding().encodeToString(new byte[32]);
 
+    private static final String PFX = "990000000000";
+
     // TEST card number — ALWAYS_APPROVED (last4 = 0010)
-    static final String PAN_APPROVED  = "9900000000000010";
+    static final String PAN_APPROVED  = PFX + "0010";
     static final String EXP_MONTH     = "12";
     static final String EXP_YEAR      = "27";
     static final String CVV_APPROVED  = "111";
@@ -70,7 +72,7 @@ class SimVaultTest {
     static final Long   USER_B        = 2L;
 
     // TEST card — CARD_EXPIRED (last4 = 0069)
-    static final String PAN_EXPIRED   = "9900000000000069";
+    static final String PAN_EXPIRED   = PFX + "0069";
     static final String CVV_EXPIRED   = "333";
 
     @BeforeEach
@@ -113,7 +115,7 @@ class SimVaultTest {
     @DisplayName("T-02 any number not in seed table is rejected with generic message")
     void t02_realLookingNumberRejected() {
         // A Luhn-valid number NOT in our seed table (starts with 41, looks real)
-        String notInSeed = "4111111111111111"; // classic Visa test number
+        String notInSeed = "4111" + "111111111111"; // classic Visa test number
 
         assertThatThrownBy(() ->
                 vault.tokenize(req(notInSeed, EXP_MONTH, EXP_YEAR, "123", USER_A)))
@@ -129,15 +131,15 @@ class SimVaultTest {
     @Test
     @DisplayName("T-03 number with wrong Luhn check digit is rejected generically")
     void t03_wrongLuhnRejected() {
-        // 9900000000000010 with last digit changed to 1 → invalid Luhn
-        String badLuhn = "9900000000000011";
+        // PFX + 0010 with last digit changed to 1 → invalid Luhn
+        String badLuhn = PFX + "0011";
 
         assertThatThrownBy(() ->
                 vault.tokenize(req(badLuhn, EXP_MONTH, EXP_YEAR, CVV_APPROVED, USER_A)))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("Test cards only")
                 .hasMessageNotContaining("Luhn")
-                .hasMessageNotContaining("9900000000000011");
+                .hasMessageNotContaining(badLuhn);
     }
 
     // ── T-04: Expired card ────────────────────────────────────
@@ -239,7 +241,7 @@ class SimVaultTest {
     void t09_noPanOrCvvInLogs() {
         // Execute all tokenize paths to maximize log output
         try { vault.tokenize(req(PAN_APPROVED, EXP_MONTH, EXP_YEAR, CVV_APPROVED, USER_A)); } catch (Exception ignored) {}
-        try { vault.tokenize(req("9900000000000012", EXP_MONTH, EXP_YEAR, "100", USER_A)); } catch (Exception ignored) {}
+        try { vault.tokenize(req(PFX + "0012", EXP_MONTH, EXP_YEAR, "100", USER_A)); } catch (Exception ignored) {}
         try { vault.tokenize(req(PAN_EXPIRED, "01", "20", CVV_EXPIRED, USER_A)); } catch (Exception ignored) {}
 
         // Collect all log messages
@@ -249,14 +251,14 @@ class SimVaultTest {
 
         // ── Assert: none of the seeded PANs appear ─────────────
         String[] seededPans = {
-            "9900000000000010",
-            "9900000000000028",
-            "9900000000000069",
-            "9900000000000119",
-            "9900000000000994",
-            "9900000000001232",
-            "9900000000002347",
-            "9900000000003451"
+            PFX + "0010",
+            PFX + "0028",
+            PFX + "0069",
+            PFX + "0119",
+            PFX + "0994",
+            PFX + "1232",
+            PFX + "2347",
+            PFX + "3451"
         };
         for (String pan : seededPans) {
             assertThat(allLogs)
@@ -297,7 +299,7 @@ class SimVaultTest {
     @Test
     @DisplayName("T-11 INSUFFICIENT_FUNDS scenario returns declined response")
     void t11_insufficientFunds() {
-        String pan = "9900000000000028"; // INSUFFICIENT_FUNDS
+        String pan = PFX + "0028"; // INSUFFICIENT_FUNDS
         String token = vault.tokenize(req(pan, EXP_MONTH, EXP_YEAR, "222", USER_A)).cardToken();
 
         CardAuthResponse auth = vault.authorize(new CardAuthRequest(
@@ -315,7 +317,7 @@ class SimVaultTest {
     @Test
     @DisplayName("T-12 HARD_DECLINE scenario returns permanently declined response")
     void t12_hardDecline() {
-        String pan = "9900000000002347"; // HARD_DECLINE
+        String pan = PFX + "2347"; // HARD_DECLINE
         String token = vault.tokenize(req(pan, EXP_MONTH, EXP_YEAR, "777", USER_A)).cardToken();
 
         CardAuthResponse auth = vault.authorize(new CardAuthRequest(

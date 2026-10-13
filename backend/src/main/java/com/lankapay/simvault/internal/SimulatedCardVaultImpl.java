@@ -30,7 +30,8 @@ public final class SimulatedCardVaultImpl {
     // ── tokenize ──────────────────────────────────────────────
 
     public TokenizeResponse tokenize(TokenizeRequest request) {
-        vc.rateLimiter().consume(request.requestingUserId(), "INTERNAL");
+        String clientIp = request.clientIp() != null ? request.clientIp() : "127.0.0.1";
+        vc.rateLimiter().consume(request.requestingUserId(), clientIp);
         try {
             VaultCard card = vc.validator().validate(
                     request.pan(), request.expMonth(), request.expYear(), request.cvv());

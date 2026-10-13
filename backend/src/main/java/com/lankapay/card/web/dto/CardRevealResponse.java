@@ -14,7 +14,7 @@ public record CardRevealResponse(
         @Schema(description = "Last 4 digits", example = "0010")
         String last4,
 
-        @Schema(description = "Simulated PAN for testing virtual card entry", example = "9900000000000010")
+        @Schema(description = "Simulated PAN for testing virtual card entry", example = "9900XXXXXXXX0010")
         String pan,
 
         @Schema(description = "Simulated CVV", example = "123")
@@ -34,4 +34,11 @@ public record CardRevealResponse(
 
         @Schema(description = "Whether card is simulated", example = "true")
         boolean simulated
-) {}
+) {
+    @Override
+    public String toString() {
+        return "CardRevealResponse[cardId=" + cardId + ", last4=" + last4
+                + ", pan=****" + last4 + ", cvv=***, expMonth=**, expYear=**, brandLabel="
+                + brandLabel + ", expiresInSeconds=" + expiresInSeconds + ", simulated=" + simulated + "]";
+    }
+}

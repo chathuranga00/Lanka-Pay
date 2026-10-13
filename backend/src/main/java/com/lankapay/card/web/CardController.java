@@ -190,12 +190,11 @@ public class CardController {
     @PostMapping("/{id}/unfreeze")
     public ResponseEntity<CardResponse> unfreezeCard(
             @PathVariable Long id,
-            @RequestParam(value = "pin", required = false) String pinParam,
             @RequestHeader(value = "X-Step-Up-Pin", required = false) String stepUpPinHeader,
             @AuthenticationPrincipal Long userId,
             HttpServletRequest httpRequest) {
 
-        Card card = cardService.unfreezeCard(id, userId, pinParam, stepUpPinHeader, extractIp(httpRequest));
+        Card card = cardService.unfreezeCard(id, userId, null, stepUpPinHeader, extractIp(httpRequest));
         return ResponseEntity.ok(CardResponse.from(card));
     }
 
@@ -217,12 +216,11 @@ public class CardController {
     @PostMapping("/{id}/reveal")
     public ResponseEntity<CardRevealResponse> revealCard(
             @PathVariable Long id,
-            @RequestParam(value = "pin", required = false) String pinParam,
             @RequestHeader(value = "X-Step-Up-Pin", required = false) String stepUpPinHeader,
             @AuthenticationPrincipal Long userId,
             HttpServletRequest httpRequest) {
 
-        CardRevealResponse response = cardService.revealCard(id, userId, pinParam, stepUpPinHeader, extractIp(httpRequest));
+        CardRevealResponse response = cardService.revealCard(id, userId, null, stepUpPinHeader, extractIp(httpRequest));
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0")
@@ -269,10 +267,11 @@ public class CardController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> removeCard(
             @PathVariable Long id,
+            @RequestHeader(value = "X-Step-Up-Pin", required = false) String stepUpPinHeader,
             @AuthenticationPrincipal Long userId,
             HttpServletRequest httpRequest) {
 
-        cardService.removeCard(id, userId, extractIp(httpRequest));
+        cardService.removeCard(id, userId, stepUpPinHeader, extractIp(httpRequest));
         return ResponseEntity.noContent().build();
     }
 

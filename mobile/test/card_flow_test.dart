@@ -152,7 +152,7 @@ class FlowFakeCardService implements CardService {
   @override
   Future<CardModel> patchCard(int id, {String? nickname, int? perPaymentLimitMinor, int? dailyLimitMinor, bool? onlinePaymentsEnabled, String? pin}) async => throw UnimplementedError();
   @override
-  Future<void> removeCard(int id) async {}
+  Future<void> removeCard(int id, {String? pin}) async {}
 }
 
 class FlowFakeBankAccountService implements BankAccountService {

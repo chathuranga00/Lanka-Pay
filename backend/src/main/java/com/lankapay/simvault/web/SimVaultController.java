@@ -96,7 +96,7 @@ public class SimVaultController {
         // Build internal request — PAN + CVV are in this object and will be discarded after use
         TokenizeRequest internalReq = new TokenizeRequest(
                 httpReq.pan(), httpReq.expMonth(), httpReq.expYear(),
-                httpReq.cvv(), httpReq.holderName(), userId, opRef);
+                httpReq.cvv(), httpReq.holderName(), userId, opRef, ip);
 
         TokenizeResponse result = cardProvider.tokenize(internalReq);
 

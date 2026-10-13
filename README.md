@@ -5,8 +5,9 @@
 [![Security Scan](https://github.com/chathuranga00/Lanka-Pay/actions/workflows/security-scan.yml/badge.svg)](https://github.com/chathuranga00/Lanka-Pay/actions/workflows/security-scan.yml)
 
 > ⚠️ **ACADEMIC PROTOTYPE NOTICE & SIMULATION DISCLAIMER**  
-> **All banks, clearing houses, and monetary transactions in this project are ENTIRELY SIMULATED.**  
-> No real money is transferred, debited, or held at any point. Bank responses, account verification, delayed settlement, and OTP delivery are handled by local simulation adapters labeled `[SIMULATED]` or `[TEST]`. Real banking integration in Sri Lanka requires formal Central Bank of Sri Lanka (CBSL) licensing, LankaPay CEFTS/JustPay network operator agreements, and commercial bank sponsorship. See [Real Integration Roadmap](file:///q:/MY%20Projects/Lanka%20Pay/docs/real-integration-roadmap.md) and [Known Limitations](file:///q:/MY%20Projects/Lanka%20Pay/docs/known-limitations.md).
+> **All banks, clearing houses, payment cards, and monetary transactions in this project are ENTIRELY SIMULATED.**  
+> **NEVER ENTER A REAL CREDIT OR DEBIT CARD NUMBER.** All payment card numbers, CVVs, and expiry dates are simulated test data for academic demonstration only. Use only documented test cards from [docs/test-cards.md](file:///q:/MY%20Projects/Lanka%20Pay/docs/test-cards.md).  
+> No real money is transferred, debited, or held at any point. Bank responses, account verification, delayed settlement, and OTP delivery are handled by local simulation adapters labeled `[SIMULATED]` or `[TEST]`. Real banking integration in Sri Lanka requires formal Central Bank of Sri Lanka (CBSL) licensing, LankaPay CEFTS/JustPay network operator agreements, and commercial bank sponsorship. See [Real Integration Roadmap](file:///q:/MY%20Projects/Lanka%20Pay/docs/real-integration-roadmap.md), [Card Security Architecture](file:///q:/MY%20Projects/Lanka%20Pay/docs/card-security.md), and [Known Limitations](file:///q:/MY%20Projects/Lanka%20Pay/docs/known-limitations.md).
 
 ---
 
@@ -51,6 +52,7 @@ The solution incorporates a hardened Java 21 / Spring Boot 3 modular-monolith ba
 - **LankaQR Compatibility:** Dynamic and static QR code generation and decoding with embedded digital signatures, amount locks, and configurable TTL expiration.
 - **Idempotency & Double-Debit Protection:** Client-supplied `Idempotency-Key` headers enforced with atomic database record reservation, preventing duplicate debits during network timeouts or double-tap interactions.
 - **Comprehensive Admin Portal:** Back-office administration for transaction reconciliation, bank gateway health monitoring, role management, fraud alert escalation, and audit logging.
+- **Simulated Cards & Vault Tokenization:** Link simulated test debit/credit cards, view masked cards (`•••• 1234`), freeze/unfreeze with step-up PIN verification, and pay from cards in Send/QR flows with challenge OTP verification. *(Note: All cards are strictly simulated; never enter a real card number).*
 - **Enterprise Security Hardening:** BCrypt PIN hashing, AES-GCM data-at-rest encryption, Bucket4j token-bucket rate limiting, OWASP Dependency-Check automation, and continuous Gitleaks secret scanning.
 
 ---

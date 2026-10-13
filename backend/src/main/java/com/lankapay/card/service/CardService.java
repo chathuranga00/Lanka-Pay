@@ -372,11 +372,20 @@ public class CardService {
     // ── 8. DELETE /cards/{id} (Remove card) ────────────────────
 
     public void removeCard(Long cardId, Long userId, String clientIp) {
+        removeCard(cardId, userId, null, clientIp);
+    }
+
+    public void removeCard(Long cardId, Long userId, String stepUpPinHeader, String clientIp) {
         User user = requireUser(userId);
         Card card = requireOwnedCard(cardId, userId);
 
         if (card.status() == CardStatus.REMOVED) {
             throw new ConflictException("CARD_ALREADY_REMOVED", "This card is already removed");
+        }
+
+        // If step-up PIN is supplied, verify it
+        if (stepUpPinHeader != null && !stepUpPinHeader.isBlank()) {
+            verifyStepUpPin(userId, stepUpPinHeader);
         }
 
         Card removed = card.withStatus(CardStatus.REMOVED);

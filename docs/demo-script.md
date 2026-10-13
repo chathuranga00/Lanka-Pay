@@ -182,7 +182,56 @@ Ensure both backend and clients are running per the [Setup Guide](file:///q:/MY%
 
 ---
 
-## 9. Evaluation Completion Checklist
+## Step 9: Virtual & Linked Card Scenario (Add, Verify, Pay, Freeze, Decline, Unfreeze, Remove)
+
+> ⚠ **TEST CARDS ONLY**: Cards in LankaPay are strictly simulated. Refer to `docs/test-cards.md` for test numbers. Never enter real card credentials.
+
+**Objective:** Demonstrate complete PCI-compliant card lifecycle and card-funded payment flow.
+
+### 9.1 Link Test Card & Verify Bank OTP
+1. In the Mobile App, navigate to the **"Accounts"** tab in bottom navigation.
+2. Toggle the segmented control to **"Cards"** (`seg_cards`).
+3. Tap the **"+" (Add Card)** button (`cards_add`).
+4. Select or enter test card from `docs/test-cards.md` (e.g. Test Card 1: `ALWAYS_APPROVED` ending in `0010`, CVV `111`, expiry `12/27`).
+5. Confirm the explicit card linking consent checkbox and tap **"Link Card"**.
+6. The screen prompts for **Bank OTP Challenge** (`card_challenge_otp`).
+7. Enter the 6-digit bank verification OTP (e.g. `112233`) and confirm.
+8. **Verification Checkpoint:**
+   - [x] Card appears in carousel with label **"TEST CARD"**.
+   - [x] Masked number shows `•••• 0010` (no full PAN).
+   - [x] Status is active and shows remaining daily limit.
+
+### 9.2 Pay from the Card & Inspect Digital Receipt
+1. Tap **"Send"** on Home screen, lookup recipient Nimal (`0770000002`).
+2. On amount screen, enter `1000.00` LKR.
+3. In the **"Pay from"** selector (`pay_from_selector`), choose your test card `•••• 0010 (TEST CARD)`.
+4. On the confirmation screen:
+   - [x] Displays principal amount: `1,000.00 LKR`.
+   - [x] Displays simulated card fee: `15.00 LKR (Simulated Card Processing Fee 1.5%)`.
+   - [x] Displays total debited: `1,015.00 LKR`.
+   - [x] Payment method is labeled: `Paid with card •••• 0010 (TEST CARD)`.
+5. Authenticate with step-up PIN (`123456`).
+6. **Verification Checkpoint:**
+   - [x] Transfer completes immediately (`COMPLETED`).
+   - [x] Digital receipt shows fee breakdown, transaction reference, and card payment method.
+
+### 9.3 Freeze Card & Attempt Payment (Decline Verification)
+1. Return to the **"Cards"** tab, select the card, and tap **"Freeze"** (`card_action_freeze`).
+2. Card updates to a frosted overlay with a snowflake icon and status badge **"FROZEN"**.
+3. Attempt to make a send or QR payment of `500.00` LKR selecting this frozen card.
+4. **Verification Checkpoint:**
+   - [x] Payment is declined with error code `CARD_FROZEN`.
+   - [x] Screen presents friendly recovery suggestion: *"Unfreeze card or select another payment source"*.
+
+### 9.4 Unfreeze & Remove Card
+1. Return to **"Cards"** tab and tap **"Unfreeze"** (`card_action_unfreeze`).
+2. Enter step-up PIN (`123456`) $\rightarrow$ Card status resumes **"ACTIVE"**.
+3. Tap **"Settings"** on the card actions and select **"Remove Card"**.
+4. Confirm step-up PIN $\rightarrow$ Card is securely removed and deleted from user view.
+
+---
+
+## 10. Evaluation Completion Checklist
 
 | Evaluation Area | Target Behavior | Result |
 | :--- | :--- | :--- |

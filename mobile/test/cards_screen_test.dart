@@ -236,7 +236,7 @@ class FakeCardService implements CardService {
   }
 
   @override
-  Future<void> removeCard(int id) async {
+  Future<void> removeCard(int id, {String? pin}) async {
     lastRemovedId = id;
     cards.removeWhere((c) => c.id == id);
   }

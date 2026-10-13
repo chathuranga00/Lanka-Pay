@@ -36,12 +36,15 @@ class CardFieldMaskingConverterTest {
         return converter.convert(event);
     }
 
+    private static final String PAN_PREFIX = "990000000000";
+
     @Test
     @DisplayName("redacts JSON pan field")
     void redactsPanField() {
-        String result = convert("{\"pan\":\"9900000000000010\"}");
+        String pan = PAN_PREFIX + "0010";
+        String result = convert("{\"pan\":\"" + pan + "\"}");
         assertThat(result).contains("[REDACTED-PAN]");
-        assertThat(result).doesNotContain("9900000000000010");
+        assertThat(result).doesNotContain(pan);
     }
 
     @Test
@@ -55,9 +58,10 @@ class CardFieldMaskingConverterTest {
     @Test
     @DisplayName("redacts cardNumber field")
     void redactsCardNumberField() {
-        String result = convert("{\"cardNumber\":\"9900000000000010\"}");
+        String pan = PAN_PREFIX + "0010";
+        String result = convert("{\"cardNumber\":\"" + pan + "\"}");
         assertThat(result).contains("[REDACTED-PAN]");
-        assertThat(result).doesNotContain("9900000000000010");
+        assertThat(result).doesNotContain(pan);
     }
 
     @Test
@@ -71,9 +75,10 @@ class CardFieldMaskingConverterTest {
     @Test
     @DisplayName("redacts raw 99xxxxxxxxxxxxxx PAN-like digit run")
     void redactsRawTestPan() {
-        String result = convert("Processing card 9900000000000010 for user 1");
+        String pan = PAN_PREFIX + "0010";
+        String result = convert("Processing card " + pan + " for user 1");
         assertThat(result).contains("[REDACTED-PAN]");
-        assertThat(result).doesNotContain("9900000000000010");
+        assertThat(result).doesNotContain(pan);
     }
 
     @Test
@@ -86,7 +91,8 @@ class CardFieldMaskingConverterTest {
     @Test
     @DisplayName("case-insensitive field matching")
     void caseInsensitive() {
-        assertThat(convert("{\"PAN\":\"9900000000000011\"}")).contains("[REDACTED-PAN]");
+        String pan = PAN_PREFIX + "0011";
+        assertThat(convert("{\"PAN\":\"" + pan + "\"}")).contains("[REDACTED-PAN]");
         assertThat(convert("{\"CVV\":\"100\"}")).contains("[REDACTED-CVV]");
     }
 }

@@ -15,6 +15,7 @@ import java.time.YearMonth;
  */
 record VaultCard(
         String     last4,
+        String     panHash,        // SHA-256 hex of PAN for exact seed matching without decryption
         String     encryptedPan,   // AES-256-GCM; decrypted only during tokenize validation
         String     cvvHash,        // BCrypt(cvv); original CVV discarded after tokenize
         String     expMonth,       // "MM"
@@ -28,5 +29,10 @@ record VaultCard(
         int yy = Integer.parseInt(expYear);
         YearMonth cardExpiry = YearMonth.of(2000 + yy, mm);
         return YearMonth.now().isAfter(cardExpiry);
+    }
+
+    @Override
+    public String toString() {
+        return "VaultCard[last4=" + last4 + ", expMonth=**, expYear=**, scenario=" + scenario + "]";
     }
 }
