@@ -176,6 +176,25 @@ abstract final class AppTestKeys {
   static Key payFromSource(String type, int id) => Key('pay_from_${type}_$id');
 
   // ---------------------------------------------------------------------------
+  // Pay Hub (pay_*)
+  // ---------------------------------------------------------------------------
+  static const Key paySearch = Key('pay_search');
+  static const Key paySend = Key('pay_send');
+  static const Key payQr = Key('pay_qr');
+  static const Key payBills = Key('pay_bills');
+  static const Key payScheduled = Key('pay_scheduled');
+  static const Key paySplit = Key('pay_split');
+  static const Key payRequest = Key('pay_request');
+  static const Key payBetween = Key('pay_between');
+  static const Key paySeeAll = Key('pay_see_all');
+  static const Key payRecentPayments = Key('pay_recent_payments');
+  static const Key payRecentEmpty = Key('pay_recent_empty');
+  static const Key payRecentError = Key('pay_recent_error');
+  static const Key payFundingSourceSelector = Key('pay_funding_source_selector');
+  static const Key comingSoonSheet = Key('coming_soon_sheet');
+  static const Key comingSoonClose = Key('coming_soon_close');
+
+  // ---------------------------------------------------------------------------
   // Tiles (tile_*)
   // ---------------------------------------------------------------------------
   static const Key tilePayByPhone = Key('tile_pay_by_phone');

@@ -135,16 +135,38 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   }
 
   void _populateFromResolvedQr(dynamic qr) {
-    _phoneController.text = qr.maskedPhone ?? '';
-    if (qr.amount != null && qr.amount > 0) {
+    if (qr is String) {
+      _phoneController.text = qr;
+      _onPhoneChanged(qr);
+      return;
+    }
+    if (qr is TransferModel) {
+      final phone = qr.receiverPhone ?? '';
+      if (phone.isNotEmpty) {
+        _phoneController.text = phone;
+        _onPhoneChanged(phone);
+      }
+      return;
+    }
+    if (qr is LookupResultModel) {
+      _lookupResult = qr;
+      final eligible = qr.accounts ?? [];
+      if (eligible.isNotEmpty) {
+        _selectedPayeeAccount = eligible.firstWhere((a) => a.isDefault, orElse: () => eligible.first);
+      }
+      _currentStep = 1;
+      return;
+    }
+    _phoneController.text = qr?.maskedPhone ?? '';
+    if (qr?.amount != null && qr.amount > 0) {
       _amountController.text = qr.amount.toStringAsFixed(2);
     }
-    if (qr.note != null) {
+    if (qr?.note != null) {
       _noteController.text = qr.note;
     }
     _lookupResult = LookupResultModel(
       resultType: 'FOUND',
-      displayName: qr.recipientDisplayName ?? 'QR Recipient',
+      displayName: qr?.recipientDisplayName ?? 'QR Recipient',
       verificationStatus: 'VERIFIED',
       accounts: const [
         EligibleAccountModel(
