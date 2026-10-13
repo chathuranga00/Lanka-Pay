@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/gradient_header_scaffold.dart';
 import '../../../core/widgets/simulated_banner.dart';
+import '../../send/domain/transfer_models.dart';
 import '../data/history_service.dart';
 
 class ReceiptScreen extends StatelessWidget {
@@ -166,6 +167,15 @@ Digital Signature: ${receipt.digitalSignature ?? 'N/A'}
                         _buildReceiptRow('Sender Phone', receipt.sender?.maskedPhone ?? 'N/A', isDark),
                         Divider(height: 20, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
                         _buildReceiptRow('Bank Tx Ref', receipt.bankTxRef ?? 'N/A', isDark, isMonospace: true),
+                        Divider(height: 20, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
+                        _buildReceiptRow(
+                          'Payment Method',
+                          receipt.paymentMethod ??
+                              (receipt.fundingType == FundingType.card
+                                  ? 'Paid with card •••• ${receipt.cardLast4 ?? '1234'}'
+                                  : 'Paid with bank account'),
+                          isDark,
+                        ),
                         Divider(height: 20, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
                         _buildReceiptRow('Transfer Reference', receipt.reference, isDark, isMonospace: true),
                         if (receipt.digitalSignature != null) ...[

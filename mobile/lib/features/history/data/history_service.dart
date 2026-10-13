@@ -43,6 +43,11 @@ class ReceiptModel {
   final String? completedAt;
   final bool simulated;
   final String? digitalSignature;
+  final FundingType? fundingType;
+  final int? cardId;
+  final String? cardLast4;
+  final String? cardKind;
+  final String? paymentMethod;
 
   const ReceiptModel({
     required this.receiptNumber,
@@ -61,6 +66,11 @@ class ReceiptModel {
     this.completedAt,
     this.simulated = true,
     this.digitalSignature,
+    this.fundingType,
+    this.cardId,
+    this.cardLast4,
+    this.cardKind,
+    this.paymentMethod,
   });
 
   factory ReceiptModel.fromJson(Map<String, dynamic> json) {
@@ -87,6 +97,11 @@ class ReceiptModel {
       completedAt: json['completedAt'] as String?,
       simulated: json['simulated'] as bool? ?? true,
       digitalSignature: json['digitalSignature'] as String?,
+      fundingType: json['fundingType'] != null ? FundingType.fromString(json['fundingType'] as String?) : null,
+      cardId: json['cardId'] is int ? json['cardId'] as int : int.tryParse(json['cardId']?.toString() ?? ''),
+      cardLast4: json['cardLast4'] as String?,
+      cardKind: json['cardKind']?.toString(),
+      paymentMethod: json['paymentMethod'] as String?,
     );
   }
 }
@@ -99,6 +114,7 @@ class HistoryFilter {
   final double? maxAmount;
   final DateTime? fromDate;
   final DateTime? toDate;
+  final String? fundingType; // ALL, ACCOUNT, CARD
 
   const HistoryFilter({
     this.direction,
@@ -108,6 +124,7 @@ class HistoryFilter {
     this.maxAmount,
     this.fromDate,
     this.toDate,
+    this.fundingType,
   });
 
   HistoryFilter copyWith({
@@ -118,9 +135,11 @@ class HistoryFilter {
     double? maxAmount,
     DateTime? fromDate,
     DateTime? toDate,
+    String? fundingType,
     bool clearDirection = false,
     bool clearStatus = false,
     bool clearBank = false,
+    bool clearFundingType = false,
   }) {
     return HistoryFilter(
       direction: clearDirection ? null : (direction ?? this.direction),
@@ -130,6 +149,7 @@ class HistoryFilter {
       maxAmount: maxAmount ?? this.maxAmount,
       fromDate: fromDate ?? this.fromDate,
       toDate: toDate ?? this.toDate,
+      fundingType: clearFundingType ? null : (fundingType ?? this.fundingType),
     );
   }
 }
@@ -181,9 +201,23 @@ class HistoryService {
       items = data;
     }
 
-    return items
+    var list = items
         .map((e) => TransferModel.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
+
+    if (filter != null && filter.fundingType != null && filter.fundingType != 'ALL') {
+      final target = filter.fundingType!.toUpperCase();
+      list = list.where((t) {
+        if (target == 'CARD') {
+          return t.fundingType == FundingType.card;
+        } else if (target == 'ACCOUNT') {
+          return t.fundingType == null || t.fundingType == FundingType.account;
+        }
+        return true;
+      }).toList();
+    }
+
+    return list;
   }
 
   Future<ReceiptModel> getReceipt(int transferId) async {

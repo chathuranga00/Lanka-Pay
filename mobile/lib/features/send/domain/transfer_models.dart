@@ -54,6 +54,40 @@ class EligibleAccountModel {
   }
 }
 
+enum FundingType {
+  account,
+  card;
+
+  static FundingType fromString(String? type) {
+    if (type?.toUpperCase() == 'CARD') return FundingType.card;
+    return FundingType.account;
+  }
+
+  String toBackendString() => this == FundingType.card ? 'CARD' : 'ACCOUNT';
+}
+
+class FundingSourceModel {
+  final FundingType type;
+  final int id;
+
+  const FundingSourceModel({
+    required this.type,
+    required this.id,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'type': type.toBackendString(),
+    'id': id,
+  };
+
+  factory FundingSourceModel.fromJson(Map<String, dynamic> json) {
+    return FundingSourceModel(
+      type: FundingType.fromString(json['type'] as String?),
+      id: json['id'] is int ? json['id'] as int : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+    );
+  }
+}
+
 class QuoteModel {
   final String quoteReference;
   final int? payeeId;
@@ -65,6 +99,9 @@ class QuoteModel {
   final String currency;
   final String? expiresAt;
   final bool simulated;
+  final String? feeLabel;
+  final double? remainingDailyLimit;
+  final FundingSourceModel? fundingSource;
 
   const QuoteModel({
     required this.quoteReference,
@@ -77,9 +114,17 @@ class QuoteModel {
     this.currency = 'LKR',
     this.expiresAt,
     this.simulated = true,
+    this.feeLabel,
+    this.remainingDailyLimit,
+    this.fundingSource,
   });
 
   factory QuoteModel.fromJson(Map<String, dynamic> json) {
+    FundingSourceModel? fs;
+    if (json['fundingSource'] is Map) {
+      fs = FundingSourceModel.fromJson(Map<String, dynamic>.from(json['fundingSource'] as Map));
+    }
+
     return QuoteModel(
       quoteReference: json['quoteReference'] as String? ?? '',
       payeeId: json['payeeId'] as int?,
@@ -91,6 +136,9 @@ class QuoteModel {
       currency: json['currency'] as String? ?? 'LKR',
       expiresAt: json['expiresAt'] as String?,
       simulated: json['simulated'] as bool? ?? true,
+      feeLabel: json['feeLabel'] as String?,
+      remainingDailyLimit: (json['remainingDailyLimit'] as num?)?.toDouble(),
+      fundingSource: fs,
     );
   }
 }
@@ -98,6 +146,7 @@ class QuoteModel {
 enum TransferStatusType {
   quoted,
   pending,
+  challengeRequired,
   processing,
   completed,
   failed,
@@ -112,6 +161,8 @@ enum TransferStatusType {
         return TransferStatusType.quoted;
       case 'PENDING':
         return TransferStatusType.pending;
+      case 'CHALLENGE_REQUIRED':
+        return TransferStatusType.challengeRequired;
       case 'PROCESSING':
         return TransferStatusType.processing;
       case 'COMPLETED':
@@ -130,6 +181,7 @@ enum TransferStatusType {
   }
 
   bool get isConfirmedSuccess => this == TransferStatusType.completed;
+  bool get isChallengeRequired => this == TransferStatusType.challengeRequired;
   bool get isPendingOrReconciling =>
       this == TransferStatusType.pending ||
       this == TransferStatusType.processing ||
@@ -159,6 +211,14 @@ class TransferModel {
   final String? updatedAt;
   final int? senderAccountId;
   final int? receiverAccountId;
+  final FundingType? fundingType;
+  final int? cardId;
+  final String? cardLast4;
+  final String? cardKind;
+  final double fee;
+  final double totalAmount;
+  final String? paymentMethod;
+  final String? result;
 
   const TransferModel({
     required this.transferId,
@@ -180,16 +240,28 @@ class TransferModel {
     this.updatedAt,
     this.senderAccountId,
     this.receiverAccountId,
+    this.fundingType,
+    this.cardId,
+    this.cardLast4,
+    this.cardKind,
+    this.fee = 0.0,
+    this.totalAmount = 0.0,
+    this.paymentMethod,
+    this.result,
   });
 
   factory TransferModel.fromJson(Map<String, dynamic> json) {
+    final amt = (json['amount'] as num?)?.toDouble() ?? 0.0;
+    final feeVal = (json['fee'] as num?)?.toDouble() ?? 0.0;
+    final totalVal = (json['totalAmount'] as num?)?.toDouble() ?? (amt + feeVal);
+
     return TransferModel(
       transferId: json['transferId'] is int
           ? json['transferId'] as int
           : int.tryParse(json['transferId']?.toString() ?? '0') ?? 0,
       reference: json['reference'] as String? ?? '',
       status: TransferStatusType.fromString(json['status'] as String?),
-      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      amount: amt,
       currency: json['currency'] as String? ?? 'LKR',
       senderId: json['senderId'] as int?,
       senderPhone: json['senderPhone'] as String?,
@@ -209,6 +281,14 @@ class TransferModel {
       receiverAccountId: json['receiverAccountId'] is int
           ? json['receiverAccountId'] as int
           : int.tryParse(json['receiverAccountId']?.toString() ?? ''),
+      fundingType: json['fundingType'] != null ? FundingType.fromString(json['fundingType'] as String?) : null,
+      cardId: json['cardId'] is int ? json['cardId'] as int : int.tryParse(json['cardId']?.toString() ?? ''),
+      cardLast4: json['cardLast4'] as String?,
+      cardKind: json['cardKind']?.toString(),
+      fee: feeVal,
+      totalAmount: totalVal,
+      paymentMethod: json['paymentMethod'] as String?,
+      result: json['result'] as String?,
     );
   }
 }

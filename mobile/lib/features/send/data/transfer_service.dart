@@ -31,6 +31,7 @@ class TransferService {
     String? payeePhone,
     required double amount,
     String currency = 'LKR',
+    FundingSourceModel? fundingSource,
   }) async {
     final payload = <String, dynamic>{
       'amount': amount,
@@ -38,6 +39,7 @@ class TransferService {
     };
     if (payeeId != null) payload['payeeId'] = payeeId;
     if (payeePhone != null) payload['payeePhone'] = payeePhone;
+    if (fundingSource != null) payload['fundingSource'] = fundingSource.toJson();
 
     final response = await _dio.post(
       '/transfers/quote',
@@ -56,6 +58,7 @@ class TransferService {
     String currency = 'LKR',
     String? quoteReference,
     String? note,
+    FundingSourceModel? fundingSource,
   }) async {
     final payload = <String, dynamic>{
       'amount': amount,
@@ -66,6 +69,7 @@ class TransferService {
     if (payeePhone != null) payload['payeePhone'] = payeePhone;
     if (quoteReference != null) payload['quoteReference'] = quoteReference;
     if (note != null && note.isNotEmpty) payload['note'] = note;
+    if (fundingSource != null) payload['fundingSource'] = fundingSource.toJson();
 
     final response = await _dio.post(
       '/transfers',
@@ -76,6 +80,18 @@ class TransferService {
         },
       ),
       data: payload,
+    );
+    return TransferModel.fromJson(Map<String, dynamic>.from(response.data as Map));
+  }
+
+  /// Submit OTP challenge for card transfer
+  Future<TransferModel> challengeTransfer({
+    required int transferId,
+    required String otp,
+  }) async {
+    final response = await _dio.post(
+      '/transfers/$transferId/challenge',
+      data: {'otp': otp},
     );
     return TransferModel.fromJson(Map<String, dynamic>.from(response.data as Map));
   }

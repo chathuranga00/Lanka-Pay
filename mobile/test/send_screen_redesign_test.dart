@@ -48,6 +48,7 @@ class MockTransferService implements TransferService {
     String? payeePhone,
     required double amount,
     String currency = 'LKR',
+    FundingSourceModel? fundingSource,
   }) async {
     if (quoteResult != null) return quoteResult!;
     return QuoteModel(
@@ -71,6 +72,7 @@ class MockTransferService implements TransferService {
     String currency = 'LKR',
     String? quoteReference,
     String? note,
+    FundingSourceModel? fundingSource,
   }) async {
     lastIdempotencyKey = idempotencyKey;
     lastPin = pin;
@@ -84,6 +86,22 @@ class MockTransferService implements TransferService {
       receiverDisplayName: 'Kamal Perera',
       bankTxRef: 'BANK-CONFIRMED-200',
       note: note,
+    );
+  }
+
+  @override
+  Future<TransferModel> challengeTransfer({
+    required int transferId,
+    required String otp,
+  }) async {
+    if (initiateResult != null) return initiateResult!;
+    return TransferModel(
+      transferId: transferId,
+      reference: 'TX-REF-CHALLENGED-$transferId',
+      status: TransferStatusType.completed,
+      amount: 100.0,
+      currency: 'LKR',
+      receiverDisplayName: 'Kamal Perera',
     );
   }
 

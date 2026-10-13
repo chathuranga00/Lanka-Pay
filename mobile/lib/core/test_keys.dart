@@ -133,6 +133,21 @@ abstract final class AppTestKeys {
   static Key recipient(int id) => Key('recipient_$id');
 
   // ---------------------------------------------------------------------------
+  // Card Funding (pay_from_*, card_challenge_*)
+  // ---------------------------------------------------------------------------
+  static const Key payFromSelector = Key('pay_from_selector');
+  static const Key cardChallengeOtp = Key('card_challenge_otp');
+  static const Key inputChallengeOtp = Key('input_challenge_otp');
+  static const Key btnSubmitChallengeOtp = Key('btn_submit_challenge_otp');
+  static const Key resultSuggestedNextStep = Key('result_suggested_next_step');
+  static const Key confirmPaymentMethod = Key('confirm_payment_method');
+  static const Key confirmReference = Key('confirm_reference');
+  static const Key filterFundingAll = Key('filter_funding_all');
+  static const Key filterFundingAccount = Key('filter_funding_account');
+  static const Key filterFundingCard = Key('filter_funding_card');
+  static Key payFromSource(String type, int id) => Key('pay_from_${type}_$id');
+
+  // ---------------------------------------------------------------------------
   // Tiles (tile_*)
   // ---------------------------------------------------------------------------
   static const Key tilePayByPhone = Key('tile_pay_by_phone');

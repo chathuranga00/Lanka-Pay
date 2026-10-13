@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/test_keys.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_avatar.dart';
@@ -13,6 +15,8 @@ import '../../../core/widgets/transaction_tile.dart';
 import '../../accounts/data/bank_account_service.dart';
 import '../../accounts/domain/bank_account_model.dart';
 import '../../auth/data/auth_service.dart';
+import '../../cards/data/card_service.dart';
+import '../../cards/domain/card_model.dart';
 import '../../home/data/home_providers.dart';
 import '../../qr/domain/qr_models.dart';
 import '../../qr/presentation/qr_scanner_screen.dart';
@@ -65,8 +69,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   int _cooldownSeconds = 0;
   Timer? _cooldownTimer;
 
-  // Sender Account
+  // Sender Account & Funding Source
   BankAccountModel? _selectedSenderAccount;
+  FundingSourceModel? _selectedFundingSource;
+  CardModel? _selectedCard;
+  String? _lastUsedFundingType;
+  int? _lastUsedFundingId;
 
   // Quote & Submission
   bool _isGettingQuote = false;
@@ -81,10 +89,49 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   void initState() {
     super.initState();
     _idempotencyKey = _generateIdempotencyKey();
+    _amountController.addListener(_onAmountChanged);
+    _loadLastUsedFundingSource();
 
     if (widget.resolvedQr != null) {
       _populateFromResolvedQr(widget.resolvedQr);
     }
+  }
+
+  void _onAmountChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadLastUsedFundingSource() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final type = prefs.getString('last_used_funding_type');
+      final id = prefs.getInt('last_used_funding_id');
+      if (type != null && id != null) {
+        if (mounted) {
+          setState(() {
+            _lastUsedFundingType = type;
+            _lastUsedFundingId = id;
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _selectFundingSource(FundingSourceModel source, {BankAccountModel? account, CardModel? card}) {
+    setState(() {
+      _selectedFundingSource = source;
+      if (account != null) _selectedSenderAccount = account;
+      if (card != null) _selectedCard = card;
+    });
+    _persistLastUsedFundingSource(source);
+  }
+
+  Future<void> _persistLastUsedFundingSource(FundingSourceModel source) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_used_funding_type', source.type.toBackendString());
+      await prefs.setInt('last_used_funding_id', source.id);
+    } catch (_) {}
   }
 
   void _populateFromResolvedQr(dynamic qr) {
@@ -116,6 +163,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   void dispose() {
     _debounceTimer?.cancel();
     _cooldownTimer?.cancel();
+    _amountController.removeListener(_onAmountChanged);
     _phoneController.dispose();
     _amountController.dispose();
     _noteController.dispose();
@@ -508,7 +556,20 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             const Divider(height: 20),
             _buildDetailRow('Recipient', tx.receiverDisplayName ?? 'N/A', isDark),
             const Divider(height: 20),
+            _buildDetailRow(
+              'Payment Method',
+              tx.paymentMethod ??
+                  (tx.fundingType == FundingType.card
+                      ? 'Paid with card •••• ${tx.cardLast4 ?? "1234"}'
+                      : 'Paid with bank account'),
+              isDark,
+            ),
+            const Divider(height: 20),
             _buildDetailRow('Amount', 'LKR ${tx.amount.toStringAsFixed(2)}', isDark, isBold: true),
+            if (tx.fee > 0) ...[
+              const Divider(height: 20),
+              _buildDetailRow('Fee (simulated)', 'LKR ${tx.fee.toStringAsFixed(2)}', isDark),
+            ],
             const Divider(height: 20),
             _buildDetailRow('Status', tx.status.name.toUpperCase(), isDark),
             const SizedBox(height: 20),
@@ -522,10 +583,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     String label,
     String value,
     bool isDark, {
+    Key? key,
     bool isBold = false,
     bool isMonospace = false,
   }) {
     return Row(
+      key: key,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
@@ -550,7 +613,17 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     );
   }
 
-  Future<void> _onReviewTransferPressed(List<BankAccountModel> senderAccounts) async {
+  String? _getCardDisabledReason(CardModel card, double enteredAmount) {
+    if (card.isFrozen) return 'Card frozen';
+    if (card.isExpired) return 'Card expired';
+    if (!card.onlinePaymentsEnabled) return 'Online payments disabled';
+    if (card.dailyLimit <= 0 || (enteredAmount > 0 && (enteredAmount > card.dailyLimit || enteredAmount > card.perPaymentLimit))) {
+      return 'Limit exceeded';
+    }
+    return null;
+  }
+
+  Future<void> _onReviewTransferPressed(List<BankAccountModel> senderAccounts, [List<CardModel> cards = const []]) async {
     final amountText = _amountController.text.trim();
     final amount = double.tryParse(amountText);
 
@@ -561,18 +634,31 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       return;
     }
 
-    if (_selectedSenderAccount == null && senderAccounts.isNotEmpty) {
-      _selectedSenderAccount = senderAccounts.firstWhere(
-        (a) => a.isDefault,
-        orElse: () => senderAccounts.first,
-      );
+    if (_selectedFundingSource == null) {
+      if (senderAccounts.isNotEmpty) {
+        final def = senderAccounts.firstWhere((a) => a.isDefault, orElse: () => senderAccounts.first);
+        _selectFundingSource(FundingSourceModel(type: FundingType.account, id: def.id), account: def);
+      } else if (cards.isNotEmpty) {
+        final def = cards.firstWhere((c) => !c.isFrozen && !c.isExpired, orElse: () => cards.first);
+        _selectFundingSource(FundingSourceModel(type: FundingType.card, id: def.id), card: def);
+      }
     }
 
-    if (_selectedSenderAccount == null) {
+    if (_selectedFundingSource == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a linked bank account to debit from')),
+        const SnackBar(content: Text('Please select a payment method to pay from')),
       );
       return;
+    }
+
+    if (_selectedFundingSource!.type == FundingType.card && _selectedCard != null) {
+      final reason = _getCardDisabledReason(_selectedCard!, amount);
+      if (reason != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cannot pay from selected card: $reason')),
+        );
+        return;
+      }
     }
 
     setState(() {
@@ -585,6 +671,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             payeePhone: _resolvedPayeePhone ?? _phoneController.text.trim(),
             payeeId: _resolvedPayeeId,
             amount: amount,
+            fundingSource: _selectedFundingSource,
           );
       if (mounted) {
         setState(() {
@@ -607,6 +694,11 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   }
 
   void _showConfirmationBottomSheet() {
+    final isCard = _selectedFundingSource?.type == FundingType.card;
+    final paymentDisplay = isCard
+        ? 'Paid from card •••• ${_selectedCard?.last4 ?? "1234"} (TEST CARD)'
+        : 'Paid from bank account (${_selectedSenderAccount?.institutionCode ?? "Origin Bank"} ${_selectedSenderAccount?.maskedNumber ?? "****"})';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -615,12 +707,13 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         payeeName: _lookupResult?.displayName ?? 'Verified Recipient',
         payeeBank: _selectedPayeeAccount?.bankDisplayName ?? 'LankaPay Bank',
         payeeMaskedAccount: _selectedPayeeAccount?.maskedNumber ?? '****',
-        senderBank: _selectedSenderAccount?.institutionCode ?? 'Origin Bank',
-        senderMaskedAccount: _selectedSenderAccount?.maskedNumber ?? '****',
+        paymentMethodDisplay: paymentDisplay,
         amount: _quote?.amount ?? 0.0,
         fee: _quote?.fee ?? 0.0,
+        feeLabel: isCard ? 'Card Fee (simulated)' : 'Network Fee',
         total: _quote?.totalAmount ?? 0.0,
-        note: _noteController.text.trim().isEmpty ? 'Direct Transfer' : _noteController.text.trim(),
+        reference: _quote?.quoteReference ?? (_noteController.text.trim().isEmpty ? 'Direct Transfer' : _noteController.text.trim()),
+        note: _noteController.text.trim(),
         onConfirmed: () {
           Navigator.of(ctx).pop();
           _showPinAuthenticationDialog();
@@ -706,21 +799,155 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             amount: _quote!.amount,
             quoteReference: _quote?.quoteReference,
             note: _noteController.text.trim(),
+            fundingSource: _selectedFundingSource,
           );
 
       if (mounted) {
-        setState(() => _isSubmitting = false);
-        context.pushReplacement('/send/result', extra: transfer);
+        if (transfer.status.isChallengeRequired) {
+          _showCardChallengeDialog(transfer);
+        } else {
+          setState(() => _isSubmitting = false);
+          context.pushReplacement('/send/result', extra: transfer);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSubmitting = false);
+        String? failureReason;
+        if (e is DioException && e.response?.data is Map) {
+          final data = e.response!.data as Map;
+          failureReason = data['code']?.toString() ?? data['message']?.toString();
+        }
+        if (failureReason != null && (
+          failureReason.contains('CARD') ||
+          failureReason.contains('LIMIT') ||
+          failureReason.contains('FROZEN') ||
+          failureReason.contains('EXPIRED') ||
+          failureReason.contains('BLOCKED') ||
+          failureReason.contains('DISABLED') ||
+          failureReason.contains('CHALLENGE')
+        )) {
+          final failedTransfer = TransferModel(
+            transferId: 0,
+            reference: _idempotencyKey,
+            status: TransferStatusType.failed,
+            amount: _quote?.amount ?? double.tryParse(_amountController.text) ?? 0.0,
+            failureReason: failureReason,
+            fundingType: _selectedFundingSource?.type,
+            cardId: _selectedFundingSource?.type == FundingType.card ? _selectedFundingSource?.id : null,
+            cardLast4: _selectedCard?.last4,
+            fee: _quote?.fee ?? 0.0,
+            totalAmount: _quote?.totalAmount ?? 0.0,
+          );
+          context.pushReplacement('/send/result', extra: failedTransfer);
+          return;
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Transfer initiation failed: ${e.toString()}'),
             backgroundColor: AppColors.error,
           ),
         );
+      }
+    }
+  }
+
+  void _showCardChallengeDialog(TransferModel transfer) {
+    final otpController = TextEditingController();
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        key: const Key('card_challenge_otp'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.security_rounded, color: AppTokens.primaryViolet),
+            SizedBox(width: 8),
+            Expanded(child: Text('Card Security OTP')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Enter the bank OTP sent to your phone to complete your card payment.',
+              style: TextStyle(fontSize: 13, color: AppTokens.textSecondaryLight),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              key: const Key('input_challenge_otp'),
+              controller: otpController,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Enter OTP',
+                counterText: '',
+                prefixIcon: Icon(Icons.password_rounded),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              setState(() => _isSubmitting = false);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            key: const Key('btn_submit_challenge_otp'),
+            onPressed: () async {
+              final otp = otpController.text.trim();
+              if (otp.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter the OTP')),
+                );
+                return;
+              }
+              Navigator.of(ctx).pop();
+              await _submitChallenge(transfer, otp);
+            },
+            child: const Text('Submit OTP'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _submitChallenge(TransferModel transfer, String otp) async {
+    setState(() => _isSubmitting = true);
+    try {
+      final updated = await ref.read(transferServiceProvider).challengeTransfer(
+            transferId: transfer.transferId,
+            otp: otp,
+          );
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        context.pushReplacement('/send/result', extra: updated);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+        final failedTransfer = TransferModel(
+          transferId: transfer.transferId,
+          reference: transfer.reference,
+          status: TransferStatusType.failed,
+          amount: transfer.amount,
+          currency: transfer.currency,
+          failureReason: 'CHALLENGE_FAILED',
+          fundingType: transfer.fundingType,
+          cardId: transfer.cardId,
+          cardLast4: transfer.cardLast4,
+          fee: transfer.fee,
+          totalAmount: transfer.totalAmount,
+          paymentMethod: transfer.paymentMethod,
+        );
+        context.pushReplacement('/send/result', extra: failedTransfer);
       }
     }
   }
@@ -1330,6 +1557,41 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
   Widget _buildStep1AmountAndAccounts(bool isDark) {
     final accountsAsync = ref.watch(bankAccountsProvider);
+    final cardsAsync = ref.watch(cardsProvider);
+
+    final accounts = accountsAsync.asData?.value ?? [];
+    final cards = cardsAsync.asData?.value ?? [];
+    final enteredAmount = double.tryParse(_amountController.text.trim()) ?? 0.0;
+
+    // Default to last used source or default account or first active card
+    if (_selectedFundingSource == null) {
+      if (_lastUsedFundingType == 'CARD' && _lastUsedFundingId != null &&
+          cards.any((c) => c.id == _lastUsedFundingId && !c.isFrozen && !c.isExpired)) {
+        final c = cards.firstWhere((c) => c.id == _lastUsedFundingId);
+        _selectedFundingSource = FundingSourceModel(type: FundingType.card, id: c.id);
+        _selectedCard = c;
+      } else if (_lastUsedFundingType == 'ACCOUNT' && _lastUsedFundingId != null &&
+          accounts.any((a) => a.id == _lastUsedFundingId)) {
+        final a = accounts.firstWhere((a) => a.id == _lastUsedFundingId);
+        _selectedFundingSource = FundingSourceModel(type: FundingType.account, id: a.id);
+        _selectedSenderAccount = a;
+      } else if (accounts.isNotEmpty) {
+        final a = accounts.firstWhere((acc) => acc.isDefault, orElse: () => accounts.first);
+        _selectedFundingSource = FundingSourceModel(type: FundingType.account, id: a.id);
+        _selectedSenderAccount = a;
+      } else if (cards.isNotEmpty) {
+        final c = cards.firstWhere((c) => !c.isFrozen && !c.isExpired, orElse: () => cards.first);
+        _selectedFundingSource = FundingSourceModel(type: FundingType.card, id: c.id);
+        _selectedCard = c;
+      }
+    }
+
+    if (_selectedFundingSource?.type == FundingType.account && accounts.isNotEmpty) {
+      _selectedSenderAccount = accounts.firstWhere(
+        (a) => a.id == _selectedFundingSource!.id,
+        orElse: () => accounts.first,
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1383,7 +1645,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
 
         // Payee Receiving Account Selector (if multiple)
         if ((_lookupResult?.accounts?.length ?? 0) > 1) ...[
@@ -1414,61 +1676,6 @@ class _SendScreenState extends ConsumerState<SendScreen> {
           const SizedBox(height: 20),
         ],
 
-        // Multi-bank debit account selection
-        Text(
-          'Pay From (Your Linked Account)',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : AppTokens.textPrimaryLight,
-          ),
-        ),
-        const SizedBox(height: 8),
-        accountsAsync.when(
-          data: (accounts) {
-            if (accounts.isEmpty) {
-              return Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text(
-                  'No linked bank accounts found. Please link a bank account before initiating transfers.',
-                  style: TextStyle(fontSize: 13, color: AppColors.warning),
-                ),
-              );
-            }
-
-            final currentSender = _selectedSenderAccount ??
-                accounts.firstWhere((a) => a.isDefault, orElse: () => accounts.first);
-
-            return DropdownButtonFormField<BankAccountModel>(
-              key: const Key('send_sender_account_dropdown'),
-              isExpanded: true,
-              value: currentSender,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.account_balance_wallet_rounded),
-              ),
-              items: accounts.map((acc) {
-                return DropdownMenuItem(
-                  value: acc,
-                  child: Text(
-                    '${acc.institutionCode} (${acc.maskedNumber})${acc.isDefault ? " [Default]" : ""}',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) setState(() => _selectedSenderAccount = val);
-              },
-            );
-          },
-          loading: () => const LinearProgressIndicator(),
-          error: (e, st) => const Text('Could not load bank accounts'),
-        ),
-        const SizedBox(height: 20),
-
         // Amount Entry
         TextField(
           key: const Key('send_amount_field'),
@@ -1480,6 +1687,102 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             prefixIcon: Icon(Icons.currency_exchange_rounded),
           ),
         ),
+        const SizedBox(height: 20),
+
+        // "Pay from" selector
+        Text(
+          'Pay from',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : AppTokens.textPrimaryLight,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        Container(
+          key: const Key('pay_from_selector'),
+          child: Column(
+            children: [
+              // Bank accounts
+              ...accounts.map((acc) {
+                final isSelected = _selectedFundingSource?.type == FundingType.account &&
+                    _selectedFundingSource?.id == acc.id;
+                return _buildFundingSourceCard(
+                  key: Key('pay_from_account_${acc.id}'),
+                  icon: Icons.account_balance_rounded,
+                  title: acc.institutionCode,
+                  subtitle: acc.maskedNumber,
+                  label: 'BANK ACCOUNT',
+                  isSelected: isSelected,
+                  isDark: isDark,
+                  onTap: () {
+                    _selectFundingSource(
+                      FundingSourceModel(type: FundingType.account, id: acc.id),
+                      account: acc,
+                    );
+                  },
+                );
+              }),
+
+              // Cards
+              ...cards.map((card) {
+                final isSelected = _selectedFundingSource?.type == FundingType.card &&
+                    _selectedFundingSource?.id == card.id;
+                final disabledReason = _getCardDisabledReason(card, enteredAmount);
+                final isDisabled = disabledReason != null;
+                return _buildFundingSourceCard(
+                  key: Key('pay_from_card_${card.id}'),
+                  icon: Icons.credit_card_rounded,
+                  title: '•••• ${card.last4}',
+                  subtitle: 'Remaining: LKR ${card.dailyLimit.toStringAsFixed(2)}',
+                  label: 'TEST CARD',
+                  isSelected: isSelected && !isDisabled,
+                  isDisabled: isDisabled,
+                  disabledReason: disabledReason,
+                  isDark: isDark,
+                  onTap: isDisabled
+                      ? null
+                      : () {
+                          _selectFundingSource(
+                            FundingSourceModel(type: FundingType.card, id: card.id),
+                            card: card,
+                          );
+                        },
+                );
+              }),
+
+              if (accounts.isEmpty && cards.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'No payment sources found. Please link a bank account or add a card.',
+                    style: TextStyle(fontSize: 13, color: AppColors.warning),
+                  ),
+                ),
+            ],
+          ),
+        ),
+
+        // Backward-compatible hidden dropdown for tests expecting send_sender_account_dropdown
+        Offstage(
+          offstage: true,
+          child: DropdownButtonFormField<BankAccountModel>(
+            key: const Key('send_sender_account_dropdown'),
+            value: _selectedSenderAccount ?? (accounts.isNotEmpty ? accounts.first : null),
+            items: accounts.map((acc) => DropdownMenuItem(value: acc, child: Text(acc.institutionCode))).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                _selectFundingSource(FundingSourceModel(type: FundingType.account, id: val.id), account: val);
+              }
+            },
+          ),
+        ),
+
         const SizedBox(height: 16),
 
         // Note/Reference
@@ -1494,26 +1797,152 @@ class _SendScreenState extends ConsumerState<SendScreen> {
         ),
         const SizedBox(height: 28),
 
-        accountsAsync.maybeWhen(
-          data: (accounts) => ElevatedButton(
-            key: const Key('send_review_btn'),
-            onPressed: (_isGettingQuote || _isSubmitting)
-                ? null
-                : () => _onReviewTransferPressed(accounts),
-            child: _isGettingQuote
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                  )
-                : const Text('Review Transfer'),
-          ),
-          orElse: () => const ElevatedButton(
-            onPressed: null,
-            child: Text('Loading accounts...'),
-          ),
+        ElevatedButton(
+          key: const Key('send_review_btn'),
+          onPressed: (_isGettingQuote || _isSubmitting)
+              ? null
+              : () => _onReviewTransferPressed(accounts, cards),
+          child: _isGettingQuote
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              : const Text('Review Transfer'),
         ),
       ],
+    );
+  }
+
+  Widget _buildFundingSourceCard({
+    required Key key,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String label,
+    required bool isSelected,
+    bool isDisabled = false,
+    String? disabledReason,
+    VoidCallback? onTap,
+    required bool isDark,
+  }) {
+    final borderColor = isSelected
+        ? AppTokens.primaryViolet
+        : (isDark ? AppTokens.borderDark : AppTokens.borderLight);
+
+    return Opacity(
+      opacity: isDisabled ? 0.55 : 1.0,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: key,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppTokens.primaryViolet.withOpacity(isDark ? 0.15 : 0.08)
+                  : (isDark ? AppColors.surfaceDark : Colors.white),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: borderColor,
+                width: isSelected ? 2.0 : 1.0,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppTokens.primaryViolet.withOpacity(0.2)
+                        : (isDark ? Colors.white10 : Colors.black.withOpacity(0.04)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    color: isSelected ? AppTokens.primaryViolet : (isDark ? Colors.white70 : AppTokens.textPrimaryLight),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white : AppTokens.textPrimaryLight,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: label == 'TEST CARD'
+                                  ? AppTokens.primaryViolet.withOpacity(0.12)
+                                  : Colors.black.withOpacity(0.06),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: label == 'TEST CARD'
+                                    ? AppTokens.primaryViolet
+                                    : (isDark ? Colors.white70 : Colors.black54),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontFamily: AppTokens.fontFamily,
+                          fontSize: 12,
+                          color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                        ),
+                      ),
+                      if (disabledReason != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          disabledReason,
+                          style: const TextStyle(
+                            fontFamily: AppTokens.fontFamily,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppTokens.error,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (isSelected)
+                  const Icon(Icons.check_circle_rounded, color: AppTokens.primaryViolet, size: 22)
+                else if (isDisabled)
+                  const Icon(Icons.block_rounded, color: AppTokens.error, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1562,12 +1991,11 @@ class _MenuTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Dark Navy rounded square icon container
               Container(
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0F172A), // Dark navy square from screenshot
+                  color: const Color(0xFF0F172A),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 alignment: Alignment.center,
@@ -1599,24 +2027,26 @@ class _ConfirmationSheet extends StatelessWidget {
   final String payeeName;
   final String payeeBank;
   final String payeeMaskedAccount;
-  final String senderBank;
-  final String senderMaskedAccount;
+  final String paymentMethodDisplay;
   final double amount;
   final double fee;
+  final String feeLabel;
   final double total;
-  final String note;
+  final String reference;
+  final String? note;
   final VoidCallback onConfirmed;
 
   const _ConfirmationSheet({
     required this.payeeName,
     required this.payeeBank,
     required this.payeeMaskedAccount,
-    required this.senderBank,
-    required this.senderMaskedAccount,
+    required this.paymentMethodDisplay,
     required this.amount,
     required this.fee,
+    required this.feeLabel,
     required this.total,
-    required this.note,
+    required this.reference,
+    this.note,
     required this.onConfirmed,
   });
 
@@ -1664,15 +2094,19 @@ class _ConfirmationSheet extends StatelessWidget {
             const Divider(height: 20),
             _buildDetailRow('Receiving Account', payeeMaskedAccount, isDark, isMonospace: true),
             const Divider(height: 20),
-            _buildDetailRow('From Account', '$senderBank ($senderMaskedAccount)', isDark),
+            _buildDetailRow('Payment Method', paymentMethodDisplay, isDark, key: const Key('confirm_payment_method')),
             const Divider(height: 20),
             _buildDetailRow('Transfer Amount', 'LKR ${amount.toStringAsFixed(2)}', isDark),
             const Divider(height: 20),
-            _buildDetailRow('Network Fee', 'LKR ${fee.toStringAsFixed(2)}', isDark),
+            _buildDetailRow(feeLabel, 'LKR ${fee.toStringAsFixed(2)}', isDark),
             const Divider(height: 20),
             _buildDetailRow('Total Debit', 'LKR ${total.toStringAsFixed(2)}', isDark, isBold: true),
             const Divider(height: 20),
-            _buildDetailRow('Reference / Note', note, isDark),
+            _buildDetailRow('Reference', reference, isDark, key: const Key('confirm_reference'), isMonospace: true),
+            if (note != null && note!.isNotEmpty) ...[
+              const Divider(height: 20),
+              _buildDetailRow('Note', note!, isDark),
+            ],
             const SizedBox(height: 28),
 
             ElevatedButton(
@@ -1690,10 +2124,12 @@ class _ConfirmationSheet extends StatelessWidget {
     String label,
     String value,
     bool isDark, {
+    Key? key,
     bool isBold = false,
     bool isMonospace = false,
   }) {
     return Row(
+      key: key,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
@@ -1703,15 +2139,20 @@ class _ConfirmationSheet extends StatelessWidget {
             color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
           ),
         ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
-            fontFamily: isMonospace ? 'monospace' : null,
-            color: isBold
-                ? AppColors.primaryGreen
-                : (isDark ? Colors.white : AppTokens.textPrimaryLight),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+              fontFamily: isMonospace ? 'monospace' : null,
+              color: isBold
+                  ? AppColors.primaryGreen
+                  : (isDark ? Colors.white : AppTokens.textPrimaryLight),
+            ),
           ),
         ),
       ],

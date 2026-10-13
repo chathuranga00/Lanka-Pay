@@ -183,6 +183,7 @@ class FakeAllKeysTransferService implements TransferService {
     String? payeePhone,
     required double amount,
     String currency = 'LKR',
+    FundingSourceModel? fundingSource,
   }) async {
     return QuoteModel(
       quoteReference: 'QUO-KEYSTEST-123',
@@ -206,10 +207,25 @@ class FakeAllKeysTransferService implements TransferService {
     String currency = 'LKR',
     String? quoteReference,
     String? note,
+    FundingSourceModel? fundingSource,
   }) async {
     return const TransferModel(
       transferId: 999,
       reference: 'TX-KEYSTEST-999',
+      status: TransferStatusType.completed,
+      amount: 500.0,
+      receiverDisplayName: 'Kamal Perera',
+    );
+  }
+
+  @override
+  Future<TransferModel> challengeTransfer({
+    required int transferId,
+    required String otp,
+  }) async {
+    return const TransferModel(
+      transferId: 999,
+      reference: 'TX-KEYSTEST-CHALLENGED-999',
       status: TransferStatusType.completed,
       amount: 500.0,
       receiverDisplayName: 'Kamal Perera',

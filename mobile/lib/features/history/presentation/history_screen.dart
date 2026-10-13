@@ -58,6 +58,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     HapticFeedback.lightImpact();
     String? tempDirection = _filter.direction;
     String? tempStatus = _filter.status;
+    String? tempFundingType = _filter.fundingType;
     final minController = TextEditingController(
       text: _filter.minAmount != null ? _filter.minAmount.toString() : '',
     );
@@ -107,6 +108,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         setSheetState(() {
                           tempDirection = null;
                           tempStatus = null;
+                          tempFundingType = null;
                           minController.clear();
                           maxController.clear();
                         });
@@ -119,6 +121,47 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Funding Type chips
+                const Text(
+                  'FUNDING TYPE',
+                  style: TextStyle(
+                    fontFamily: AppTokens.fontFamily,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                    color: Colors.grey,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    _buildFilterChip(
+                      'All',
+                      tempFundingType == null || tempFundingType == 'ALL',
+                      () => setSheetState(() => tempFundingType = 'ALL'),
+                      isDark,
+                      key: const Key('filter_funding_all'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      'Bank Account',
+                      tempFundingType == 'ACCOUNT',
+                      () => setSheetState(() => tempFundingType = 'ACCOUNT'),
+                      isDark,
+                      key: const Key('filter_funding_account'),
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      'Card',
+                      tempFundingType == 'CARD',
+                      () => setSheetState(() => tempFundingType = 'CARD'),
+                      isDark,
+                      key: const Key('filter_funding_card'),
                     ),
                   ],
                 ),
@@ -257,6 +300,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         _filter = HistoryFilter(
                           direction: tempDirection,
                           status: tempStatus,
+                          fundingType: tempFundingType,
                           minAmount: min,
                           maxAmount: max,
                         );
@@ -328,11 +372,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           reference: transfer.reference,
           status: transfer.status.name.toUpperCase(),
           amount: transfer.amount,
-          totalDebited: transfer.amount,
+          fee: transfer.fee,
+          totalDebited: transfer.totalAmount > 0 ? transfer.totalAmount : transfer.amount,
           receiver: ReceiptPartyModel(displayName: transfer.receiverDisplayName ?? 'Payee'),
           note: transfer.note,
           createdAt: transfer.createdAt,
           simulated: transfer.simulated,
+          fundingType: transfer.fundingType,
+          cardId: transfer.cardId,
+          cardLast4: transfer.cardLast4,
+          cardKind: transfer.cardKind,
+          paymentMethod: transfer.paymentMethod,
         );
         Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => ReceiptScreen(receipt: fallback)),
@@ -428,13 +478,19 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                     itemBuilder: (context, index) {
                                       final item = _transfers[index];
                                       final isSuccess = item.status.isConfirmedSuccess;
+                                      String subtitle = item.reference;
+                                      if (item.fundingType == FundingType.card) {
+                                        subtitle = '${item.reference} • Paid with card •••• ${item.cardLast4 ?? "1234"}';
+                                      } else if (item.paymentMethod != null && item.paymentMethod!.isNotEmpty) {
+                                        subtitle = '${item.reference} • ${item.paymentMethod}';
+                                      }
                                       return TransactionTile(
                                         key: Key('history_item_${item.transferId}'),
                                         icon: isSuccess
                                             ? Icons.check_circle_outline_rounded
                                             : Icons.arrow_outward_rounded,
                                         title: item.receiverDisplayName ?? item.reference,
-                                        subtitle: item.reference,
+                                        subtitle: subtitle,
                                         amount: 'LKR ${item.amount.toStringAsFixed(2)}',
                                         status: item.status.name.toUpperCase(),
                                         isPositive: false,
@@ -455,11 +511,17 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   bool _hasActiveFilters() {
     return _filter.direction != null ||
         _filter.status != null ||
+        (_filter.fundingType != null && _filter.fundingType != 'ALL') ||
         _filter.minAmount != null ||
         _filter.maxAmount != null;
   }
 
   Widget _buildActiveFilterBar(bool isDark) {
+    final parts = [
+      if (_filter.fundingType != null && _filter.fundingType != 'ALL') 'Funding: ${_filter.fundingType}',
+      if (_filter.direction != null) _filter.direction!,
+      if (_filter.status != null) _filter.status!,
+    ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       color: AppTokens.softViolet,
@@ -469,7 +531,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Filtered by: ${_filter.direction ?? ""} ${_filter.status ?? ""}'.trim(),
+              'Filtered by: ${parts.join(" ")}'.trim(),
               style: const TextStyle(
                 fontFamily: AppTokens.fontFamily,
                 fontSize: 12,

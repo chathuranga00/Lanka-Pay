@@ -149,6 +149,7 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
     IconData iconData;
     String titleText;
     String subtitleText;
+    String? suggestedNextStep;
 
     if (status.isConfirmedSuccess) {
       // Green ONLY when bank confirmed
@@ -180,9 +181,12 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
       iconColor = AppTokens.error;
       bgColor = AppTokens.errorLight;
       iconData = Icons.cancel_rounded;
-      titleText = 'Payment Failed';
-      subtitleText = _currentTransfer.failureReason ??
-          'Transfer could not be completed. Your bank account was not debited.';
+      final isCard = _currentTransfer.fundingType == FundingType.card ||
+          (_currentTransfer.cardLast4 != null && _currentTransfer.cardLast4!.isNotEmpty);
+      titleText = isCard ? 'Payment Declined' : 'Payment Failed';
+      final decline = _getDeclineInfo(_currentTransfer.failureReason, isCard);
+      subtitleText = decline.friendlyReason;
+      suggestedNextStep = decline.suggestedNextStep;
     }
 
     return Container(
@@ -217,6 +221,34 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
               color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
             ),
           ),
+          if (suggestedNextStep != null) ...[
+            const SizedBox(height: 14),
+            Container(
+              key: const Key('result_suggested_next_step'),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTokens.error.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTokens.error.withOpacity(0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 16, color: AppTokens.error),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Suggested: $suggestedNextStep',
+                    style: const TextStyle(
+                      fontFamily: AppTokens.fontFamily,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTokens.error,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (_isPolling && status.isPendingOrReconciling) ...[
             const SizedBox(height: 16),
             const Row(
@@ -245,7 +277,69 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
     );
   }
 
+  ({String friendlyReason, String? suggestedNextStep}) _getDeclineInfo(String? rawReason, bool isCard) {
+    final reason = (rawReason ?? '').toUpperCase();
+    if (reason.contains('CARD_FROZEN') || reason.contains('FROZEN')) {
+      return (
+        friendlyReason: 'This card is currently frozen.',
+        suggestedNextStep: 'Unfreeze card',
+      );
+    }
+    if (reason.contains('CARD_EXPIRED') || reason.contains('EXPIRED')) {
+      return (
+        friendlyReason: 'This card has expired.',
+        suggestedNextStep: 'Choose another card',
+      );
+    }
+    if (reason.contains('DAILY_LIMIT_EXCEEDED')) {
+      return (
+        friendlyReason: 'Daily spending limit for this card has been exceeded.',
+        suggestedNextStep: 'Lower the amount',
+      );
+    }
+    if (reason.contains('PER_PAYMENT_LIMIT_EXCEEDED')) {
+      return (
+        friendlyReason: 'Transaction exceeds the per-payment limit for this card.',
+        suggestedNextStep: 'Lower the amount',
+      );
+    }
+    if (reason.contains('LIMIT_EXCEEDED') || reason.contains('DAILY_LIMIT')) {
+      return (
+        friendlyReason: 'Card limit exceeded.',
+        suggestedNextStep: 'Lower the amount',
+      );
+    }
+    if (reason.contains('ONLINE_PAYMENTS_DISABLED')) {
+      return (
+        friendlyReason: 'Online payments are disabled for this card.',
+        suggestedNextStep: 'Choose another card',
+      );
+    }
+    if (reason.contains('CHALLENGE_FAILED')) {
+      return (
+        friendlyReason: 'Bank OTP challenge verification failed.',
+        suggestedNextStep: 'Choose another card',
+      );
+    }
+    if (reason.contains('CARD_BLOCKED') || reason.contains('BLOCKED')) {
+      return (
+        friendlyReason: 'This card is blocked.',
+        suggestedNextStep: 'Choose another card',
+      );
+    }
+    return (
+      friendlyReason: rawReason != null && rawReason.isNotEmpty
+          ? rawReason
+          : (isCard ? 'Card payment was declined by the bank.' : 'Transfer was declined by the bank.'),
+      suggestedNextStep: isCard ? 'Choose another card' : null,
+    );
+  }
+
   Widget _buildAmountSummary(bool isDark) {
+    final displayAmt = _currentTransfer.totalAmount > 0
+        ? _currentTransfer.totalAmount
+        : _currentTransfer.amount;
+
     return Column(
       children: [
         Text(
@@ -258,7 +352,7 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'LKR ${_currentTransfer.amount.toStringAsFixed(2)}',
+          'LKR ${displayAmt.toStringAsFixed(2)}',
           style: TextStyle(
             fontFamily: AppTokens.fontFamily,
             fontSize: 32,
@@ -272,6 +366,11 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
   }
 
   Widget _buildReceiptDetailsCard(bool isDark) {
+    final paymentMethodText = _currentTransfer.paymentMethod ??
+        (_currentTransfer.fundingType == FundingType.card
+            ? 'Paid with card •••• ${_currentTransfer.cardLast4 ?? "1234"}'
+            : 'Paid with bank account');
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -288,6 +387,12 @@ class _TransferResultScreenState extends ConsumerState<TransferResultScreen> {
           Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
           if (_currentTransfer.receiverDisplayName != null) ...[
             _buildRow('Recipient', _currentTransfer.receiverDisplayName!, isDark),
+            Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
+          ],
+          _buildRow('Payment Method', paymentMethodText, isDark),
+          Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
+          if (_currentTransfer.fee > 0) ...[
+            _buildRow('Fee (simulated)', 'LKR ${_currentTransfer.fee.toStringAsFixed(2)}', isDark),
             Divider(height: 24, color: isDark ? AppTokens.borderDark : AppTokens.borderLight),
           ],
           if (_currentTransfer.bankTxRef != null) ...[
