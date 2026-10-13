@@ -377,4 +377,24 @@ abstract final class AppTestKeys {
   static const Key schedPinField = Key('sched_pin_field');
   static const Key schedConsentCheckbox = Key('sched_consent_checkbox');
   static const Key schedConfirmDialogBtn = Key('sched_confirm_dialog_btn');
+
+  // ---------------------------------------------------------------------------
+  // Split Bills (split_*)
+  // ---------------------------------------------------------------------------
+  static Key split(dynamic id) => Key('split_$id');
+  static const Key splitAddPerson = Key('split_add_person');
+  static const Key splitSend = Key('split_send');
+  static const Key splitTitleField = Key('split_title_field');
+  static const Key splitAmountField = Key('split_amount_field');
+  static const Key splitEqualMode = Key('split_equal_mode');
+  static const Key splitCustomMode = Key('split_custom_mode');
+  static const Key splitPersonPhoneField = Key('split_person_phone_field');
+  static const Key splitPersonShareField = Key('split_person_share_field');
+  static Key splitRemind(dynamic id) => Key('split_remind_$id');
+  static const Key splitCancel = Key('split_cancel');
+  static const Key splitPay = Key('split_pay');
+  static const Key splitPinField = Key('split_pin_field');
+  static const Key splitProgress = Key('split_progress');
 }
+
+typedef TestKeys = AppTestKeys;

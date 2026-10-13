@@ -1074,7 +1074,7 @@ class _PayHubScreenState extends ConsumerState<PayHubScreen> {
         ),
         onTap: () {
           if (splitEnabled) {
-            context.push('/send');
+            context.push('/split/create');
           } else {
             _showComingSoon(context, 'Split a Bill');
           }

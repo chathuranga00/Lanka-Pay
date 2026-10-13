@@ -211,6 +211,20 @@ abstract final class AppTokens {
   static const double space28 = 28.0;
   static const double space32 = 32.0;
 
+  static const double spacing4 = space4;
+  static const double spacing8 = space8;
+  static const double spacing12 = space12;
+  static const double spacing14 = 14.0;
+  static const double spacing16 = space16;
+  static const double spacing20 = space20;
+  static const double spacing24 = space24;
+  static const double spacing32 = space32;
+
+  static const double radiusSm = 8.0;
+  static const double radiusMd = 12.0;
+  static const double radiusLg = 16.0;
+  static const double radiusFull = 999.0;
+
   // ---------------------------------------------------------------------------
   // Elevation / Shadows (Large soft cards with very subtle shadow)
   // ---------------------------------------------------------------------------

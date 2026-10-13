@@ -38,6 +38,10 @@ import '../../features/scheduled/domain/scheduled_models.dart';
 import '../../features/scheduled/presentation/scheduled_list_screen.dart';
 import '../../features/scheduled/presentation/schedule_create_screen.dart';
 import '../../features/scheduled/presentation/schedule_details_screen.dart';
+import '../../features/split/domain/split_models.dart';
+import '../../features/split/presentation/split_create_screen.dart';
+import '../../features/split/presentation/split_details_screen.dart';
+import '../../features/split/presentation/split_pay_request_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -280,6 +284,29 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final schedule = state.extra as ScheduledPaymentModel;
           return ScheduleDetailsScreen(schedule: schedule);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/split/create',
+        builder: (context, state) => const SplitCreateScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/split/details/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          final extraSplit = state.extra as SplitModel?;
+          return SplitDetailsScreen(splitId: id, initialSplit: extraSplit);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/split/pay/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          final extraSplit = state.extra as SplitModel?;
+          return SplitPayRequestScreen(splitId: id, initialSplit: extraSplit);
         },
       ),
       GoRoute(
