@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_tokens.dart';
 import 'widgets.dart';
 
-/// Dev-only showcase screen for visually inspecting every component of the design system
+/// Dev-only showcase screen for visually inspecting every component of the Super App design system
 /// across light and dark themes. Accessible in debug builds.
 class DevDesignSystemScreen extends ConsumerStatefulWidget {
   const DevDesignSystemScreen({super.key = const Key('dev_design_system_screen')});
@@ -16,6 +16,7 @@ class DevDesignSystemScreen extends ConsumerStatefulWidget {
 class _DevDesignSystemScreenState extends ConsumerState<DevDesignSystemScreen> {
   int _selectedNavIndex = 0;
   bool _showShimmer = false;
+  bool _isBalanceHidden = false;
 
   @override
   Widget build(BuildContext context) {
@@ -26,280 +27,350 @@ class _DevDesignSystemScreenState extends ConsumerState<DevDesignSystemScreen> {
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryTextColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
+    final secondaryTextColor = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
 
-    return GradientHeaderScaffold(
-      header: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const AppAvatar(name: 'James Taylor', size: 42),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Design System Gallery',
-                        style: TextStyle(
-                          fontFamily: AppTokens.fontFamily,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
-                        ),
-                      ),
-                      Text(
-                        'Debug Mode Preview',
-                        style: TextStyle(
-                          fontFamily: AppTokens.fontFamily,
-                          fontSize: 12,
-                          color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const ThemeTogglePill(),
-            ],
+    return Scaffold(
+      backgroundColor: isDark ? AppTokens.backgroundDark : AppTokens.backgroundLight,
+      appBar: AppBar(
+        title: Text(
+          'Super App Design System',
+          style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: primaryTextColor,
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Total balance',
-                    style: TextStyle(
-                      fontFamily: AppTokens.fontFamily,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
-                    ),
-                  ),
-                  Text(
-                    'LKR 125,450.00',
-                    style: TextStyle(
-                      fontFamily: AppTokens.fontFamily,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
-                    ),
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                onPressed: () => setState(() => _showShimmer = !_showShimmer),
-                icon: Icon(_showShimmer ? Icons.check_circle_outline : Icons.auto_awesome, size: 16),
-                label: Text(_showShimmer ? 'Live UI' : 'Shimmer'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ],
+        ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: ThemeTogglePill(),
           ),
         ],
       ),
       bottomNavigationBar: AppBottomNav(
+        key: const Key('gallery_bottom_nav'),
         currentIndex: _selectedNavIndex,
         onIndexChanged: (idx) => setState(() => _selectedNavIndex = idx),
+        chatBadgeCount: 1,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Section: Theme Toggle & Badges
-          const SectionHeader(title: 'THEME & BADGES'),
-          const SizedBox(height: 8),
-          const Wrap(
-            spacing: 12,
-            runSpacing: 10,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              ThemeTogglePill(),
-              SimulatedBadge(),
-              SimulatedBadge(compact: true, text: 'SANDBOX'),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Section: Deterministic Avatars
-          const SectionHeader(title: 'DETERMINISTIC PASTEL AVATARS'),
-          const SizedBox(height: 8),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              AppAvatar(name: 'Anna Lopez'),
-              AppAvatar(name: 'Penny Klark'),
-              AppAvatar(name: 'Mark Rivero'),
-              AppAvatar(name: 'Chathuranga'),
-              AppAvatar(name: 'Kamal Perera'),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Section: Account Cards
-          const SectionHeader(title: 'ACCOUNT CARDS (CHARCOAL & LAVENDER)'),
-          const SizedBox(height: 10),
-          if (_showShimmer) ...[
-            const SkeletonAccountCard(),
-          ] else ...[
-            const AccountCard(
-              bankName: 'Bank of Ceylon',
-              nickname: 'Salary Account',
-              maskedNumber: '** 6917',
-              balance: 'LKR 84,230.00',
-              isDefault: true,
-              style: AccountCardStyle.charcoal,
-              expiryText: '01/29',
-            ),
-            const SizedBox(height: 14),
-            const AccountCard(
-              bankName: 'Commercial Bank',
-              nickname: 'Primary Savings',
-              maskedNumber: '** 4433',
-              balance: 'LKR 41,220.00',
-              isDefault: false,
-              style: AccountCardStyle.lavender,
-              expiryText: '11/28',
-            ),
-          ],
-          const SizedBox(height: 24),
-
-          // Section: Quick Action Tiles (Finance 4-Tiles)
-          const SectionHeader(title: 'QUICK ACTION TILES (FINANCE GRID)'),
-          const SizedBox(height: 10),
-          if (_showShimmer) ...[
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── 1. Target Home Header Showcase ────────────────────────────────
+            const SectionHeader(title: 'TARGET HOME HEADER & SEARCH'),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                SkeletonQuickActionTile(),
-                SkeletonQuickActionTile(),
-                SkeletonQuickActionTile(),
-                SkeletonQuickActionTile(),
+                const AppAvatar(
+                  key: Key('gallery_avatar'),
+                  name: 'Mikhail',
+                  size: 42,
+                ),
+                const SizedBox(width: 12),
+                Row(
+                  children: [
+                    Text(
+                      'Mikhail',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: primaryTextColor,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: primaryTextColor,
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Container(
+                  key: const Key('gallery_rewards_btn'),
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppTokens.rewardsButtonVioletDark : AppTokens.rewardsButtonViolet,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.card_giftcard_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
               ],
             ),
-          ] else ...[
-            const SingleChildScrollView(
+            const SizedBox(height: 16),
+            const SearchBarField(
+              key: Key('gallery_search_bar'),
+              hintText: 'Search',
+            ),
+            const SizedBox(height: 24),
+
+            // ── 2. Stories Row Showcase ───────────────────────────────────────
+            const SectionHeader(title: 'STORIES (ROUNDED CARDS WITH BLUE RING)'),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
               child: Row(
                 children: [
-                  QuickActionTile(
-                    icon: Icons.star_rounded,
-                    label: 'My bonuses',
-                    gradient: QuickActionGradient.violet,
+                  StoryCard(
+                    key: const Key('gallery_story_1'),
+                    caption: 'Tailored\nto you',
+                    isUnseen: true,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4C84F0), Color(0xFF6F9EFA)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    graphic: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.favorite_rounded, color: Color(0xFFFFD600), size: 20),
+                    ),
                   ),
-                  SizedBox(width: 10),
-                  QuickActionTile(
-                    icon: Icons.bar_chart_rounded,
-                    label: 'Finance\nanalysis',
-                    gradient: QuickActionGradient.orange,
+                  const SizedBox(width: 12),
+                  const StoryCard(
+                    key: Key('gallery_story_2'),
+                    caption: 'Financial\nInsights',
+                    isUnseen: false,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF2C2411), Color(0xFF14120A)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    graphic: Icon(Icons.bookmark_rounded, color: Color(0xFFFFD600), size: 28),
                   ),
-                  SizedBox(width: 10),
-                  QuickActionTile(
-                    icon: Icons.account_balance_wallet_rounded,
-                    label: 'Payment',
-                    gradient: QuickActionGradient.pink,
+                  const SizedBox(width: 12),
+                  const StoryCard(
+                    key: Key('gallery_story_3'),
+                    caption: 'Merchant\nOffers',
+                    isUnseen: false,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF384358), Color(0xFF1E2430)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    graphic: Icon(Icons.apartment_rounded, color: Colors.white, size: 28),
                   ),
-                  SizedBox(width: 10),
-                  QuickActionTile(
-                    icon: Icons.trending_up_rounded,
-                    label: 'Invest',
-                    gradient: QuickActionGradient.cyan,
+                  const SizedBox(width: 12),
+                  const StoryCard(
+                    key: Key('gallery_story_4'),
+                    caption: 'Smart coin\nanalytics',
+                    isUnseen: false,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF2E4C8E), Color(0xFF121B33)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    graphic: Icon(Icons.monetization_on_rounded, color: Colors.white, size: 28),
                   ),
                 ],
               ),
             ),
-          ],
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Section: Action Buttons
-          const SectionHeader(title: 'ACTION BUTTONS (CARDS SCREEN DOCK)'),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ActionButton(
-                icon: Icons.add_rounded,
-                label: 'Add money',
+            // ── 3. Info Tiles Row Showcase ────────────────────────────────────
+            const SectionHeader(title: 'INFO TILES (TILE RADIUS ~28)'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InfoTile(
+                    key: const Key('gallery_info_tile_1'),
+                    title: 'All transactions',
+                    subtitle: 'No spending in April',
+                    progress: 0.10,
+                    onTap: () {},
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InfoTile(
+                    key: const Key('gallery_info_tile_2'),
+                    title: 'Cashback\nand rewards',
+                    icon: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppTokens.primaryBlue,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.shield_outlined,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    onTap: () {},
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // ── 4. Wallet Card Showcase ───────────────────────────────────────
+            const SectionHeader(title: 'WALLET CARD (HERO CARD RADIUS ~32)'),
+            const SizedBox(height: 12),
+            WalletCard(
+              key: const Key('gallery_wallet_card'),
+              balance: '0 LKR',
+              name: 'Primary Account',
+              isBalanceHidden: _isBalanceHidden,
+              onEyeToggle: () => setState(() => _isBalanceHidden = !_isBalanceHidden),
+              pointsPill: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? AppTokens.pointsPillBgDark : AppTokens.pointsPillBgLight,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.star_rounded, size: 12, color: Colors.white),
+                    const SizedBox(width: 4),
+                    Text(
+                      '0 pts',
+                      style: TextStyle(
+                        fontFamily: AppTokens.fontFamily,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppTokens.pointsPillTextDark : AppTokens.pointsPillTextLight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              cardThumbnails: [
+                Container(
+                  width: 56,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF253350), Color(0xFF131A29)],
+                    ),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  alignment: Alignment.bottomLeft,
+                  child: const Text(
+                    '•••• 7572',
+                    style: TextStyle(
+                      fontFamily: AppTokens.fontFamily,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+              nudgeBanner: NudgeBanner(
+                key: const Key('gallery_nudge_banner'),
+                text: 'Arrange delivery',
                 onTap: () {},
               ),
-              ActionButton(
-                icon: Icons.ac_unit_rounded,
-                label: 'Freeze',
-                onTap: () {},
-              ),
-              ActionButton(
-                icon: Icons.settings_outlined,
-                label: 'Settings',
-                onTap: () {},
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 24),
 
-          // Section: Menu Tiles 2x2
-          const SectionHeader(title: 'MENU TILES (TRANSFERS 2X2 GRID)'),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: MenuTile(
-                  icon: Icons.near_me_rounded,
-                  label: 'Popular\npayments',
-                  onTap: () {},
+            // ── 5. Product Tiles Showcase ─────────────────────────────────────
+            const SectionHeader(title: 'PRODUCT TILES (BORROW & SAVE)'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ProductTile(
+                    key: const Key('gallery_product_borrow'),
+                    title: 'Borrow',
+                    illustration: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppTokens.tileTintLight,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.payments_rounded,
+                        color: AppTokens.primaryBlue,
+                        size: 28,
+                      ),
+                    ),
+                    onTap: () {},
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MenuTile(
-                  icon: Icons.account_balance_rounded,
-                  label: 'Bank of\nrecipient',
-                  onTap: () {},
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ProductTile(
+                    key: const Key('gallery_product_save'),
+                    title: 'Save',
+                    illustration: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppTokens.nudgeBannerBgLight,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(
+                        Icons.savings_rounded,
+                        color: AppTokens.nudgeBannerTextLight,
+                        size: 28,
+                      ),
+                    ),
+                    onTap: () {},
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: MenuTile(
-                  icon: Icons.credit_card_rounded,
-                  label: 'Between\nmy cards',
-                  onTap: () {},
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: MenuTile(
-                  icon: Icons.contact_page_rounded,
-                  label: "Recipient's\ncard",
-                  onTap: () {},
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
+              ],
+            ),
+            const SizedBox(height: 24),
 
-          // Section: Transactions Feed
-          SectionHeader(
-            title: 'LAST TRANSACTIONS',
-            actionLabel: 'See all >',
-            onActionTap: () {},
-          ),
-          const SizedBox(height: 6),
-          if (_showShimmer) ...[
-            const SkeletonTransactionTile(),
-            const SkeletonTransactionTile(),
-          ] else ...[
+            // ── 6. Account Cards (Legacy & Multi-cards) ────────────────────────
+            const SectionHeader(title: 'EXISTING ACCOUNT CARDS'),
+            const SizedBox(height: 12),
+            if (_showShimmer) ...[
+              const SkeletonAccountCard(),
+            ] else ...[
+              const AccountCard(
+                bankName: 'Bank of Ceylon',
+                nickname: 'Salary Account',
+                maskedNumber: '** 6917',
+                balance: 'LKR 84,230.00',
+                isDefault: true,
+                style: AccountCardStyle.charcoal,
+                expiryText: '01/29',
+              ),
+              const SizedBox(height: 12),
+              const AccountCard(
+                bankName: 'Commercial Bank',
+                nickname: 'Primary Savings',
+                maskedNumber: '** 4433',
+                balance: 'LKR 41,220.00',
+                isDefault: false,
+                style: AccountCardStyle.lavender,
+                expiryText: '11/28',
+              ),
+            ],
+            const SizedBox(height: 24),
+
+            // ── 7. Transactions Feed ──────────────────────────────────────────
+            SectionHeader(
+              title: 'RECENT TRANSACTIONS',
+              actionLabel: 'See all >',
+              onActionTap: () {},
+            ),
+            const SizedBox(height: 8),
             TransactionTile(
-              icon: Icons.shopping_cart_rounded,
+              icon: Icons.shopping_bag_rounded,
               title: 'Supermarket',
               subtitle: 'Today, 16:40',
               amount: '- LKR 4,200.00',
@@ -310,47 +381,51 @@ class _DevDesignSystemScreenState extends ConsumerState<DevDesignSystemScreen> {
             const Divider(height: 1),
             TransactionTile(
               icon: Icons.account_balance_rounded,
-              title: 'Kapital Bank',
+              title: 'Salary Deposit',
               subtitle: 'Yesterday, 11:20',
-              amount: '+ LKR 12,000.00',
+              amount: '+ LKR 125,000.00',
               status: 'transfer',
               isPositive: true,
               onTap: () {},
             ),
-          ],
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Section: Empty & Error states
-          const SectionHeader(title: 'EMPTY STATE & ERROR RETRY'),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppTokens.borderLight),
-              borderRadius: AppTokens.borderRadiusCard,
+            // ── 8. Empty & Error States ───────────────────────────────────────
+            const SectionHeader(title: 'EMPTY STATE & ERROR RETRY'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
+                borderRadius: AppTokens.borderRadiusCard,
+              ),
+              child: EmptyState(
+                icon: Icons.receipt_long_rounded,
+                title: 'No Transactions Yet',
+                description: 'When you send or receive simulated transfers, your receipts will appear here.',
+                actionLabel: 'Send Money',
+                onActionTap: () {},
+              ),
             ),
-            child: EmptyState(
-              icon: Icons.receipt_long_rounded,
-              title: 'No Transactions Yet',
-              description: 'When you send or receive simulated transfers, your receipts will appear here.',
-              actionLabel: 'Send Money',
-              onActionTap: () {},
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
+                borderRadius: AppTokens.borderRadiusCard,
+              ),
+              child: ErrorRetry(
+                message: 'Could not connect to the simulated bank adapter. Check network.',
+                onRetry: () {},
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppTokens.borderLight),
-              borderRadius: AppTokens.borderRadiusCard,
-            ),
-            child: ErrorRetry(
-              message: 'Could not connect to the simulated bank adapter. Check network.',
-              onRetry: () {},
-            ),
-          ),
-          const SizedBox(height: 32),
-        ],
+            const SizedBox(height: 36),
+          ],
+        ),
       ),
     );
   }

@@ -25,6 +25,7 @@ class AppShell extends StatelessWidget {
             initialLocation: index == navigationShell.currentIndex,
           );
         },
+        items: AppBottomNav.default4Items,
       ),
     );
   }

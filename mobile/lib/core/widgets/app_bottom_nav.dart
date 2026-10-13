@@ -1,23 +1,57 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../l10n/app_localizations.dart';
 import '../theme/app_tokens.dart';
 
-/// Modern frosted bottom navigation dock with 4 items.
+/// Modern frosted bottom navigation dock matching the target design language.
+/// Displays 5 items (Home, Payments, City, Chat, Products), active item in primary blue (~#4C84F0).
+/// Uses original vector icons and supports notification badges.
 class AppBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onIndexChanged;
   final List<AppNavItem>? items;
+  final int? chatBadgeCount;
 
   const AppBottomNav({
-    super.key,
+    super.key = const Key('app_bottom_nav'),
     required this.currentIndex,
     required this.onIndexChanged,
     this.items,
+    this.chatBadgeCount,
   });
 
-  static const List<AppNavItem> defaultItems = [
+  /// Default 5 items for Super App home layout (Home, Payments, City, Chat, Products)
+  static List<AppNavItem> get default5Items => [
+        const AppNavItem(
+          label: 'Home',
+          icon: Icons.account_balance_wallet_rounded,
+          key: Key('nav_home'),
+        ),
+        const AppNavItem(
+          label: 'Payments',
+          icon: Icons.sync_alt_rounded,
+          key: Key('nav_payments'),
+        ),
+        const AppNavItem(
+          label: 'City',
+          icon: Icons.storefront_rounded,
+          key: Key('nav_city'),
+        ),
+        const AppNavItem(
+          label: 'Chat',
+          icon: Icons.chat_bubble_rounded,
+          key: Key('nav_chat'),
+          badgeCount: 1,
+        ),
+        const AppNavItem(
+          label: 'Products',
+          icon: Icons.grid_view_rounded,
+          key: Key('nav_products'),
+        ),
+      ];
+
+  /// Backward-compatible 4 items for AppShell router branches
+  static const List<AppNavItem> default4Items = [
     AppNavItem(
       label: 'Home',
       icon: Icons.home_rounded,
@@ -40,34 +74,12 @@ class AppBottomNav extends StatelessWidget {
     ),
   ];
 
+  static const List<AppNavItem> defaultItems = default4Items;
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final l10n = AppLocalizations.of(context);
-
-    // Resolve localized labels if using default items
-    final List<AppNavItem> navItems = items ?? [
-      AppNavItem(
-        label: l10n?.navHome ?? 'Home',
-        icon: Icons.home_rounded,
-        key: const Key('nav_home'),
-      ),
-      AppNavItem(
-        label: l10n?.navAccounts ?? 'Accounts',
-        icon: Icons.credit_card_rounded,
-        key: const Key('nav_accounts'),
-      ),
-      AppNavItem(
-        label: l10n?.navSend ?? 'Send',
-        icon: Icons.swap_horiz_rounded,
-        key: const Key('nav_send'),
-      ),
-      AppNavItem(
-        label: l10n?.navMore ?? 'More',
-        icon: Icons.grid_view_rounded,
-        key: const Key('nav_more'),
-      ),
-    ];
+    final navItems = items ?? default5Items;
 
     return ClipRRect(
       child: BackdropFilter(
@@ -77,7 +89,7 @@ class AppBottomNav extends StatelessWidget {
           decoration: BoxDecoration(
             color: isDark
                 ? AppTokens.cardDark.withOpacity(0.85)
-                : Colors.white.withOpacity(0.90),
+                : Colors.white.withOpacity(0.92),
             border: Border(
               top: BorderSide(
                 color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
@@ -92,6 +104,7 @@ class AppBottomNav extends StatelessWidget {
               children: List.generate(navItems.length, (index) {
                 final item = navItems[index];
                 final isSelected = index == currentIndex;
+                final badge = item.badgeCount ?? (item.label == 'Chat' ? chatBadgeCount : null);
 
                 return Expanded(
                   child: Semantics(
@@ -108,17 +121,49 @@ class AppBottomNav extends StatelessWidget {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+                          padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 4.0),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                item.icon,
-                                size: 24,
-                                color: isSelected
-                                    ? AppTokens.primaryViolet
-                                    : (isDark ? AppTokens.textTertiaryDark : AppTokens.textTertiaryLight),
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Icon(
+                                    item.icon,
+                                    size: 24,
+                                    color: isSelected
+                                        ? AppTokens.primaryBlue
+                                        : (isDark ? AppTokens.textTertiaryDark : AppTokens.textTertiaryLight),
+                                  ),
+                                  if (badge != null && badge > 0)
+                                    Positioned(
+                                      right: -6,
+                                      top: -3,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                        decoration: BoxDecoration(
+                                          color: AppTokens.error,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 14,
+                                          minHeight: 14,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '$badge',
+                                            style: const TextStyle(
+                                              fontFamily: AppTokens.fontFamily,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                               const SizedBox(height: 3),
                               FittedBox(
@@ -128,9 +173,9 @@ class AppBottomNav extends StatelessWidget {
                                   style: TextStyle(
                                     fontFamily: AppTokens.fontFamily,
                                     fontSize: 11,
-                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                                     color: isSelected
-                                        ? AppTokens.primaryViolet
+                                        ? AppTokens.primaryBlue
                                         : (isDark ? AppTokens.textTertiaryDark : AppTokens.textTertiaryLight),
                                   ),
                                   maxLines: 1,
@@ -156,5 +201,12 @@ class AppNavItem {
   final String label;
   final IconData icon;
   final Key key;
-  const AppNavItem({required this.label, required this.icon, required this.key});
+  final int? badgeCount;
+
+  const AppNavItem({
+    required this.label,
+    required this.icon,
+    required this.key,
+    this.badgeCount,
+  });
 }

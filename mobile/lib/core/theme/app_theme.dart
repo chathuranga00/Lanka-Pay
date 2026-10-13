@@ -208,15 +208,15 @@ abstract final class AppTheme {
 
   static ThemeData get lightTheme {
     final colorScheme = const ColorScheme.light(
-      primary: AppTokens.primaryViolet,
+      primary: AppTokens.primaryBlue,
       onPrimary: Colors.white,
-      primaryContainer: AppTokens.softViolet,
-      onPrimaryContainer: AppTokens.deepViolet,
-      secondary: AppTokens.lightViolet,
+      primaryContainer: AppTokens.tileTintLight,
+      onPrimaryContainer: AppTokens.primaryBlueDark,
+      secondary: AppTokens.primaryBlueLight,
       onSecondary: Colors.white,
-      secondaryContainer: AppTokens.softViolet,
-      onSecondaryContainer: AppTokens.deepViolet,
-      surface: AppTokens.sheetLight,
+      secondaryContainer: AppTokens.tileTintLight,
+      onSecondaryContainer: AppTokens.primaryBlueDark,
+      surface: AppTokens.backgroundLight,
       onSurface: AppTokens.textPrimaryLight,
       error: AppTokens.error,
       onError: Colors.white,
@@ -225,7 +225,7 @@ abstract final class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppTokens.mutedSurfaceLight,
+      scaffoldBackgroundColor: AppTokens.backgroundLight,
       fontFamily: GoogleFonts.manrope().fontFamily,
       textTheme: TextTheme(
         displayLarge: AppTokens.displayLarge.copyWith(color: AppTokens.textPrimaryLight),
@@ -246,7 +246,7 @@ abstract final class AppTheme {
         centerTitle: true,
       ),
       cardTheme: CardThemeData(
-        color: AppTokens.sheetLight,
+        color: AppTokens.cardLight,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.borderRadiusCard,
@@ -255,7 +255,7 @@ abstract final class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppTokens.primaryViolet,
+          backgroundColor: AppTokens.primaryBlue,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -270,8 +270,8 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppTokens.primaryViolet,
-          side: const BorderSide(color: AppTokens.primaryViolet, width: 1.5),
+          foregroundColor: AppTokens.primaryBlue,
+          side: const BorderSide(color: AppTokens.primaryBlue, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -284,22 +284,22 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: AppTokens.searchFieldBgLight,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
-          borderSide: const BorderSide(color: AppTokens.borderLight),
+          borderRadius: AppTokens.borderRadiusSearch,
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
-          borderSide: const BorderSide(color: AppTokens.borderLight),
+          borderRadius: AppTokens.borderRadiusSearch,
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
-          borderSide: const BorderSide(color: AppTokens.primaryViolet, width: 2),
+          borderRadius: AppTokens.borderRadiusSearch,
+          borderSide: const BorderSide(color: AppTokens.primaryBlue, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
+          borderRadius: AppTokens.borderRadiusSearch,
           borderSide: const BorderSide(color: AppTokens.error, width: 1.5),
         ),
       ),
@@ -312,13 +312,13 @@ abstract final class AppTheme {
 
   static ThemeData get darkTheme {
     final colorScheme = const ColorScheme.dark(
-      primary: AppTokens.primaryViolet,
+      primary: AppTokens.primaryBlue,
       onPrimary: Colors.white,
-      primaryContainer: AppTokens.glowPurple,
+      primaryContainer: AppTokens.tileTintDark,
       onPrimaryContainer: Colors.white,
-      secondary: AppTokens.lightViolet,
+      secondary: AppTokens.primaryBlueLight,
       onSecondary: Colors.white,
-      secondaryContainer: AppTokens.glowPurple,
+      secondaryContainer: AppTokens.tileTintDark,
       onSecondaryContainer: Colors.white,
       surface: AppTokens.cardDark,
       onSurface: AppTokens.textPrimaryDark,
@@ -359,7 +359,7 @@ abstract final class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppTokens.primaryViolet,
+          backgroundColor: AppTokens.primaryBlue,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -374,8 +374,8 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppTokens.lightViolet,
-          side: const BorderSide(color: AppTokens.lightViolet, width: 1.5),
+          foregroundColor: AppTokens.primaryBlueLight,
+          side: const BorderSide(color: AppTokens.primaryBlueLight, width: 1.5),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
@@ -388,22 +388,22 @@ abstract final class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppTokens.cardDark,
+        fillColor: AppTokens.searchFieldBgDark,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
-          borderSide: const BorderSide(color: AppTokens.borderDark),
+          borderRadius: AppTokens.borderRadiusSearch,
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
-          borderSide: const BorderSide(color: AppTokens.borderDark),
+          borderRadius: AppTokens.borderRadiusSearch,
+          borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
-          borderSide: const BorderSide(color: AppTokens.primaryViolet, width: 2),
+          borderRadius: AppTokens.borderRadiusSearch,
+          borderSide: const BorderSide(color: AppTokens.primaryBlue, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: AppTokens.borderRadiusInput,
+          borderRadius: AppTokens.borderRadiusSearch,
           borderSide: const BorderSide(color: AppTokens.error, width: 1.5),
         ),
       ),

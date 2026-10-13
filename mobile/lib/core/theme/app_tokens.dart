@@ -1,11 +1,47 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens for LankaPay ID Mobile Application.
+/// Design tokens for LankaPay ID Mobile Application (Super App design language).
 /// All colors, radii, spacing, gradients, and typography are centralized here.
 /// Hard-coded colors and arbitrary dimensions must NOT be used outside of this file.
 abstract final class AppTokens {
   // ---------------------------------------------------------------------------
-  // Brand Colors (Neo-Banking Violet Palette)
+  // Super App Palette Tokens
+  // ---------------------------------------------------------------------------
+  /// Primary blue ~#4C84F0 (active tab, icon tiles, links)
+  static const Color primaryBlue = Color(0xFF4C84F0);
+  static const Color primaryBlueLight = Color(0xFF6F9EFA);
+  static const Color primaryBlueDark = Color(0xFF386DD6);
+
+  /// Light blue tint for tiles (~#EBF2FD)
+  static const Color tileTintLight = Color(0xFFEBF2FD);
+  static const Color tileTintDark = Color(0xFF1E2B45);
+
+  /// Nudge banner pale yellow ~#FDEFB0 with dark text (~#2C240E)
+  static const Color nudgeBannerBgLight = Color(0xFFFDEFB0);
+  static const Color nudgeBannerTextLight = Color(0xFF2C240E);
+  static const Color nudgeBannerBgDark = Color(0xFF3B3214);
+  static const Color nudgeBannerTextDark = Color(0xFFFDEFB0);
+
+  /// Grey search field ~#EFEFF1
+  static const Color searchFieldBgLight = Color(0xFFEFEFF1);
+  static const Color searchFieldBgDark = Color(0xFF1C1C1E);
+
+  /// Avatar grey (~#D1D1D6 / dark ~#3A3A3C)
+  static const Color avatarGreyLight = Color(0xFFD1D1D6);
+  static const Color avatarGreyDark = Color(0xFF3A3A3C);
+
+  /// Dark small pill ~#3A3A3C for the points pill
+  static const Color pointsPillBgLight = Color(0xFF3A3A3C);
+  static const Color pointsPillTextLight = Color(0xFFFFFFFF);
+  static const Color pointsPillBgDark = Color(0xFF2C2C2E);
+  static const Color pointsPillTextDark = Color(0xFFFFFFFF);
+
+  /// Rewards button violet ~#7B3FE4
+  static const Color rewardsButtonViolet = Color(0xFF7B3FE4);
+  static const Color rewardsButtonVioletDark = Color(0xFF8B52F5);
+
+  // ---------------------------------------------------------------------------
+  // Backward-compatible Brand Colors (retained for existing flows)
   // ---------------------------------------------------------------------------
   static const Color primaryViolet = Color(0xFF7B5CFA);
   static const Color lightViolet = Color(0xFFA592FF);
@@ -16,29 +52,36 @@ abstract final class AppTokens {
   // ---------------------------------------------------------------------------
   // Light Mode Colors
   // ---------------------------------------------------------------------------
-  static const Color lightHeaderStart = Color(0xFFC9C4FF);
-  static const Color lightHeaderEnd = Color(0xFF8F9BFF);
+  static const Color backgroundLight = Color(0xFFFFFFFF); // Background white
+  static const Color lightHeaderStart = Color(0xFFEBF2FD);
+  static const Color lightHeaderEnd = Color(0xFFFFFFFF);
   static const Color sheetLight = Color(0xFFFFFFFF);
   static const Color cardLight = Color(0xFFFFFFFF);
-  static const Color mutedSurfaceLight = Color(0xFFF4F4F6);
-  static const Color textPrimaryLight = Color(0xFF14142B); // 15.6:1 contrast against white
-  static const Color textSecondaryLight = Color(0xFF6E6E82); // 4.7:1 contrast against white (WCAG AA)
-  static const Color textTertiaryLight = Color(0xFF8A8A9A);
-  static const Color borderLight = Color(0xFFE4E4EB);
+  static const Color mutedSurfaceLight = Color(0xFFF7F7F9);
+
+  /// Text near-black #1D1D1F (WCAG AAA contrast against white > 16:1)
+  static const Color textPrimaryLight = Color(0xFF1D1D1F);
+
+  /// Secondary text mid grey (WCAG AA contrast against white > 4.5:1)
+  static const Color textSecondaryLight = Color(0xFF6E6E73);
+  static const Color textTertiaryLight = Color(0xFF8E8E93);
+  static const Color borderLight = Color(0xFFE5E5EA);
 
   // ---------------------------------------------------------------------------
   // Dark Mode Colors
   // ---------------------------------------------------------------------------
-  static const Color backgroundDark = Color(0xFF0B0B0F);
-  static const Color glowPurple = Color(0xFF2E1A5A);
-  static const Color glowAmber = Color(0xFF3D2614);
-  static const Color sheetDark = Color(0xFF0B0B0F); // Switchable sheet token (can be white or dark surface)
-  static const Color mutedSurfaceDark = Color(0xFF161622);
-  static const Color cardDark = Color(0xFF141420);
-  static const Color textPrimaryDark = Color(0xFFFFFFFF); // 19.3:1 contrast against dark
-  static const Color textSecondaryDark = Color(0xFFA0A0B2); // 8.2:1 contrast against dark
-  static const Color textTertiaryDark = Color(0xFF6B6B80);
-  static const Color borderDark = Color(0xFF222232);
+  static const Color backgroundDark = Color(0xFF000000); // Sleek pure dark background
+  static const Color glowPurple = Color(0xFF1C1C28);
+  static const Color glowAmber = Color(0xFF2A2416);
+  static const Color sheetDark = Color(0xFF1C1C1E);
+  static const Color mutedSurfaceDark = Color(0xFF121214);
+  static const Color cardDark = Color(0xFF1C1C1E);
+
+  /// Dark mode text colors (WCAG compliant)
+  static const Color textPrimaryDark = Color(0xFFFFFFFF);
+  static const Color textSecondaryDark = Color(0xFFA1A1A6);
+  static const Color textTertiaryDark = Color(0xFF636366);
+  static const Color borderDark = Color(0xFF2C2C2E);
 
   // ---------------------------------------------------------------------------
   // Functional / Semantic Colors
@@ -46,45 +89,51 @@ abstract final class AppTokens {
   static const Color navyIconTile = Color(0xFF0B0F2A);
   static const Color white = Color(0xFFFFFFFF);
 
-  // Positive amount: Green (accessible >= 4.5:1 against white)
-  static const Color amountPositiveLight = Color(0xFF059669); // 4.54:1 on white
-  static const Color amountPositiveDark = Color(0xFF10B981);
+  /// Positive amount: Green (accessible >= 4.5:1 against white)
+  static const Color amountPositiveLight = Color(0xFF059669);
+  static const Color amountPositiveDark = Color(0xFF34C759);
 
-  // Negative amount matches the normal text color
+  /// Negative amount matches normal primary text
   static const Color amountNegativeLight = textPrimaryLight;
   static const Color amountNegativeDark = textPrimaryDark;
 
-  // Status colors
-  static const Color success = Color(0xFF059669);
-  static const Color warning = Color(0xFFD97706);
+  /// Semantic Status colors
+  static const Color success = Color(0xFF34C759);
+  static const Color warning = Color(0xFFFF9500);
   static const Color warningLight = Color(0xFFFEF3C7);
-  static const Color error = Color(0xFFDC2626);
+  static const Color error = Color(0xFFFF3B30);
   static const Color errorLight = Color(0xFFFEE2E2);
 
-  // Simulated badge
-  static const Color simulatedBadgeBgLight = Color(0xFFEDE9FE);
-  static const Color simulatedBadgeTextLight = Color(0xFF5E3CE6);
-  static const Color simulatedBadgeBgDark = Color(0xFF281C4F);
-  static const Color simulatedBadgeTextDark = Color(0xFFA592FF);
+  /// Simulated badge
+  static const Color simulatedBadgeBgLight = Color(0xFFEBF2FD);
+  static const Color simulatedBadgeTextLight = Color(0xFF386DD6);
+  static const Color simulatedBadgeBgDark = Color(0xFF1E2B45);
+  static const Color simulatedBadgeTextDark = Color(0xFF6F9EFA);
 
   // ---------------------------------------------------------------------------
   // Gradients
   // ---------------------------------------------------------------------------
   static const LinearGradient lightHeaderGradient = LinearGradient(
-    colors: [lightHeaderStart, lightHeaderEnd],
+    colors: [Color(0xFFF2F6FE), Color(0xFFFFFFFF)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   static const LinearGradient darkHeaderAmbient = LinearGradient(
-    colors: [glowPurple, backgroundDark],
+    colors: [Color(0xFF1C1C28), Color(0xFF000000)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   // Tile Gradients
+  static const LinearGradient blueTileGradient = LinearGradient(
+    colors: [Color(0xFF4C84F0), Color(0xFF6F9EFA)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
   static const LinearGradient violetTileGradient = LinearGradient(
-    colors: [Color(0xFF7B5CFA), Color(0xFFA592FF)],
+    colors: [Color(0xFF7B3FE4), Color(0xFF9F68F7)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -115,23 +164,35 @@ abstract final class AppTokens {
   );
 
   static const LinearGradient cardLavenderGradient = LinearGradient(
-    colors: [Color(0xFF6F52E8), Color(0xFF947BFE)],
+    colors: [Color(0xFF4C84F0), Color(0xFF7B5CFA)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   // ---------------------------------------------------------------------------
-  // Radii
+  // Radii (Target screenshot specifications)
   // ---------------------------------------------------------------------------
-  static const double radiusTile = 20.0;
-  static const double radiusCard = 24.0;
+  /// Tile radius ~28
+  static const double radiusTile = 28.0;
+
+  /// Card radius ~32
+  static const double radiusCard = 32.0;
+
+  /// Search field radius ~18
+  static const double radiusSearch = 18.0;
+
+  /// Story cards ~24
+  static const double radiusStory = 24.0;
+
   static const double radiusSheetTop = 28.0;
   static const double radiusPill = 999.0;
-  static const double radiusInput = 14.0;
-  static const double radiusSmall = 8.0;
+  static const double radiusInput = 18.0;
+  static const double radiusSmall = 12.0;
 
   static const BorderRadius borderRadiusTile = BorderRadius.all(Radius.circular(radiusTile));
   static const BorderRadius borderRadiusCard = BorderRadius.all(Radius.circular(radiusCard));
+  static const BorderRadius borderRadiusSearch = BorderRadius.all(Radius.circular(radiusSearch));
+  static const BorderRadius borderRadiusStory = BorderRadius.all(Radius.circular(radiusStory));
   static const BorderRadius borderRadiusSheetTop = BorderRadius.vertical(top: Radius.circular(radiusSheetTop));
   static const BorderRadius borderRadiusPill = BorderRadius.all(Radius.circular(radiusPill));
   static const BorderRadius borderRadiusInput = BorderRadius.all(Radius.circular(radiusInput));
@@ -151,11 +212,11 @@ abstract final class AppTokens {
   static const double space32 = 32.0;
 
   // ---------------------------------------------------------------------------
-  // Elevation / Shadows
+  // Elevation / Shadows (Large soft cards with very subtle shadow)
   // ---------------------------------------------------------------------------
   static List<BoxShadow> get softShadowLight => [
         BoxShadow(
-          color: const Color(0xFF14142B).withOpacity(0.06),
+          color: const Color(0xFF000000).withOpacity(0.04),
           blurRadius: 16,
           offset: const Offset(0, 4),
         ),
@@ -163,29 +224,29 @@ abstract final class AppTokens {
 
   static List<BoxShadow> get cardShadowLight => [
         BoxShadow(
-          color: const Color(0xFF7B5CFA).withOpacity(0.12),
+          color: const Color(0xFF000000).withOpacity(0.05),
           blurRadius: 20,
-          offset: const Offset(0, 8),
+          offset: const Offset(0, 6),
         ),
       ];
 
   static List<BoxShadow> get softShadowDark => [
         BoxShadow(
-          color: Colors.black.withOpacity(0.35),
+          color: Colors.black.withOpacity(0.40),
           blurRadius: 18,
-          offset: const Offset(0, 6),
+          offset: const Offset(0, 4),
         ),
       ];
 
   // ---------------------------------------------------------------------------
-  // Typography (Manrope Family)
+  // Typography (Geometric Sans: Manrope bundled with bold 700 headings)
   // ---------------------------------------------------------------------------
   static const String fontFamily = 'Manrope';
 
   static const TextStyle displayLarge = TextStyle(
     fontFamily: fontFamily,
     fontSize: 32,
-    fontWeight: FontWeight.w800,
+    fontWeight: FontWeight.w700,
     letterSpacing: -0.5,
   );
 
@@ -206,7 +267,7 @@ abstract final class AppTokens {
   static const TextStyle titleMedium = TextStyle(
     fontFamily: fontFamily,
     fontSize: 16,
-    fontWeight: FontWeight.w600,
+    fontWeight: FontWeight.w700,
   );
 
   static const TextStyle bodyLarge = TextStyle(
@@ -245,8 +306,8 @@ abstract final class AppTokens {
 
   static const TextStyle sectionHeaderStyle = TextStyle(
     fontFamily: fontFamily,
-    fontSize: 11,
-    fontWeight: FontWeight.w800,
-    letterSpacing: 1.2,
+    fontSize: 12,
+    fontWeight: FontWeight.w700,
+    letterSpacing: 1.0,
   );
 }

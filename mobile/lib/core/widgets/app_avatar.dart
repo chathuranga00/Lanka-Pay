@@ -1,35 +1,32 @@
 import 'package:flutter/material.dart';
 import '../theme/app_tokens.dart';
 
-/// User avatar rendering initials on a deterministic, accessible pastel background.
+/// User avatar rendering initials or an icon on a circular neutral grey background
+/// matching the target home layout.
 class AppAvatar extends StatelessWidget {
-  final String name;
+  final String? name;
+  final String? imageUrl;
   final double size;
+  final Color? backgroundColor;
+  final Color? textColor;
   final VoidCallback? onTap;
 
   const AppAvatar({
-    super.key,
-    required this.name,
-    this.size = 44.0,
+    super.key = const Key('app_avatar'),
+    this.name,
+    this.imageUrl,
+    this.size = 40.0,
+    this.backgroundColor,
+    this.textColor,
     this.onTap,
   });
 
-  static const List<_PastelPair> _palette = [
-    _PastelPair(bg: Color(0xFFDDD6FE), fg: Color(0xFF5B21B6)), // Lavender
-    _PastelPair(bg: Color(0xFFBAE6FD), fg: Color(0xFF0369A1)), // Sky
-    _PastelPair(bg: Color(0xFFA7F3D0), fg: Color(0xFF047857)), // Mint
-    _PastelPair(bg: Color(0xFFFECDD3), fg: Color(0xFFBE123C)), // Rose
-    _PastelPair(bg: Color(0xFFFDE68A), fg: Color(0xFF92400E)), // Amber
-    _PastelPair(bg: Color(0xFFFED7AA), fg: Color(0xFF9A3412)), // Peach
-    _PastelPair(bg: Color(0xFFE9D5FF), fg: Color(0xFF6B21A8)), // Purple
-  ];
-
   static String extractInitials(String rawName) {
     final trimmed = rawName.trim();
-    if (trimmed.isEmpty) return '?';
+    if (trimmed.isEmpty) return 'M';
     final parts = trimmed.split(RegExp(r'\s+'));
     if (parts.length == 1) {
-      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+      return parts[0].substring(0, 1).toUpperCase();
     }
     final first = parts.first.isNotEmpty ? parts.first[0] : '';
     final last = parts.last.isNotEmpty ? parts.last[0] : '';
@@ -38,47 +35,42 @@ class AppAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = extractInitials(name);
-    final index = name.trim().isEmpty ? 0 : (name.hashCode.abs() % _palette.length);
-    final colorPair = _palette[index];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = backgroundColor ?? (isDark ? AppTokens.avatarGreyDark : AppTokens.avatarGreyLight);
+    final fg = textColor ?? (isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight);
+    final initials = extractInitials(name ?? 'M');
 
-    final avatar = Container(
+    final child = Container(
+      key: const Key('app_avatar_container'),
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: colorPair.bg,
+        color: bg,
         shape: BoxShape.circle,
-        border: Border.all(
-          color: Colors.white.withOpacity(0.25),
-          width: 1.5,
-        ),
       ),
       alignment: Alignment.center,
       child: Text(
         initials,
         style: TextStyle(
           fontFamily: AppTokens.fontFamily,
-          fontSize: size * 0.40,
-          fontWeight: FontWeight.w800,
-          color: colorPair.fg,
-          letterSpacing: 0.5,
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w700,
+          color: fg,
         ),
       ),
     );
 
     if (onTap != null) {
-      return InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: avatar,
+      return Semantics(
+        button: true,
+        label: name ?? 'User Avatar',
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: child,
+        ),
       );
     }
-    return avatar;
+    return child;
   }
-}
-
-class _PastelPair {
-  final Color bg;
-  final Color fg;
-  const _PastelPair({required this.bg, required this.fg});
 }

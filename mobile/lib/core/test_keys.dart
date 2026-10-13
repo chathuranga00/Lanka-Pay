@@ -276,4 +276,16 @@ abstract final class AppTestKeys {
   static const Key settingsRemoveBtn = Key('settings_remove_btn');
   static const Key settingsToggleDiscoverable = Key('settings_toggle_discoverable');
   static const Key settingsToggleReceiving = Key('settings_toggle_receiving');
+
+  // ---------------------------------------------------------------------------
+  // Super App Shared Widgets
+  // ---------------------------------------------------------------------------
+  static const Key appAvatar = Key('app_avatar');
+  static const Key searchBarField = Key('search_bar_field');
+  static const Key storyCard = Key('story_card');
+  static const Key infoTile = Key('info_tile');
+  static const Key walletCard = Key('wallet_card');
+  static const Key nudgeBanner = Key('nudge_banner');
+  static const Key productTile = Key('product_tile');
+  static const Key appBottomNav = Key('app_bottom_nav');
 }

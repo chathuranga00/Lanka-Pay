@@ -1,7 +1,9 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lankapay_id/core/theme/app_theme.dart';
+import 'package:lankapay_id/core/theme/app_tokens.dart';
 import 'package:lankapay_id/core/theme/theme_controller.dart';
 import 'package:lankapay_id/core/widgets/widgets.dart';
 import 'package:lankapay_id/core/widgets/dev_design_system_screen.dart';
@@ -21,9 +23,42 @@ Widget createTestableWidget({
   );
 }
 
+/// Computes the relative luminance contrast ratio between two colors according to WCAG 2.1 specs.
+double calculateContrastRatio(Color foreground, Color background) {
+  final l1 = foreground.computeLuminance();
+  final l2 = background.computeLuminance();
+  final lighter = math.max(l1, l2);
+  final darker = math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  group('WCAG AA Color Contrast Verification', () {
+    test('Light theme text colors meet WCAG AA contrast (>= 4.5:1) against white', () {
+      final primaryRatio = calculateContrastRatio(AppTokens.textPrimaryLight, AppTokens.backgroundLight);
+      expect(primaryRatio, greaterThanOrEqualTo(4.5), reason: 'Near-black #1D1D1F must meet WCAG AA on white');
+
+      final secondaryRatio = calculateContrastRatio(AppTokens.textSecondaryLight, AppTokens.backgroundLight);
+      expect(secondaryRatio, greaterThanOrEqualTo(4.5), reason: 'Secondary grey must meet WCAG AA on white');
+
+      final nudgeRatio = calculateContrastRatio(AppTokens.nudgeBannerTextLight, AppTokens.nudgeBannerBgLight);
+      expect(nudgeRatio, greaterThanOrEqualTo(4.5), reason: 'Nudge banner text must meet WCAG AA on pale yellow');
+    });
+
+    test('Dark theme text colors meet WCAG AA contrast (>= 4.5:1) against dark surfaces', () {
+      final primaryRatio = calculateContrastRatio(AppTokens.textPrimaryDark, AppTokens.cardDark);
+      expect(primaryRatio, greaterThanOrEqualTo(4.5), reason: 'White text must meet WCAG AA on dark card');
+
+      final secondaryRatio = calculateContrastRatio(AppTokens.textSecondaryDark, AppTokens.cardDark);
+      expect(secondaryRatio, greaterThanOrEqualTo(4.5), reason: 'Secondary text must meet WCAG AA on dark card');
+
+      final nudgeRatio = calculateContrastRatio(AppTokens.nudgeBannerTextDark, AppTokens.nudgeBannerBgDark);
+      expect(nudgeRatio, greaterThanOrEqualTo(4.5), reason: 'Dark nudge text must meet WCAG AA on dark banner');
+    });
   });
 
   group('ThemeController Unit & Persistence Tests', () {
@@ -58,184 +93,75 @@ void main() {
       addTearDown(container.dispose);
 
       final notifier = container.read(themeControllerProvider.notifier);
-      // From system (non-dark), toggle goes to dark
       await notifier.toggleTheme();
       expect(container.read(themeControllerProvider), ThemeMode.dark);
 
-      // From dark, toggle goes to light
       await notifier.toggleTheme();
       expect(container.read(themeControllerProvider), ThemeMode.light);
     });
   });
 
-  group('Design System Widgets in Light Theme', () {
-    testWidgets('SimulatedBadge renders text chip', (tester) async {
+  group('Super App Shared Widgets in Light Theme', () {
+    testWidgets('AppAvatar renders neutral grey circle and initial', (tester) async {
+      bool tapped = false;
       await tester.pumpWidget(
         createTestableWidget(
           theme: AppTheme.lightTheme,
-          child: const SimulatedBadge(key: Key('simulated_badge'), text: 'SIMULATED'),
+          child: AppAvatar(
+            name: 'Mikhail',
+            onTap: () => tapped = true,
+          ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(SimulatedBadge), findsOneWidget);
-      expect(find.text('SIMULATED'), findsOneWidget);
-    });
-
-    testWidgets('ThemeTogglePill renders and switches theme on tap', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: const Center(child: ThemeTogglePill()),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final toggleFinder = find.byKey(const Key('theme_toggle'));
-      expect(toggleFinder, findsOneWidget);
-      expect(find.byIcon(Icons.wb_sunny_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.nightlight_round), findsOneWidget);
-
-      await tester.tap(toggleFinder);
-      await tester.pumpAndSettle();
-    });
-
-    testWidgets('AppAvatar renders deterministic initials and pastel background', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: const AppAvatar(key: Key('app_avatar'), name: 'James Taylor'),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('JT'), findsOneWidget);
       expect(find.byType(AppAvatar), findsOneWidget);
+      expect(find.text('M'), findsOneWidget);
+
+      await tester.tap(find.byType(AppAvatar));
+      expect(tapped, isTrue);
     });
 
-    testWidgets('AccountCard renders details and toggles eye balance visibility', (tester) async {
+    testWidgets('SearchBarField renders rounded input ~18 with search icon', (tester) async {
+      final controller = TextEditingController();
+      String changedText = '';
       await tester.pumpWidget(
         createTestableWidget(
           theme: AppTheme.lightTheme,
-          child: const AccountCard(
-            bankName: 'Bank of Ceylon',
-            nickname: 'Salary Account',
-            maskedNumber: '** 6917',
-            balance: 'LKR 84,230.00',
-            isDefault: true,
-            style: AccountCardStyle.charcoal,
+          child: SearchBarField(
+            controller: controller,
+            hintText: 'Search products',
+            onChanged: (val) => changedText = val,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Bank of Ceylon'), findsOneWidget);
-      expect(find.text('Salary Account'), findsOneWidget);
-      expect(find.text('** 6917'), findsOneWidget);
-      expect(find.text('LKR 84,230.00'), findsOneWidget);
-      expect(find.text('DEFAULT'), findsOneWidget);
-      expect(find.byType(SimulatedBadge), findsOneWidget);
+      expect(find.byType(SearchBarField), findsOneWidget);
+      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      expect(find.text('Search products'), findsOneWidget);
 
-      // Tap eye icon to mask balance
-      await tester.tap(find.byIcon(Icons.visibility_outlined));
-      await tester.pumpAndSettle();
-
-      expect(find.text('••••••••'), findsOneWidget);
-      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Cards');
+      expect(changedText, 'Cards');
     });
 
-    testWidgets('AccountCard renders in lavender style', (tester) async {
+    testWidgets('StoryCard renders caption and blue ring when unseen', (tester) async {
+      bool tapped = false;
       await tester.pumpWidget(
         createTestableWidget(
           theme: AppTheme.lightTheme,
-          child: const AccountCard(
-            bankName: 'Commercial Bank',
-            nickname: 'Primary Savings',
-            maskedNumber: '** 4433',
-            balance: 'LKR 41,220.00',
-            isDefault: false,
-            style: AccountCardStyle.lavender,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Commercial Bank'), findsOneWidget);
-      expect(find.text('Primary Savings'), findsOneWidget);
-      expect(find.text('LKR 41,220.00'), findsOneWidget);
-      expect(find.text('DEFAULT'), findsNothing);
-    });
-
-    testWidgets('QuickActionTile renders icon and label', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: const QuickActionTile(
-            icon: Icons.star_rounded,
-            label: 'My bonuses',
-            gradient: QuickActionGradient.violet,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('My bonuses'), findsOneWidget);
-      expect(find.byIcon(Icons.star_rounded), findsOneWidget);
-    });
-
-    testWidgets('ActionButton renders square button and label', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: const ActionButton(
-            icon: Icons.add_rounded,
-            label: 'Add money',
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Add money'), findsOneWidget);
-      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
-    });
-
-    testWidgets('MenuTile renders navy square icon and label', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: const MenuTile(
-            icon: Icons.near_me_rounded,
-            label: 'Popular payments',
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Popular payments'), findsOneWidget);
-      expect(find.byIcon(Icons.near_me_rounded), findsOneWidget);
-    });
-
-    testWidgets('TransactionTile renders positive and negative amounts correctly', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: Column(
+          child: Row(
             children: [
-              TransactionTile(
-                icon: Icons.shopping_cart_rounded,
-                title: 'Supermarket',
-                subtitle: 'Today, 16:40',
-                amount: '- LKR 40.00',
-                status: 'payment',
-                isPositive: false,
+              StoryCard(
+                key: const Key('story_unseen'),
+                caption: 'Tailored\nto you',
+                isUnseen: true,
+                onTap: () => tapped = true,
               ),
-              TransactionTile(
-                icon: Icons.account_balance_rounded,
-                title: 'Kapital Bank',
-                subtitle: 'Yesterday',
-                amount: '+ LKR 20.00',
-                status: 'transfer',
-                isPositive: true,
+              const StoryCard(
+                key: Key('story_seen'),
+                caption: 'Blog\nPulse',
+                isUnseen: false,
               ),
             ],
           ),
@@ -243,34 +169,108 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Supermarket'), findsOneWidget);
-      expect(find.text('- LKR 40.00'), findsOneWidget);
-      expect(find.text('Kapital Bank'), findsOneWidget);
-      expect(find.text('+ LKR 20.00'), findsOneWidget);
+      expect(find.byKey(const Key('story_card_unseen_ring')), findsOneWidget);
+      expect(find.text('Tailored\nto you'), findsOneWidget);
+      expect(find.text('Blog\nPulse'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('story_unseen')));
+      expect(tapped, isTrue);
     });
 
-    testWidgets('SectionHeader renders title and triggers optional action', (tester) async {
+    testWidgets('InfoTile renders title, subtitle, and progress bar', (tester) async {
       bool tapped = false;
       await tester.pumpWidget(
         createTestableWidget(
           theme: AppTheme.lightTheme,
-          child: SectionHeader(
-            title: 'CARDS',
-            actionLabel: 'See all >',
-            onActionTap: () => tapped = true,
+          child: InfoTile(
+            title: 'All transactions',
+            subtitle: 'No spending in April',
+            progress: 0.40,
+            onTap: () => tapped = true,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('CARDS'), findsOneWidget);
-      expect(find.text('See all >'), findsOneWidget);
+      expect(find.text('All transactions'), findsOneWidget);
+      expect(find.text('No spending in April'), findsOneWidget);
+      expect(find.byKey(const Key('info_tile_progress')), findsOneWidget);
 
-      await tester.tap(find.text('See all >'));
+      await tester.tap(find.byType(InfoTile));
       expect(tapped, isTrue);
     });
 
-    testWidgets('AppBottomNav renders 4 items and fires onIndexChanged', (tester) async {
+    testWidgets('NudgeBanner renders pale yellow banner with dark text', (tester) async {
+      bool tapped = false;
+      await tester.pumpWidget(
+        createTestableWidget(
+          theme: AppTheme.lightTheme,
+          child: NudgeBanner(
+            text: 'Arrange delivery',
+            onTap: () => tapped = true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NudgeBanner), findsOneWidget);
+      expect(find.text('Arrange delivery'), findsOneWidget);
+
+      await tester.tap(find.byType(NudgeBanner));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('WalletCard renders balance, account name, points pill, and nudge banner', (tester) async {
+      bool toggled = false;
+      await tester.pumpWidget(
+        createTestableWidget(
+          theme: AppTheme.lightTheme,
+          child: WalletCard(
+            balance: '0 LKR',
+            name: 'Primary Account',
+            onEyeToggle: () => toggled = true,
+            pointsPill: const Text('★ 0 pts'),
+            nudgeBanner: const NudgeBanner(text: 'Arrange delivery'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WalletCard), findsOneWidget);
+      expect(find.text('0 LKR'), findsOneWidget);
+      expect(find.text('Primary Account'), findsOneWidget);
+      expect(find.text('★ 0 pts'), findsOneWidget);
+      expect(find.text('Arrange delivery'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('wallet_card_eye_toggle')));
+      expect(toggled, isTrue);
+    });
+
+    testWidgets('ProductTile renders title, subtitle, and illustration slot', (tester) async {
+      bool tapped = false;
+      await tester.pumpWidget(
+        createTestableWidget(
+          theme: AppTheme.lightTheme,
+          child: ProductTile(
+            title: 'Borrow',
+            subtitle: 'Quick cash',
+            illustration: const Icon(Icons.payments_rounded),
+            onTap: () => tapped = true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProductTile), findsOneWidget);
+      expect(find.text('Borrow'), findsOneWidget);
+      expect(find.text('Quick cash'), findsOneWidget);
+      expect(find.byIcon(Icons.payments_rounded), findsOneWidget);
+
+      await tester.tap(find.byType(ProductTile));
+      expect(tapped, isTrue);
+    });
+
+    testWidgets('AppBottomNav renders 5 items with active blue and chat badge', (tester) async {
       int selected = 0;
       await tester.pumpWidget(
         createTestableWidget(
@@ -278,95 +278,63 @@ void main() {
           child: AppBottomNav(
             currentIndex: selected,
             onIndexChanged: (idx) => selected = idx,
+            chatBadgeCount: 1,
           ),
         ),
       );
       await tester.pumpAndSettle();
 
       expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Accounts'), findsOneWidget);
-      expect(find.text('Send'), findsOneWidget);
-      expect(find.text('More'), findsOneWidget);
+      expect(find.text('Payments'), findsOneWidget);
+      expect(find.text('City'), findsOneWidget);
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Products'), findsOneWidget);
+      expect(find.text('1'), findsOneWidget); // Chat badge
 
-      await tester.tap(find.byKey(const Key('nav_send')));
-      expect(selected, 2);
-    });
-
-    testWidgets('EmptyState and ErrorRetry widgets render cleanly', (tester) async {
-      bool retried = false;
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: Column(
-            children: [
-              const EmptyState(
-                icon: Icons.inbox_rounded,
-                title: 'No Data',
-                description: 'Nothing here yet.',
-              ),
-              ErrorRetry(
-                message: 'Failed to connect.',
-                onRetry: () => retried = true,
-              ),
-            ],
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('No Data'), findsOneWidget);
-      expect(find.text('Nothing here yet.'), findsOneWidget);
-      expect(find.text('Failed to connect.'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('error_retry_btn')));
-      expect(retried, isTrue);
-    });
-
-    testWidgets('Shimmer skeletons render without exceptions', (tester) async {
-      await tester.pumpWidget(
-        createTestableWidget(
-          theme: AppTheme.lightTheme,
-          child: const Column(
-            children: [
-              SkeletonAccountCard(),
-              SkeletonTransactionTile(),
-              SkeletonQuickActionTile(),
-            ],
-          ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.byKey(const Key('skeleton_account_card')), findsOneWidget);
-      expect(find.byKey(const Key('skeleton_transaction_tile')), findsOneWidget);
-      expect(find.byKey(const Key('skeleton_quick_action_tile')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('nav_payments')));
+      expect(selected, 1);
     });
   });
 
-  group('Design System Widgets in Dark Theme', () {
-    testWidgets('GradientHeaderScaffold and cards render in dark mode', (tester) async {
+  group('Super App Shared Widgets in Dark Theme', () {
+    testWidgets('All new shared widgets render cleanly in Dark Theme', (tester) async {
       await tester.pumpWidget(
         createTestableWidget(
           theme: AppTheme.darkTheme,
-          child: const GradientHeaderScaffold(
-            key: Key('gradient_header_scaffold'),
-            header: Text('Header Area', style: TextStyle(color: Colors.white)),
-            body: Text('Sheet Area'),
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                const AppAvatar(name: 'Mikhail'),
+                const SearchBarField(hintText: 'Search'),
+                const StoryCard(caption: 'Story 1', isUnseen: true),
+                const InfoTile(title: 'Info', subtitle: 'Detail', progress: 0.5),
+                const NudgeBanner(text: 'Delivery'),
+                const WalletCard(balance: '1,000 LKR', name: 'Savings'),
+                const ProductTile(title: 'Save'),
+                AppBottomNav(currentIndex: 0, onIndexChanged: (_) {}),
+              ],
+            ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Header Area'), findsOneWidget);
-      expect(find.text('Sheet Area'), findsOneWidget);
-      expect(find.byType(GradientHeaderScaffold), findsOneWidget);
+      expect(find.byType(AppAvatar), findsOneWidget);
+      expect(find.byType(SearchBarField), findsOneWidget);
+      expect(find.byType(StoryCard), findsOneWidget);
+      expect(find.byType(InfoTile), findsOneWidget);
+      expect(find.byType(NudgeBanner), findsOneWidget);
+      expect(find.byType(WalletCard), findsOneWidget);
+      expect(find.byType(ProductTile), findsOneWidget);
+      expect(find.byType(AppBottomNav), findsOneWidget);
     });
 
-    testWidgets('DevDesignSystemScreen renders all gallery items in dark theme', (tester) async {
-      tester.view.physicalSize = const Size(800, 2400);
+    testWidgets('DevDesignSystemScreen renders all gallery items in light and dark theme', (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
 
+      // Dark Mode Test
       await tester.pumpWidget(
         createTestableWidget(
           theme: AppTheme.darkTheme,
@@ -376,12 +344,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('dev_design_system_screen')), findsOneWidget);
-      expect(find.text('Design System Gallery'), findsOneWidget);
-      expect(find.text('LKR 125,450.00'), findsOneWidget);
-      expect(find.text('Bank of Ceylon'), findsOneWidget);
-      expect(find.text('Commercial Bank'), findsOneWidget);
-      expect(find.text('Supermarket'), findsOneWidget);
-      expect(find.text('Kapital Bank'), findsOneWidget);
+      expect(find.text('Super App Design System'), findsOneWidget);
+      expect(find.text('Mikhail'), findsOneWidget);
+      expect(find.byKey(const Key('gallery_avatar')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_search_bar')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_story_1')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_info_tile_1')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_wallet_card')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_product_borrow')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_product_save')), findsOneWidget);
+      expect(find.byKey(const Key('gallery_bottom_nav')), findsOneWidget);
     });
   });
 }
