@@ -89,6 +89,9 @@ public class SecurityConfig {
                 // cards require a valid JWT
                 .requestMatchers("/api/v1/cards/**").authenticated()
 
+                // simulated savings goals require a valid JWT
+                .requestMatchers("/api/v1/goals/**").authenticated()
+
                 // simulated card vault — requires JWT (abuse is attributable to a user)
                 .requestMatchers("/sim-vault/**").authenticated()
 

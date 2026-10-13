@@ -43,6 +43,8 @@ import '../../features/split/presentation/split_create_screen.dart';
 import '../../features/split/presentation/split_details_screen.dart';
 import '../../features/split/presentation/split_pay_request_screen.dart';
 import '../../features/analytics/presentation/activity_screen.dart';
+import '../../features/goals/presentation/goals_screen.dart';
+import '../../features/goals/presentation/goal_details_screen.dart';
 import '../../features/rewards/presentation/rewards_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
@@ -216,6 +218,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: rootNavigatorKey,
         path: '/activity',
         builder: (context, state) => const ActivityScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/goals',
+        builder: (context, state) => const GoalsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/goals/:id',
+        builder: (context, state) {
+          final goalId = state.pathParameters['id'] ?? '';
+          return GoalDetailsScreen(goalId: goalId);
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

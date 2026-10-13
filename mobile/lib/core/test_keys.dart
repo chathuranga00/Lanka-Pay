@@ -456,6 +456,49 @@ abstract final class AppTestKeys {
   static const Key assistantThumbsDown = Key('assistant_thumbs_down');
   static const Key assistantInput = Key('assistant_input');
   static const Key assistantSend = Key('assistant_send');
+
+  // ---------------------------------------------------------------------------
+  // Explore Showcase (explore_*)
+  // ---------------------------------------------------------------------------
+  static const Key exploreSearch = Key('explore_search');
+  static const Key exploreAccounts = Key('explore_accounts');
+  static const Key exploreCards = Key('explore_cards');
+  static const Key exploreGoals = Key('explore_goals');
+  static const Key exploreSavingsGoals = Key('explore_savings_goals');
+  static const Key exploreStatements = Key('explore_statements');
+  static const Key exploreBills = Key('explore_bills');
+  static const Key exploreScheduled = Key('explore_scheduled');
+  static const Key exploreSplit = Key('explore_split');
+  static const Key exploreQr = Key('explore_qr');
+  static const Key exploreRequests = Key('explore_requests');
+  static const Key exploreRewards = Key('explore_rewards');
+  static const Key exploreCity = Key('explore_city');
+  static const Key exploreSupport = Key('explore_support');
+  static const Key exploreInsights = Key('explore_insights');
+  static const Key exploreFamily = Key('explore_family');
+  static const Key exploreInvestments = Key('explore_investments');
+  static const Key exploreInsurance = Key('explore_insurance');
+  static const Key exploreLoans = Key('explore_loans');
+  static const Key exploreComingSoonSheet = Key('explore_coming_soon_sheet');
+
+  static Key exploreModule(String name) => Key('explore_${name.toLowerCase()}');
+
+  // ---------------------------------------------------------------------------
+  // Savings Goals (goal_*)
+  // ---------------------------------------------------------------------------
+  static Key goal(String id) => Key('goal_$id');
+  static const Key goalCreateBtn = Key('goal_create_btn');
+  static const Key goalContribute = Key('goal_contribute');
+  static const Key goalContributeBtn = Key('goal_contribute_btn');
+  static const Key goalWithdraw = Key('goal_withdraw');
+  static const Key goalWithdrawBtn = Key('goal_withdraw_btn');
+  static const Key goalNameInput = Key('goal_name_input');
+  static const Key goalTargetInput = Key('goal_target_input');
+  static const Key goalAmountInput = Key('goal_amount_input');
+  static const Key goalPinInput = Key('goal_pin_input');
+  static const Key goalCreateSubmit = Key('goal_create_submit');
+  static const Key goalContributeConfirm = Key('goal_contribute_confirm');
+  static const Key goalWithdrawConfirm = Key('goal_withdraw_confirm');
 }
 
 typedef TestKeys = AppTestKeys;

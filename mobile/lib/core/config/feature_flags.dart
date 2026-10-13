@@ -12,6 +12,13 @@ class FeatureFlagKeys {
   static const String goals = 'goals';
   static const String scheduled = 'scheduled';
   static const String split = 'split';
+  static const String family = 'family';
+  static const String rewards = 'rewards';
+  static const String insights = 'insights';
+  static const String investments = 'investments';
+  static const String insurance = 'insurance';
+  static const String loans = 'loans';
+  static const String borrowing = 'borrowing';
 }
 
 /// Notifier managing dynamic feature flags in Riverpod.
