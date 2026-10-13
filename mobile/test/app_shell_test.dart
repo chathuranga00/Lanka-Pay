@@ -11,8 +11,12 @@ import 'package:lankapay_id/core/widgets/simulated_badge.dart';
 import 'package:lankapay_id/features/accounts/data/bank_account_service.dart';
 import 'package:lankapay_id/features/accounts/domain/bank_account_model.dart';
 import 'package:lankapay_id/features/accounts/presentation/accounts_screen.dart';
+import 'package:lankapay_id/features/chat/presentation/chat_screen.dart';
+import 'package:lankapay_id/features/city/presentation/city_screen.dart';
+import 'package:lankapay_id/features/explore/presentation/explore_screen.dart';
 import 'package:lankapay_id/features/home/presentation/home_screen.dart';
 import 'package:lankapay_id/features/more/presentation/more_screen.dart';
+import 'package:lankapay_id/features/pay/presentation/pay_hub_screen.dart';
 import 'package:lankapay_id/features/send/presentation/send_screen.dart';
 import 'package:lankapay_id/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -116,7 +120,7 @@ void main() {
   });
 
   group('AppShell & StatefulShellRoute Tab Navigation', () {
-    testWidgets('boots at /home tab and renders AppBottomNav with 4 items', (tester) async {
+    testWidgets('boots at /home tab and renders AppBottomNav with 5 items', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -128,9 +132,10 @@ void main() {
       // Verify shell and bottom nav are rendered
       expect(find.byType(AppBottomNav), findsOneWidget);
       expect(find.byKey(const Key('nav_home')), findsOneWidget);
-      expect(find.byKey(const Key('nav_accounts')), findsOneWidget);
-      expect(find.byKey(const Key('nav_send')), findsOneWidget);
-      expect(find.byKey(const Key('nav_more')), findsOneWidget);
+      expect(find.byKey(const Key('nav_pay')), findsOneWidget);
+      expect(find.byKey(const Key('nav_city')), findsOneWidget);
+      expect(find.byKey(const Key('nav_chat')), findsOneWidget);
+      expect(find.byKey(const Key('nav_explore')), findsOneWidget);
 
       // Verify HomeScreen is rendered on tab 0
       expect(find.byType(HomeScreen), findsOneWidget);
@@ -145,22 +150,27 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // 1. Switch to Tab 1: Accounts
-      await tester.tap(find.byKey(const Key('nav_accounts')));
+      // 1. Switch to Tab 1: Pay
+      await tester.tap(find.byKey(const Key('nav_pay')));
       await tester.pumpAndSettle();
-      expect(find.byType(AccountsScreen), findsOneWidget);
+      expect(find.byType(PayHubScreen), findsOneWidget);
 
-      // 2. Switch to Tab 2: Send
-      await tester.tap(find.byKey(const Key('nav_send')));
+      // 2. Switch to Tab 2: City
+      await tester.tap(find.byKey(const Key('nav_city')));
       await tester.pumpAndSettle();
-      expect(find.byType(SendScreen), findsOneWidget);
+      expect(find.byType(CityScreen), findsOneWidget);
 
-      // 3. Switch to Tab 3: More
-      await tester.tap(find.byKey(const Key('nav_more')));
+      // 3. Switch to Tab 3: Chat
+      await tester.tap(find.byKey(const Key('nav_chat')));
       await tester.pumpAndSettle();
-      expect(find.byType(MoreScreen), findsOneWidget);
+      expect(find.byType(ChatScreen), findsOneWidget);
 
-      // 4. Switch back to Tab 0: Home
+      // 4. Switch to Tab 4: Explore
+      await tester.tap(find.byKey(const Key('nav_explore')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ExploreScreen), findsOneWidget);
+
+      // 5. Switch back to Tab 0: Home
       await tester.tap(find.byKey(const Key('nav_home')));
       await tester.pumpAndSettle();
       expect(find.byType(HomeScreen), findsOneWidget);
@@ -168,7 +178,7 @@ void main() {
   });
 
   group('Header Slim SimulatedBadge Tests', () {
-    testWidgets('Home, Accounts, Send, and More tabs render slim SimulatedBadge in header', (tester) async {
+    testWidgets('Home, Accounts, and Send routes render slim SimulatedBadge in header', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -176,23 +186,16 @@ void main() {
       await tester.pumpWidget(createTestShellApp(initialLocation: '/home'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-
-      // On Home: SimulatedBadge is in AppBar
       expect(find.byType(SimulatedBadge), findsWidgets);
 
-      // On Accounts
-      await tester.tap(find.byKey(const Key('nav_accounts')));
-      await tester.pumpAndSettle();
+      await tester.pumpWidget(createTestShellApp(initialLocation: '/accounts'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(SimulatedBadge), findsWidgets);
 
-      // On Send
-      await tester.tap(find.byKey(const Key('nav_send')));
-      await tester.pumpAndSettle();
-      expect(find.byType(SimulatedBadge), findsWidgets);
-
-      // On More
-      await tester.tap(find.byKey(const Key('nav_more')));
-      await tester.pumpAndSettle();
+      await tester.pumpWidget(createTestShellApp(initialLocation: '/send'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(find.byType(SimulatedBadge), findsWidgets);
     });
   });
@@ -206,9 +209,6 @@ void main() {
       await tester.pumpWidget(createTestShellApp(initialLocation: '/more'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-
-      // Switch to more tab
-      await tester.tap(find.byKey(const Key('nav_more')));
       await tester.pumpAndSettle();
 
       // Check all 10 required keys
@@ -239,8 +239,6 @@ void main() {
       await tester.pumpWidget(createTestShellApp(initialLocation: '/more'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-
-      await tester.tap(find.byKey(const Key('nav_more')));
       await tester.pumpAndSettle();
 
       // Tap dark mode option
@@ -274,8 +272,6 @@ void main() {
       await tester.pumpWidget(createTestShellApp(initialLocation: '/more'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-
-      await tester.tap(find.byKey(const Key('nav_more')));
       await tester.pumpAndSettle();
 
       // 1. Profile modal

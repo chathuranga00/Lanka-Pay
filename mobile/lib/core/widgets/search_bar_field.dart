@@ -9,6 +9,7 @@ class SearchBarField extends StatelessWidget {
   final ValueChanged<String>? onChanged;
   final VoidCallback? onTap;
   final VoidCallback? onClear;
+  final ValueChanged<String>? onSubmitted;
   final bool readOnly;
   final bool autofocus;
   final FocusNode? focusNode;
@@ -19,6 +20,7 @@ class SearchBarField extends StatelessWidget {
     this.hintText = 'Search',
     this.controller,
     this.onChanged,
+    this.onSubmitted,
     this.onTap,
     this.onClear,
     this.readOnly = false,
@@ -62,6 +64,7 @@ class SearchBarField extends StatelessWidget {
                 autofocus: autofocus,
                 onTap: onTap,
                 onChanged: onChanged,
+                onSubmitted: onSubmitted,
                 style: TextStyle(
                   fontFamily: AppTokens.fontFamily,
                   fontSize: 15,

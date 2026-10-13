@@ -7,7 +7,7 @@ import '../theme/app_tokens.dart';
 class InfoTile extends StatelessWidget {
   final String title;
   final String? subtitle;
-  final Widget? icon;
+  final dynamic icon;
   final double? progress;
   final VoidCallback? onTap;
   final double? height;
@@ -104,7 +104,9 @@ class InfoTile extends StatelessWidget {
           else if (icon != null)
             Align(
               alignment: Alignment.bottomLeft,
-              child: icon!,
+              child: icon is IconData
+                  ? Icon(icon as IconData, color: AppTokens.primaryBlue, size: 24)
+                  : (icon as Widget),
             ),
         ],
       ),

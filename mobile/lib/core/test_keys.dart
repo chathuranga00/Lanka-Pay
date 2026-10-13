@@ -10,9 +10,37 @@ abstract final class AppTestKeys {
   // Navigation (nav_*)
   // ---------------------------------------------------------------------------
   static const Key navHome = Key('nav_home');
+  static const Key navPay = Key('nav_pay');
+  static const Key navCity = Key('nav_city');
+  static const Key navChat = Key('nav_chat');
+  static const Key navExplore = Key('nav_explore');
   static const Key navAccounts = Key('nav_accounts');
   static const Key navSend = Key('nav_send');
   static const Key navMore = Key('nav_more');
+
+  // ---------------------------------------------------------------------------
+  // Global Search (search_*)
+  // ---------------------------------------------------------------------------
+  static const Key searchScreen = Key('search_screen');
+  static const Key searchInput = Key('search_input');
+  static const Key searchClearBtn = Key('search_clear_btn');
+  static const Key searchRecentList = Key('search_recent_list');
+  static const Key searchClearRecentBtn = Key('search_clear_recent_btn');
+  static const Key searchResultsList = Key('search_results_list');
+  static const Key searchEmptyState = Key('search_empty_state');
+  static const Key searchErrorState = Key('search_error_state');
+  static const Key searchLoading = Key('search_loading');
+
+  // ---------------------------------------------------------------------------
+  // Avatar Sheet (avatar_sheet_*)
+  // ---------------------------------------------------------------------------
+  static const Key avatarSheet = Key('avatar_sheet');
+  static const Key avatarSheetSettings = Key('avatar_sheet_settings');
+  static const Key avatarSheetPrivacy = Key('avatar_sheet_privacy');
+  static const Key avatarSheetSecurity = Key('avatar_sheet_security');
+  static const Key avatarSheetLanguage = Key('avatar_sheet_language');
+  static const Key avatarSheetAppearance = Key('avatar_sheet_appearance');
+  static const Key avatarSheetLogout = Key('avatar_sheet_logout');
 
   // ---------------------------------------------------------------------------
   // Home (home_*)

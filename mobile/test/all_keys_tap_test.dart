@@ -9,9 +9,11 @@ import 'package:lankapay_id/core/theme/app_theme.dart';
 import 'package:lankapay_id/core/theme/theme_controller.dart';
 import 'package:lankapay_id/features/accounts/data/bank_account_service.dart';
 import 'package:lankapay_id/features/accounts/domain/bank_account_model.dart';
+import 'package:lankapay_id/features/accounts/presentation/accounts_screen.dart';
 import 'package:lankapay_id/features/history/data/history_service.dart';
 import 'package:lankapay_id/features/notifications/data/notification_service.dart';
 import 'package:lankapay_id/features/notifications/domain/notification_models.dart';
+import 'package:lankapay_id/features/send/presentation/send_screen.dart';
 import 'package:lankapay_id/features/qr/data/qr_service.dart';
 import 'package:lankapay_id/features/qr/domain/qr_models.dart';
 import 'package:lankapay_id/features/send/data/transfer_service.dart';
@@ -542,7 +544,12 @@ void main() {
       await tester.tap(find.byKey(AppTestKeys.homeSearch));
       await tester.pumpAndSettle();
       // Back to Home
-      await tester.tap(find.byKey(AppTestKeys.navHome));
+      final searchBack = find.byKey(const Key('search_back_btn'));
+      if (searchBack.evaluate().isNotEmpty) {
+        await tester.tap(searchBack);
+      } else {
+        Navigator.of(tester.element(find.byKey(const Key('search_screen')))).pop();
+      }
       await tester.pumpAndSettle();
 
       // 4. AppTestKeys.homeBell -> navigates to /notifications
@@ -578,14 +585,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(AppTestKeys.accountsAdd), findsOneWidget);
       // Return to Home
-      await tester.tap(find.byKey(AppTestKeys.navHome));
+      if (find.byTooltip('Back').evaluate().isNotEmpty) {
+        await tester.tap(find.byTooltip('Back').first);
+      } else {
+        Navigator.of(tester.element(find.byType(AccountsScreen))).pop();
+      }
       await tester.pumpAndSettle();
 
       // 7. Quick Actions: qaSend, qaScan, qaRequest, qaMyQr
       expect(find.byKey(AppTestKeys.qaSend), findsOneWidget);
       await tester.tap(find.byKey(AppTestKeys.qaSend));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(AppTestKeys.navHome));
+      if (find.byTooltip('Back').evaluate().isNotEmpty) {
+        await tester.tap(find.byTooltip('Back').first);
+      } else {
+        Navigator.of(tester.element(find.byType(SendScreen))).pop();
+      }
       await tester.pumpAndSettle();
 
       expect(find.byKey(AppTestKeys.qaScan), findsOneWidget);
@@ -639,11 +654,6 @@ void main() {
         initialLocation: '/accounts',
         bankService: bankService,
       ));
-      await tester.pumpAndSettle();
-
-      // 1. AppTestKeys.navAccounts
-      expect(find.byKey(AppTestKeys.navAccounts), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.navAccounts));
       await tester.pumpAndSettle();
 
       // 2. AppTestKeys.accountToggleVisibility (masks/unmasks digits)
@@ -721,11 +731,6 @@ void main() {
       await tester.pumpWidget(createE2ETestApp(initialLocation: '/send'));
       await tester.pumpAndSettle();
 
-      // 1. AppTestKeys.navSend
-      expect(find.byKey(AppTestKeys.navSend), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.navSend));
-      await tester.pumpAndSettle();
-
       // 2. AppTestKeys.sendScanQr -> opens scanner
       expect(find.byKey(AppTestKeys.sendScanQr), findsOneWidget);
       await tester.tap(find.byKey(AppTestKeys.sendScanQr));
@@ -789,6 +794,10 @@ void main() {
       expect(find.byKey(AppTestKeys.sendReviewBtn), findsOneWidget);
       await tester.tap(find.byKey(AppTestKeys.sendReviewBtn));
       await tester.pumpAndSettle();
+      if (Navigator.of(tester.element(find.byKey(AppTestKeys.sendReviewBtn))).canPop()) {
+        Navigator.of(tester.element(find.byKey(AppTestKeys.sendReviewBtn))).pop();
+        await tester.pumpAndSettle();
+      }
     });
 
     testWidgets('Tapping all keys on More screen triggers sub-modals, theme selection, and logout dialog',
@@ -798,11 +807,6 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
 
       await tester.pumpWidget(createE2ETestApp(initialLocation: '/more'));
-      await tester.pumpAndSettle();
-
-      // 1. AppTestKeys.navMore
-      expect(find.byKey(AppTestKeys.navMore), findsOneWidget);
-      await tester.tap(find.byKey(AppTestKeys.navMore));
       await tester.pumpAndSettle();
 
       // 2. AppTestKeys.moreProfile -> opens profile sheet, closes via profileCloseBtn

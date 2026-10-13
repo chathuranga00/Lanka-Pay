@@ -10,6 +10,10 @@ import '../../features/auth/presentation/otp_verification_screen.dart';
 import '../../features/auth/presentation/consent_screen.dart';
 import '../../features/auth/presentation/recovery_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/pay/presentation/pay_hub_screen.dart';
+import '../../features/city/presentation/city_screen.dart';
+import '../../features/chat/presentation/chat_screen.dart';
+import '../../features/explore/presentation/explore_screen.dart';
 import '../../features/accounts/presentation/accounts_screen.dart';
 import '../../features/accounts/presentation/add_bank_account_screen.dart';
 import '../../features/send/presentation/send_screen.dart';
@@ -24,6 +28,7 @@ import '../../features/settings/presentation/security_settings_screen.dart';
 import '../../features/more/presentation/more_screen.dart';
 import '../../features/cards/presentation/add_card/add_card_flow_screen.dart';
 import '../../features/cards/presentation/widgets/test_cards_list_screen.dart';
+import '../../features/search/presentation/search_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -82,7 +87,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RecoveryScreen(),
       ),
 
-      // App Shell with 4 tabs using StatefulShellRoute.indexedStack
+      // Super App Shell with 5 tabs using StatefulShellRoute.indexedStack
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
@@ -97,34 +102,65 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Tab 1: Accounts
+          // Tab 1: Pay
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/accounts',
-                builder: (context, state) => const AccountsScreen(),
+                path: '/pay',
+                builder: (context, state) => const PayHubScreen(),
               ),
             ],
           ),
-          // Tab 2: Send
+          // Tab 2: City
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/send',
-                builder: (context, state) => SendScreen(resolvedQr: state.extra),
+                path: '/city',
+                builder: (context, state) => const CityScreen(),
               ),
             ],
           ),
-          // Tab 3: More
+          // Tab 3: Chat
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/more',
-                builder: (context, state) => const MoreScreen(),
+                path: '/chat',
+                builder: (context, state) => const ChatScreen(),
+              ),
+            ],
+          ),
+          // Tab 4: Explore
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/explore',
+                builder: (context, state) => const ExploreScreen(),
               ),
             ],
           ),
         ],
+      ),
+
+      // Legacy & Direct Navigation Routes (all keep working on top of the shell)
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/accounts',
+        builder: (context, state) => const AccountsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/send',
+        builder: (context, state) => SendScreen(resolvedQr: state.extra),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/more',
+        builder: (context, state) => const MoreScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/search',
+        builder: (context, state) => const SearchScreen(),
       ),
 
       // Full-screen flows (hide bottom tab bar, pushed on root navigator)

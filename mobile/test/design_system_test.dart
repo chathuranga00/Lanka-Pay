@@ -285,13 +285,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Payments'), findsOneWidget);
+      expect(find.text('Pay'), findsOneWidget);
       expect(find.text('City'), findsOneWidget);
       expect(find.text('Chat'), findsOneWidget);
-      expect(find.text('Products'), findsOneWidget);
+      expect(find.text('Explore'), findsOneWidget);
       expect(find.text('1'), findsOneWidget); // Chat badge
 
-      await tester.tap(find.byKey(const Key('nav_payments')));
+      await tester.tap(find.byKey(const Key('nav_pay')));
       expect(selected, 1);
     });
   });

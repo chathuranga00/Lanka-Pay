@@ -20,7 +20,7 @@ class AppBottomNav extends StatelessWidget {
     this.chatBadgeCount,
   });
 
-  /// Default 5 items for Super App home layout (Home, Payments, City, Chat, Products)
+  /// Default 5 items for Super App layout (Home, Pay, City, Chat, Explore)
   static List<AppNavItem> get default5Items => [
         const AppNavItem(
           label: 'Home',
@@ -28,9 +28,9 @@ class AppBottomNav extends StatelessWidget {
           key: Key('nav_home'),
         ),
         const AppNavItem(
-          label: 'Payments',
+          label: 'Pay',
           icon: Icons.sync_alt_rounded,
-          key: Key('nav_payments'),
+          key: Key('nav_pay'),
         ),
         const AppNavItem(
           label: 'City',
@@ -44,9 +44,9 @@ class AppBottomNav extends StatelessWidget {
           badgeCount: 1,
         ),
         const AppNavItem(
-          label: 'Products',
+          label: 'Explore',
           icon: Icons.grid_view_rounded,
-          key: Key('nav_products'),
+          key: Key('nav_explore'),
         ),
       ];
 

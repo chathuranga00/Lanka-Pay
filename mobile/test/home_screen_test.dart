@@ -21,6 +21,7 @@ import 'package:lankapay_id/features/home/presentation/home_screen.dart';
 import 'package:lankapay_id/features/notifications/data/notification_service.dart';
 import 'package:lankapay_id/features/notifications/domain/notification_models.dart';
 import 'package:lankapay_id/features/notifications/presentation/notifications_screen.dart';
+import 'package:lankapay_id/features/search/presentation/search_screen.dart';
 import 'package:lankapay_id/features/qr/data/qr_service.dart';
 import 'package:lankapay_id/features/qr/domain/qr_models.dart';
 import 'package:lankapay_id/features/qr/presentation/qr_screen.dart';
@@ -619,7 +620,7 @@ void main() {
   });
 
   group('HomeScreen Interactive Controls & Taps', () {
-    testWidgets('tapping search icon [home_search] navigates to Send tab', (tester) async {
+    testWidgets('tapping search icon [home_search] opens global search screen', (tester) async {
       tester.view.physicalSize = const Size(800, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -636,7 +637,9 @@ void main() {
       await tester.tap(find.byKey(const Key('home_search')));
       await tester.pumpAndSettle();
 
-      expect(find.byType(SendScreen), findsOneWidget);
+      expect(find.byType(SearchScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(SearchScreen))).pop();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('tapping bell icon [home_bell] opens notifications screen', (tester) async {
@@ -657,6 +660,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(NotificationsScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(NotificationsScreen))).pop();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('tapping Add + [home_add_account] opens add bank account flow', (tester) async {
@@ -677,6 +682,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AddBankAccountScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(AddBankAccountScreen))).pop();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('tapping account card [home_account_<id>] opens accounts tab', (tester) async {
@@ -725,7 +732,7 @@ void main() {
       expect(find.byType(SendScreen), findsOneWidget);
 
       // Return home
-      await tester.tap(find.byKey(const Key('nav_home')));
+      Navigator.of(tester.element(find.byType(SendScreen))).pop();
       await tester.pumpAndSettle();
 
       // 2. qa_scan -> /qr
@@ -750,6 +757,8 @@ void main() {
       await tester.tap(find.byKey(const Key('qa_my_qr')));
       await tester.pumpAndSettle();
       expect(find.byType(QrScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(QrScreen))).pop();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('tapping See all [home_see_all] opens transaction history', (tester) async {
@@ -770,6 +779,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(HistoryScreen), findsOneWidget);
+      Navigator.of(tester.element(find.byType(HistoryScreen))).pop();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('tapping transaction row [tx_<id>] opens transaction receipt screen', (tester) async {
@@ -794,6 +805,8 @@ void main() {
 
       expect(find.byType(ReceiptScreen), findsOneWidget);
       expect(find.text('TX-IN-001'), findsOneWidget);
+      Navigator.of(tester.element(find.byType(ReceiptScreen))).pop();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('pull-to-refresh triggers refresh on all providers', (tester) async {

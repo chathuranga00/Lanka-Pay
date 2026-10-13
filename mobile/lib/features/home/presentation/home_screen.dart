@@ -22,6 +22,7 @@ import '../../history/data/history_service.dart';
 import '../../history/presentation/receipt_screen.dart';
 import '../../send/domain/transfer_models.dart';
 import '../../settings/presentation/privacy_settings_screen.dart';
+import 'widgets/avatar_sheet.dart';
 import '../data/home_providers.dart';
 
 /// Redesigned Neo-Banking Home Dashboard tab matching the target design language.
@@ -167,7 +168,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         GestureDetector(
-          onTap: () => context.push('/settings'),
+          key: const Key('home_avatar'),
+          onTap: () => AvatarSheet.show(context),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -195,8 +197,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         IconButton(
           key: const Key('home_search'),
           icon: Icon(Icons.search_rounded, color: iconColor, size: 24),
-          tooltip: 'Search recipients',
-          onPressed: () => context.go('/send'),
+          tooltip: 'Search',
+          onPressed: () => context.push('/search'),
         ),
         KeyedSubtree(
           key: const Key('home_notifications_icon_btn'),
@@ -383,7 +385,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       balance: 'LKR 125,450.00',
                       isDefault: acc.isDefault,
                       style: index.isEven ? AccountCardStyle.charcoal : AccountCardStyle.lavender,
-                      onTap: () => context.go('/accounts'),
+                      onTap: () => context.push('/accounts'),
                     ),
                   );
                 },
@@ -418,7 +420,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   gradient: QuickActionGradient.violet,
                   width: 86,
                   height: 96,
-                  onTap: () => context.go('/send'),
+                  onTap: () => context.push('/send'),
                 ),
               ),
               const SizedBox(width: AppTokens.space12),
