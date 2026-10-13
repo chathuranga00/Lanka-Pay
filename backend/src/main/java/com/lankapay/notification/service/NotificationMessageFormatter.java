@@ -104,6 +104,10 @@ public class NotificationMessageFormatter {
         return create("Security Alert", sanitize(detail) + " If this was not you, contact support immediately.");
     }
 
+    public FormattedMessage formatBudgetThreshold(int percentage) {
+        return create("Budget Alert", "You have reached " + percentage + "% of your monthly spending limit.");
+    }
+
     private FormattedMessage create(String title, String rawMessage) {
         String sanitizedMessage = sanitize(rawMessage);
         assertPrivacySafe(sanitizedMessage);

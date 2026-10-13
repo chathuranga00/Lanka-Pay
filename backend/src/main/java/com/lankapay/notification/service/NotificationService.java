@@ -146,6 +146,12 @@ public class NotificationService {
         dispatch(user, NotificationType.SECURITY_ALERT, formatted.title(), formatted.message());
     }
 
+    public void notifyBudgetThreshold(User user, int percentage) {
+        if (user == null) return;
+        var formatted = formatter.formatBudgetThreshold(percentage);
+        dispatch(user, NotificationType.BUDGET_ALERT, formatted.title(), formatted.message());
+    }
+
     // ── Core Safe Dispatch Engine ──────────────────────────────
 
     /**

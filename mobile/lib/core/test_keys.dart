@@ -395,6 +395,16 @@ abstract final class AppTestKeys {
   static const Key splitPay = Key('split_pay');
   static const Key splitPinField = Key('split_pin_field');
   static const Key splitProgress = Key('split_progress');
+
+  // ---------------------------------------------------------------------------
+  // Analytics & Activity (activity_*, budget_*, cat_*, receipt_*)
+  // ---------------------------------------------------------------------------
+  static const Key activityMonthPrev = Key('activity_month_prev');
+  static const Key activityMonthNext = Key('activity_month_next');
+  static const Key budgetEdit = Key('budget_edit');
+  static Key cat(String name) => Key('cat_$name');
+  static const Key receiptShare = Key('receipt_share');
+  static const Key receiptDownload = Key('receipt_download');
 }
 
 typedef TestKeys = AppTestKeys;

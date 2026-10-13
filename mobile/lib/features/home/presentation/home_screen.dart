@@ -309,7 +309,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return InkWell(
       key: const Key('tile_activity'),
-      onTap: () => context.push('/history'),
+      onTap: () => context.push('/activity'),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         constraints: const BoxConstraints(minHeight: 110),

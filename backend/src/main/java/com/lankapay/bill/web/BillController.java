@@ -78,7 +78,7 @@ public class BillController {
         return ResponseEntity.ok(billService.listPayments(user.getId(), offset, limit));
     }
 
-    @GetMapping("/api/v1/bills/payments/{id}")
+    @GetMapping({"/api/v1/bills/payments/{id}", "/api/v1/bills/payments/{id}/receipt", "/bills/payments/{id}/receipt"})
     @Operation(summary = "Get specific bill payment receipt")
     public ResponseEntity<BillPaymentReceiptResponse> getPayment(
             @AuthenticationPrincipal org.springframework.security.core.userdetails.User principal,

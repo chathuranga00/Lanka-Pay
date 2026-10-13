@@ -18,5 +18,6 @@ public enum NotificationType {
     CARD_UNFROZEN,
     CARD_LIMIT_CHANGED,
     CARD_DETAILS_VIEWED,
-    CARD_REMOVED
+    CARD_REMOVED,
+    BUDGET_ALERT
 }

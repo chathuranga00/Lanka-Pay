@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 
 @RestController
-@RequestMapping("/api/v1/transfers")
+@RequestMapping({"/api/v1/transfers", "/transfers"})
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Transfers", description = "Quotes, peer-to-peer transfers, history, and reconciliation")
 public class TransferController {
