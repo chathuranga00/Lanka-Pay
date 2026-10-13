@@ -634,3 +634,89 @@ Soft-delete / remove card (`REMOVED` status). Requires step-up PIN in `X-Step-Up
 
 **Response 204 No Content**
 
+---
+
+## 14. Family Finance (Simulated Guardian & Child Accounts) – `/api/v1/family`
+
+Endpoints for guardian-managed minor accounts. Strictly enforces data minimisation (first name, age band, initials only; no phone, no lookup discoverability, no geolocation, no photos).
+
+> **LEGAL NOTICE:**
+> Real-world use requires independent legal advice on minors' privacy regulations (COPPA, GDPR-K) and verifiable parental consent (VPC).
+
+### POST `/api/v1/family/members` — Authenticated Guardian
+Create a new family member profile.
+```json
+{
+  "firstName": "Kasun",
+  "ageBand": "AGE_10_TO_13",
+  "avatarInitials": "KA",
+  "dailyLimitMinor": 500000,
+  "monthlyLimitMinor": 2500000,
+  "allowedCategories": ["FOOD", "EDUCATION", "TRANSPORT"],
+  "allowanceSchedule": {
+    "enabled": true,
+    "amountMinor": 50000,
+    "frequency": "WEEKLY",
+    "sourceAccount": "Primary Account"
+  }
+}
+```
+**Response 201 Created**
+
+---
+
+### GET `/api/v1/family/members` — Authenticated Guardian
+List all family members managed by this guardian.
+
+**Response 200**
+
+---
+
+### GET `/api/v1/family/members/{id}` — Authenticated Guardian
+Get details and controls for a family member. Only the managing guardian can access.
+
+**Response 200** / **403 Forbidden**
+
+---
+
+### PUT `/api/v1/family/members/{id}/controls` — Authenticated Guardian
+Update spending limits, allowed categories, freeze toggle, and allowance schedule.
+
+**Response 200**
+
+---
+
+### POST `/api/v1/family/members/{id}/freeze` — Authenticated Guardian
+Quick freeze / unfreeze toggle (`?frozen=true|false`).
+
+**Response 200**
+
+---
+
+### POST `/api/v1/family/members/{id}/fund` — Authenticated Guardian
+Credit simulated balance into the child profile. Only the guardian can fund.
+
+**Response 200**
+
+---
+
+### POST `/api/v1/family/members/{id}/spend` — Authenticated / Child Simulated Client
+Execute purchase validated against guardian controls (limits, category, freeze, balance).
+
+**Response 200** / **400 Bad Request (Rule Violation)**
+
+---
+
+### GET `/api/v1/family/members/{id}/child-view` — Authenticated
+Minimal child-safe dashboard view (first name, initials, balance, remaining daily limit, allowed categories).
+
+**Response 200**
+
+---
+
+### DELETE `/api/v1/family/members/{id}` — Authenticated Guardian
+Permanently deletes family member profile and purges activity per data minimisation and retention rules.
+
+**Response 204 No Content**
+
+

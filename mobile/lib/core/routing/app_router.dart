@@ -46,6 +46,8 @@ import '../../features/analytics/presentation/activity_screen.dart';
 import '../../features/goals/presentation/goals_screen.dart';
 import '../../features/goals/presentation/goal_details_screen.dart';
 import '../../features/rewards/presentation/rewards_screen.dart';
+import '../../features/family/presentation/guardian_dashboard_screen.dart';
+import '../../features/family/presentation/child_view_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -335,6 +337,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           appBar: AppBar(title: const Text('Savings Goals')),
           body: const Center(child: Text('Savings Goals')),
         ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/family',
+        builder: (context, state) => const GuardianDashboardScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/family/child/:id',
+        builder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return ChildViewScreen(memberId: id);
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

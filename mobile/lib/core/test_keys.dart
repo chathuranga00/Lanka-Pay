@@ -499,6 +499,27 @@ abstract final class AppTestKeys {
   static const Key goalCreateSubmit = Key('goal_create_submit');
   static const Key goalContributeConfirm = Key('goal_contribute_confirm');
   static const Key goalWithdrawConfirm = Key('goal_withdraw_confirm');
+
+  // ---------------------------------------------------------------------------
+  // Family & Guardian Controls (family_*)
+  // ---------------------------------------------------------------------------
+  static Key family(String id) => Key('family_$id');
+  static const Key familyLimit = Key('family_limit');
+  static const Key familyDailyLimitInput = Key('family_daily_limit_input');
+  static const Key familyMonthlyLimitInput = Key('family_monthly_limit_input');
+  static const Key familySaveLimitsBtn = Key('family_save_limits_btn');
+  static const Key familyAddMemberBtn = Key('family_add_member_btn');
+  static const Key familyFreezeToggle = Key('family_freeze_toggle');
+  static const Key familyFundBtn = Key('family_fund_btn');
+  static const Key familyFundAmountInput = Key('family_fund_amount_input');
+  static const Key familyFundSubmitBtn = Key('family_fund_submit_btn');
+  static const Key familyChildViewBtn = Key('family_child_view_btn');
+  static const Key familyDeleteBtn = Key('family_delete_btn');
+  static const Key familySimulatedNotice = Key('family_simulated_notice');
+  static const Key familySpendSimulateBtn = Key('family_spend_simulate_btn');
+  static const Key familyFirstNameInput = Key('family_first_name_input');
+  static const Key familyAgeBandInput = Key('family_age_band_input');
+  static const Key familyCreateSubmitBtn = Key('family_create_submit_btn');
 }
 
 typedef TestKeys = AppTestKeys;

@@ -92,6 +92,9 @@ public class SecurityConfig {
                 // simulated savings goals require a valid JWT
                 .requestMatchers("/api/v1/goals/**").authenticated()
 
+                // simulated guardian-managed family accounts require a valid JWT
+                .requestMatchers("/api/v1/family/**").authenticated()
+
                 // simulated card vault — requires JWT (abuse is attributable to a user)
                 .requestMatchers("/sim-vault/**").authenticated()
 

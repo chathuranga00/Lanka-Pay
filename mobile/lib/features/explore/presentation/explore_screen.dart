@@ -389,9 +389,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
       isDark: isDark,
       badgeText: 'SIMULATED',
       onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Family hub is active in simulated mode.')),
-        );
+        context.push('/family');
       },
     );
   }

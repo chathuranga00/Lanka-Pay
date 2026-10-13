@@ -150,3 +150,28 @@ This system was engineered as an academic/industrial demonstration prototype. Be
 3. **Simulated Bank Adapter Boundary**: All bank communications are routed through `AbstractSimulatedBankAdapter`. While this safely mirrors real clearing behavior, real banking integration requires ISO 20022 / CEFTS message signing, mutual TLS (mTLS), and dedicated host-to-host VPN connections.
 4. **Anti-Enumeration Response Uniformity**: While `GET /api/v1/payment-identities/lookup` returns HTTP 404 for both non-existent users and discoverable=false users, the JSON payload returns `NOT_FOUND` vs `DISCOVERY_DISABLED`. In high-threat environments, response payloads and timing should be strictly unified to prevent differential side-channel analysis.
 5. **WAF & DDoS Mitigation**: Network-level volumetric DDoS defense, IP reputation filtering, and Web Application Firewall (WAF) rules must sit in front of the application ingress.
+
+---
+
+## 7. Minor Data Protection & Guardian-Managed Family Features
+
+### Architecture & Data Minimisation Rules
+The family finance module (`/api/v1/family/**`) enables verified adult guardians to establish and oversee simulated accounts for minor dependents. To ensure privacy and child safety:
+1. **No Child Phone Registration or Lookup Discoverability**:
+   - Minor family members have NO independent telephone registration.
+   - Child profiles are strictly omitted from directory/registry lookup endpoints (`/api/v1/payment-identities/lookup`). They cannot be discovered, enumerated, or searched by strangers.
+   - Children cannot receive direct peer-to-peer transfers from outside parties. Only the verified guardian can fund the simulated balance.
+2. **Data Minimisation**:
+   - The platform stores strictly what is needed: a first name, a broad age band (`UNDER_10`, `AGE_10_TO_13`, `AGE_14_TO_17`), and optional 2-letter avatar initials.
+   - No surnames, exact dates of birth, photos, facial biometrics, or geolocation coordinates are collected or stored.
+   - Deleting a child's profile invokes data retention purge logic, wiping member records and activity logs.
+3. **Guardian Controls & Oversight**:
+   - Guardian sets daily and monthly spending limits, allowed merchant categories, and instant freeze toggles.
+   - Reusable allowance schedules automate simulated funding without exposing external payment credentials.
+   - All spend operations are validated against guardian-set rules before authorization; rule violations or freezes record declined audit entries.
+   - Every control modification, fund operation, and purchase is strictly audited and immediately dispatches a privacy-safe notification to the guardian.
+
+### Legal Notice Regarding Minors and Guardian Consent
+> **IMPORTANT LEGAL NOTICE:**
+> The guardian-managed family features in this repository are simulated prototypes for academic and demonstration purposes.
+> Real-world commercial deployment of services handling minors' personal data or financial interactions requires formal, independent legal counsel regarding applicable child privacy laws (e.g., Children's Online Privacy Protection Act [COPPA], General Data Protection Regulation for Kids [GDPR-K / UK Age Appropriate Design Code], and relevant national legislation). Any real implementation must include robust mechanisms for Verifiable Parental Consent (VPC) and age verification before profile provisioning.
