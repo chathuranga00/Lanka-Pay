@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/test_keys.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/error_retry.dart';
 import '../../../core/widgets/gradient_header_scaffold.dart';
 import '../../../core/widgets/simulated_banner.dart';
 import '../../../core/widgets/transaction_tile.dart';
+import '../../analytics/data/insights_service.dart';
+import '../../analytics/domain/insight_model.dart';
 import '../../send/domain/transfer_models.dart';
 import '../data/history_service.dart';
 import 'receipt_screen.dart';
@@ -449,6 +452,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               body: Column(
                 children: [
                   if (_hasActiveFilters()) _buildActiveFilterBar(isDark),
+                  _buildInsightsCard(isDark),
                   Expanded(
                     child: _isLoading
                         ? const Center(
@@ -556,6 +560,129 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightsCard(bool isDark) {
+    final insights = ref.watch(insightsProvider);
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      key: TestKeys.activityInsightsCard,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2230) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: AppTokens.primaryBlue.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.auto_graph_rounded, size: 15, color: AppTokens.primaryBlue),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Financial Insights',
+                style: TextStyle(
+                  fontFamily: AppTokens.fontFamily,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Factual',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.amber),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...insights.take(3).map((item) => Padding(
+                padding: const EdgeInsets.only(bottom: 6.0),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF252A3D) : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              item.text,
+                              style: TextStyle(
+                                fontFamily: AppTokens.fontFamily,
+                                fontSize: 11,
+                                color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              key: TestKeys.insightAction(item.id),
+                              onTap: () {},
+                              child: const Text(
+                                'View details →',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTokens.primaryBlue,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        key: TestKeys.insightDismiss(item.type),
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Dismiss',
+                        onPressed: () {
+                          HapticFeedback.lightImpact();
+                          ref.read(insightsProvider.notifier).dismiss(item.type);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              )),
         ],
       ),
     );

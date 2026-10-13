@@ -439,6 +439,23 @@ abstract final class AppTestKeys {
   static const Key chatStatusChip = Key('chat_status_chip');
   static Key faq(String id) => Key(id.startsWith('faq_') ? id : 'faq_$id');
   static Key chatMsg(dynamic id) => Key('chat_msg_$id');
+
+  // ---------------------------------------------------------------------------
+  // Insights & AI Assistant (insights_*, assistant_*)
+  // ---------------------------------------------------------------------------
+  static const Key activityInsightsCard = Key('activity_insights_card');
+  static Key insightDismiss(String type) => Key('insight_dismiss_${type.toLowerCase()}');
+  static Key insightAction(String id) => Key('insight_action_$id');
+
+  static const Key chatAskAi = Key('chat_ask_ai');
+  static const Key assistantConsentView = Key('assistant_consent_view');
+  static const Key assistantConsentToggle = Key('assistant_consent_toggle');
+  static const Key assistantEnableBtn = Key('assistant_enable_btn');
+  static const Key assistantAiDisclaimer = Key('assistant_ai_disclaimer');
+  static const Key assistantThumbsUp = Key('assistant_thumbs_up');
+  static const Key assistantThumbsDown = Key('assistant_thumbs_down');
+  static const Key assistantInput = Key('assistant_input');
+  static const Key assistantSend = Key('assistant_send');
 }
 
 typedef TestKeys = AppTestKeys;

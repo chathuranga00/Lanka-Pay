@@ -53,6 +53,25 @@ public class HomeAggregatorService {
     private final CardStore cardStore;
     private final TransactionStore transactionStore;
     private final FeatureFlagService featureFlagService;
+    private final com.lankapay.insights.service.InsightService insightService;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public HomeAggregatorService(
+            UserStore userStore,
+            NotificationStore notificationStore,
+            LinkedAccountStore linkedAccountStore,
+            CardStore cardStore,
+            TransactionStore transactionStore,
+            FeatureFlagService featureFlagService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) com.lankapay.insights.service.InsightService insightService) {
+        this.userStore = userStore;
+        this.notificationStore = notificationStore;
+        this.linkedAccountStore = linkedAccountStore;
+        this.cardStore = cardStore;
+        this.transactionStore = transactionStore;
+        this.featureFlagService = featureFlagService;
+        this.insightService = insightService;
+    }
 
     public HomeAggregatorService(
             UserStore userStore,
@@ -61,12 +80,7 @@ public class HomeAggregatorService {
             CardStore cardStore,
             TransactionStore transactionStore,
             FeatureFlagService featureFlagService) {
-        this.userStore = userStore;
-        this.notificationStore = notificationStore;
-        this.linkedAccountStore = linkedAccountStore;
-        this.cardStore = cardStore;
-        this.transactionStore = transactionStore;
-        this.featureFlagService = featureFlagService;
+        this(userStore, notificationStore, linkedAccountStore, cardStore, transactionStore, featureFlagService, null);
     }
 
     public HomeAggregateResponse aggregateHome(Long userId) {
@@ -473,7 +487,26 @@ public class HomeAggregatorService {
                 ));
             }
 
-            // Priority 6: Default security tip
+            // Priority 6: Dynamic financial insight (if present)
+            if (insightService != null) {
+                try {
+                    List<com.lankapay.insights.domain.InsightItem> insights = insightService.getInsights(userId);
+                    if (insights != null && !insights.isEmpty()) {
+                        com.lankapay.insights.domain.InsightItem top = insights.get(0);
+                        return HomeSection.ok(new NudgeData(
+                                top.id(),
+                                top.type().name(),
+                                top.text(),
+                                "View details",
+                                top.actionDeepLink()
+                        ));
+                    }
+                } catch (Exception ex) {
+                    log.debug("Insights check for nudge ignored: {}", ex.getMessage());
+                }
+            }
+
+            // Priority 7: Default security tip
             return HomeSection.ok(new NudgeData(
                     "security_tip",
                     "SECURITY_TIP",

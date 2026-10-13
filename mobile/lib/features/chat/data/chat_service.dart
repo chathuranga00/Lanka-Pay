@@ -193,3 +193,121 @@ class UnreadChatCountNotifier extends Notifier<int> {
 
 final unreadChatCountProvider =
     NotifierProvider<UnreadChatCountNotifier, int>(UnreadChatCountNotifier.new);
+
+// ── AI Assistant State & Logic ────────────────────────────────────────────────
+
+class AssistantMessage {
+  final String id;
+  final bool isUser;
+  final String text;
+  final String? disclaimer;
+  final List<String> suggestedActions;
+  final bool? thumbsUp;
+
+  const AssistantMessage({
+    required this.id,
+    required this.isUser,
+    required this.text,
+    this.disclaimer,
+    this.suggestedActions = const [],
+    this.thumbsUp,
+  });
+
+  AssistantMessage copyWith({bool? thumbsUp}) {
+    return AssistantMessage(
+      id: id,
+      isUser: isUser,
+      text: text,
+      disclaimer: disclaimer,
+      suggestedActions: suggestedActions,
+      thumbsUp: thumbsUp ?? this.thumbsUp,
+    );
+  }
+}
+
+class AssistantConsentNotifier extends Notifier<bool> {
+  @override
+  bool build() => false; // Disabled by default!
+
+  void setConsent(bool consented) => state = consented;
+}
+
+final assistantConsentProvider =
+    NotifierProvider<AssistantConsentNotifier, bool>(AssistantConsentNotifier.new);
+
+class AssistantMessagesNotifier extends Notifier<List<AssistantMessage>> {
+  int _counter = 1;
+
+  @override
+  List<AssistantMessage> build() {
+    return [
+      const AssistantMessage(
+        id: 'ast_0',
+        isUser: false,
+        text: 'Hello! I am your LankaPay AI Assistant. I can explain app features or summarize your aggregated insights.',
+        disclaimer: 'AI-generated, may be wrong',
+      ),
+    ];
+  }
+
+  void ask(String userQuery) {
+    final cleanQuery = maskSensitiveText(userQuery);
+    final userMsg = AssistantMessage(
+      id: 'ast_${_counter++}',
+      isUser: true,
+      text: cleanQuery,
+    );
+    state = [...state, userMsg];
+
+    // Evaluate answer with guardrails
+    final lower = cleanQuery.toLowerCase();
+    String answer;
+    List<String> actions = [];
+
+    if (lower.contains('send money to') || lower.contains('pay my') || lower.contains('transfer to')) {
+      answer = 'I am an AI assistant and cannot move money, make transfers, or process payments on your behalf. '
+          'Please use the Send Money, Pay Bills, or QR tabs to complete transactions securely.';
+      actions = ['/pay/send'];
+    } else if (lower.contains('change my pin') || lower.contains('freeze my card') || lower.contains('change settings')) {
+      answer = 'I cannot change account settings or security credentials. '
+          'Please manage your security preferences directly in Settings or Cards.';
+      actions = ['/wallet/cards'];
+    } else if (lower.contains('invest') || lower.contains('stock') || lower.contains('tax')) {
+      answer = 'I cannot provide investment, tax, or legal financial advice. '
+          'I can only provide factual summaries of app features and your aggregated insights.';
+    } else if (lower.contains('insight') || lower.contains('summary') || lower.contains('spend') || lower.contains('overview')) {
+      answer = 'Based on your aggregated data: Spending is 14.2% lower this month, and you have used 82.5% of your monthly budget limit.';
+      actions = ['/analytics'];
+    } else if (lower.contains('send') || lower.contains('transfer')) {
+      answer = 'To send money, tap "Send" from Home. You can transfer funds using LankaPay ID, account number, or mobile number.';
+      actions = ['/pay/send'];
+    } else if (lower.contains('split')) {
+      answer = 'Use the "Split Bill" feature to divide shared payments with contacts and request their shares directly.';
+      actions = ['/pay/split'];
+    } else {
+      answer = 'I can explain features like QR payments, bill payments, scheduled transfers, cards, and summarize your spending insights. What would you like to explore?';
+    }
+
+    final aiMsg = AssistantMessage(
+      id: 'ast_${_counter++}',
+      isUser: false,
+      text: answer,
+      disclaimer: 'AI-generated, may be wrong',
+      suggestedActions: actions,
+    );
+
+    state = [...state, aiMsg];
+  }
+
+  void setFeedback(String messageId, bool thumbsUp) {
+    state = state.map((m) {
+      if (m.id == messageId) {
+        return m.copyWith(thumbsUp: thumbsUp);
+      }
+      return m;
+    }).toList();
+  }
+}
+
+final assistantMessagesProvider =
+    NotifierProvider<AssistantMessagesNotifier, List<AssistantMessage>>(AssistantMessagesNotifier.new);
