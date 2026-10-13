@@ -4,6 +4,8 @@ import com.lankapay.rewards.domain.PointsEntryType;
 import com.lankapay.rewards.domain.PointsLedgerEntry;
 import com.lankapay.rewards.domain.PointsLedgerStore;
 
+import org.springframework.stereotype.Component;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Thread-safe In-Memory implementation of PointsLedgerStore.
  * Enforces append-only semantics and atomic running balance computation per user.
  */
+@Component
 public class InMemoryPointsLedgerStore implements PointsLedgerStore {
 
     // User ID -> list of ledger entries (ordered oldest to newest)

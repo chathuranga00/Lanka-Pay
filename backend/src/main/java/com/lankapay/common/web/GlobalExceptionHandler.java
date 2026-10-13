@@ -59,6 +59,13 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(403, ex.getErrorCode(), ex.getMessage(), correlationId()));
     }
 
+    @ExceptionHandler(com.lankapay.feature.exception.FeatureDisabledException.class)
+    public ResponseEntity<ErrorResponse> handleFeatureDisabled(com.lankapay.feature.exception.FeatureDisabledException ex) {
+        log.warn("Feature disabled: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of(403, "FEATURE_DISABLED", ex.getMessage(), correlationId()));
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex) {
         log.debug("Conflict [{}]: {}", ex.getErrorCode(), ex.getMessage());

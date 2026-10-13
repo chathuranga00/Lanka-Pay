@@ -22,6 +22,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/v1/insights")
 @Tag(name = "Insights", description = "Rule-based financial insights and user dismissal preferences")
+@com.lankapay.feature.annotation.FeatureToggle("insights")
 public class InsightController {
 
     private final InsightService insightService;

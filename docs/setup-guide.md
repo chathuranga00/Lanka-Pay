@@ -226,3 +226,42 @@ When running in `SIMULATED` mode, the backend seeds the following accounts:
 
 ### CORS Errors in Admin Web
 - Verify that `app.security.cors-allowed-origins` in `backend/src/main/resources/application.yml` contains `http://localhost:5173`.
+
+---
+
+## 9. Running Automated Test Suites & Quality Gates
+
+### Backend Unit, Integration & E2E Tests (Java 21)
+```bash
+cd backend
+mvn clean test -Ddependency-check.skip=true
+```
+To run specific super-app test suites:
+- End-to-End 12-Step Demo: `mvn test -Dtest=SuperAppEndToEndDemoTest`
+- Server-Side Feature Toggles: `mvn test -Dtest=FeatureToggleSecurityTest`
+- Home Aggregator SLA (< 500ms): `mvn test -Dtest=HomeAggregatorPerformanceTest`
+- Standing Orders / Scheduled: `mvn test -Dtest=ScheduledModuleTest`
+- Auth & Role Enforcement: `mvn test -Dtest=AuthControllerTest`
+
+### Mobile Analysis, Trilingual Localization & Golden Visual Tests
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+```
+To run visual golden regression tests:
+```bash
+flutter test test/screens_golden_test.dart
+```
+To test trilingual localization (en, si, ta):
+```bash
+flutter test test/localization_test.dart
+```
+
+---
+
+## 10. Statutory & Regulatory Disclaimer
+
+> **IMPORTANT NOTICE**:  
+> LankaPay Super-App is an educational and technological simulation prototype engineered for academic evaluation, research, and technical demonstration. It is **NOT** affiliated with, licensed by, or operated by LankaClear (Pvt) Ltd or the Central Bank of Sri Lanka (CBSL). All bank adapters operate in `SIMULATED` mode; no real fiat currency or cardholder funds are ever debited or credited. Real-world deployment requires statutory compliance under the Payment and Settlement Systems Act No. 28 of 2005 and CBSL Direction No. 02 of 2019.

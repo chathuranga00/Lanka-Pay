@@ -1,6 +1,7 @@
 package com.lankapay.rewards.store;
 
 import com.lankapay.rewards.domain.RewardOffer;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -13,6 +14,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * In-memory offer store for active rewards offers.
  */
+@Component
 public class InMemoryRewardOfferStore {
 
     private final Map<String, RewardOffer> offers = new ConcurrentHashMap<>();

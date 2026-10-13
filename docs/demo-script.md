@@ -1,242 +1,160 @@
-# LankaPay ID — Click-by-Click Evaluation & Demo Script
+# LankaPay Super-App – 12-Step Evaluation & Demo Script
 
-**Project:** LankaPay ID National Payment Identifier  
-**Scenario Specification:** Master Prompt Section 24 ("End-to-End Demonstration Scenario")  
-**Target Audience:** Academic Evaluators, Testers, and Demonstrators  
-**Estimated Run Time:** 10–12 minutes
-
----
-
-## 1. Demonstration Personas & Initial State
-
-Ensure both backend and clients are running per the [Setup Guide](file:///q:/MY%20Projects/Lanka%20Pay/docs/setup-guide.md). The application will auto-seed these accounts in `SIMULATED` mode:
-
-| Persona | Phone Number | PIN | Role & Seeded Accounts |
-| :--- | :--- | :--- | :--- |
-| **Kasun Perera** (Sender) | `+94770000001` | `123456` | Sender. 3 linked accounts:<br>• Bank A (`100100`) — Balance: `150,000.00 LKR`<br>• Bank B (`100101`) — Balance: `75,000.00 LKR` *(Default)*<br>• Bank C (`100102`) — Balance: `25,000.00 LKR` |
-| **Nimal Silva** (Receiver) | `+94770000002` | `123456` | Receiver. 1 linked account:<br>• Bank A (`100201`) — Balance: `50,000.00 LKR` *(Default)* |
-| **System Admin** | `+94770000000` | `123456` | Back-office administrator on Admin Web Portal. |
+> **Scenario Specification**: Super-App End-to-End Evaluation Flow  
+> **Backend Automated Verification**: [`SuperAppEndToEndDemoTest.java`](file:///q:/MY%20Projects/Lanka%20Pay/backend/src/test/java/com/lankapay/e2e/SuperAppEndToEndDemoTest.java) (12/12 Steps Passing)  
+> **Estimated Duration**: 10–12 minutes  
+> **Simulation Disclaimer**: All transactions, billers, cards, merchants, and balances represent simulated mock data.
 
 ---
 
-## Step 1: User Login & Recipient Discovery (Privacy-Preserving Lookup)
+## Overview of the 12-Step Demo Scenario
 
-**Objective:** Demonstrate recipient phone search and verify that PII is masked (abbreviated display name, no raw account numbers).
-
-1. Open the **Mobile App**.
-2. On the **Login Screen**:
-   - Enter Phone Number: `0770000001`
-   - Enter PIN: `123456`
-   - Tap **"Sign In"**.
-3. You are now on the **Home Dashboard**. Observe:
-   - Green banner: `"SIMULATED - test money only"`.
-   - Linked accounts summary shows Bank B as default.
-4. Tap the **"Send"** action button in the Quick Actions section.
-5. In the **Recipient Lookup** field, enter Nimal's phone number: `0770000002`.
-6. Tap **"Search Recipient"**.
-7. **Verification Checkpoint:**
-   - [x] Recipient name is displayed as **`Nimal P.`** (or `Nimal S.`) with the rest masked.
-   - [x] Receiving institution is displayed as **`Bank A (Commercial Bank)`**.
-   - [x] Raw 12-to-16 digit account number is **NOT** exposed anywhere on the screen.
+| Step | Capability Demonstrated | Core Module(s) | Verification Checkpoint |
+|---|---|---|---|
+| **1** | User Registration & Verification | `identity` | OTP confirmed; user receives JWT; zero PII leak |
+| **2** | Bank Account & Virtual Card Provisioning | `bank-integration`, `simvault` | Bank account linked; virtual card issued via SimVault |
+| **3** | Neo-Banking Home Dashboard | `home` | Aggregator returns greeting, wallet balance, and security nudge in < 500ms |
+| **4** | Financial Literacy Story | `story` | Story opened, read, marked as seen; whitelisted deep-link navigation |
+| **5** | Card-Funded Utility Bill Payment | `bills`, `cards` | Electricity bill (3,450.00 LKR + 30.00 fee = 3,480.00 LKR = 348,000 minor units) paid with card |
+| **6** | Standing Order / Scheduled Payment | `scheduled` | Monthly recurring payment created; active schedule logged |
+| **7** | Group Bill Split with Rate-Limited Reminder | `split` | 6,000.00 LKR dinner split among 3 friends (2,000.00 LKR each); reminder cooldown |
+| **8** | Monthly Spend Analytics & Budget Tracking | `analytics` | Bill payment reflected in monthly budget; categorization updated |
+| **9** | Loyalty Points Accrual & Voucher Redemption | `rewards` | Points earned on successful payment; points separated from fiat; redeemed for voucher |
+| **10**| City Merchant & LankaQR In-Store Payment | `city`, `qr` | Merchant directory search; LankaQR payload resolved; payment completed |
+| **11**| Customer Support Chat & FAQ Bot Handoff | `support` | Automated FAQ answers query; sanitized text; agent handoff queue |
+| **12**| Regulatory Statement Export & Audit Verification | `admin`, `audit` | Monthly statement exported; compliance audit events verified |
 
 ---
 
-## Step 2: Instant P2P Payment (Default Bank B Funding Account)
+## Step-by-Step Instructions
 
-**Objective:** Complete an instant transfer using the user's default linked bank account.
-
-1. On the transfer setup screen (recipient verified):
-   - Funding Account: Observe that **`Bank B (****1001)`** is pre-selected as the default.
-   - Amount: Enter `500.00`.
-   - Remarks / Reference: Enter `Lunch reimbursement`.
-2. Tap **"Continue to Review"**.
-3. On the **Confirmation Screen**, review the transaction details:
-   - Recipient: `Nimal P.`
-   - Destination Bank: `Bank A`
-   - Source Account: `Bank B (****1001)`
-   - Transfer Amount: `500.00 LKR`
-   - Processing Fee: `0.00 LKR`
-   - Total Amount: `500.00 LKR`
-4. Tap **"Authorize Payment"**.
-5. Enter PIN: `123456` on the authentication dialog.
-6. Tap **"Confirm"**.
-7. **Verification Checkpoint:**
-   - [x] Screen transitions immediately to **Payment Success** (Emerald Green).
-   - [x] Displays Bank Reference: `SIM-B-...`.
-   - [x] Status badge shows `COMPLETED`.
-   - [x] Double-tap or retry does not create a duplicate debit (enforced via `Idempotency-Key`).
+### Step 1: User Registration & OTP Verification
+1. Launch the mobile app and tap **"Register"**.
+2. Enter details:
+   - Full Name: `Kamal Perera`
+   - Mobile Number: `0771234567` (`+94771234567`)
+   - National Identity Card (NIC): `199012345678`
+   - Security PIN: `123456`
+3. Tap **"Register"**. System sends 6-digit OTP to mobile phone.
+4. Enter OTP `123456` and tap **"Verify & Continue"**.
+- **Verification**: User is authenticated; access token issued; profile status is `ACTIVE`.
 
 ---
 
-## Step 3: Multi-Bank Funding Account Selection
-
-**Objective:** Demonstrate switching the funding account to another linked bank before payment.
-
-1. From the Payment Success screen, tap **"Back to Home"**.
-2. Tap **"Send"**.
-3. Enter Recipient: `0770000002` and tap **"Search Recipient"**.
-4. In the **"Pay From"** account dropdown/selector:
-   - Select **`Bank C (****1002)`** instead of default Bank B.
-5. Enter Amount: `750.00`.
-6. Tap **"Continue to Review"** $\rightarrow$ tap **"Authorize Payment"**.
-7. Enter PIN: `123456` and confirm.
-8. **Verification Checkpoint:**
-   - [x] Payment succeeds with `COMPLETED` status.
-   - [x] Provider reference confirms settlement originated from Bank C: `SIM-C-...`.
+### Step 2: Link Bank Account & Issue Virtual Card
+1. From the dashboard or Accounts tab, tap **"Add Account"**.
+2. Select Bank: `Bank of Ceylon (BOC)`. Enter account number `100234567890`.
+3. Check consent box and tap **"Link Account"**.
+4. In the Cards section, tap **"Add Card"** $\rightarrow$ **"Issue Virtual Card"**.
+5. Set label: `Virtual Daily Card`, daily spend limit: `100,000.00 LKR`.
+- **Verification**: Account appears with masked number `•••• 5678` and initial balance `125,450.00 LKR`. Virtual card `**** 0010` is active.
 
 ---
 
-## Step 4: Insufficient Funds & Deterministic Bank Rejection
-
-**Objective:** Demonstrate bank-level decline handling without crashing or hanging.
-
-1. From Home Dashboard, tap **"Send"**.
-2. Enter Recipient: `0770000002` and search.
-3. Select Funding Account: **`Bank C (****1002)`** (seeded balance: `25,000.00 LKR`).
-4. Enter Amount: `50,000.00` (exceeds balance) or `2000000.00`.
-5. Tap **"Continue to Review"** $\rightarrow$ tap **"Authorize Payment"**.
-6. Enter PIN: `123456` and confirm.
-7. **Verification Checkpoint:**
-   - [x] Transitions to **Payment Failed** screen (Crimson Red).
-   - [x] Friendly error message: `"Account balance is below the requested transfer amount"`.
-   - [x] Error code: `INSUFFICIENT_FUNDS`.
-   - [x] Ledger reflects zero debit; daily cumulative spend counter is not altered.
+### Step 3: View Neo-Banking Home Dashboard
+1. Navigate to the **Home** tab (`/home`).
+2. Observe the aggregated layout loaded in < 500ms:
+   - Greeting: `Good morning, Kamal` with initial avatar `K`.
+   - Wallet card: Displaying `LKR 125,450.00` with simulated test badge.
+   - Security nudge: `"Never share your PIN, OTP, or password with anyone."`
+3. Tap the eye icon to toggle balance privacy (`••••••••`).
+- **Verification**: Home Aggregator SLA < 500ms verified; no section failures.
 
 ---
 
-## Step 5: Delayed / Timeout Settlement & Admin Reconciliation
-
-**Objective:** Demonstrate asynchronous settlement, non-green pending UI, and administrative reconciliation.
-
-1. From Home Dashboard, tap **"Send"**.
-2. Enter Recipient: `0770000002`.
-3. Enter the special test amount: `30000.00` (configured in simulated adapter to trigger a network timeout).
-4. Authorize with PIN `123456`.
-5. **Verification Checkpoint (Mobile):**
-   - [x] Screen displays **Processing / Requires Reconciliation** with an Amber alert badge.
-   - [x] Screen is **NEVER GREEN** (adheres to Section 18: Never show green for unconfirmed payments).
-   - [x] Offers a `"Check Status"` button.
-6. Open **Admin Web Portal** (`http://localhost:5173/`):
-   - Login with Phone: `+94770000000` / PIN: `123456`.
-   - Navigate to **"Reconciliation Queue"** in the sidebar.
-   - Locate the transaction for `30,000.00 LKR` with status `REQUIRES_RECONCILIATION`.
-   - Click the **"Reconcile"** action button.
-   - Select Outcome: **"Confirm Settlement (Success)"** and click Submit.
-7. Return to the **Mobile App** and tap **"Check Status"**:
-   - [x] Transaction status transitions to **`COMPLETED`**.
+### Step 4: Open & Read Financial Literacy Story
+1. In the top Stories row on the Home tab, tap the story card **"Protect Your PIN"**.
+2. Read through the carousel page explaining safety against phishing.
+3. Tap the action button **"Security Settings"**.
+- **Verification**: Client router navigates to `/settings/security`. Story is marked as seen with subtle border ring upon returning to Home.
 
 ---
 
-## Step 6: Dynamic LankaQR Code Generation & Scanning
-
-**Objective:** Demonstrate EMVCo / LankaQR compliant dynamic request generation with embedded amount and expiry.
-
-1. Log into mobile as **Nimal** (`0770000002` / `123456`) or use another emulator/device.
-2. Tap **"Receive / QR"** from the dashboard.
-3. Tap **"Request Amount"** to generate a **Dynamic QR**:
-   - Amount: `1200.00`
-   - Remarks: `Coffee & Pastry`
-   - Expiry: `15 minutes`
-4. Tap **"Generate QR Code"**.
-5. Observe the generated QR image and shareable payment link (`lankapay://pay?ref=...`).
-6. Switch back to **Kasun's** device:
-   - Tap **"Scan QR"**.
-   - Scan or simulate decoding the reference token.
-7. **Verification Checkpoint:**
-   - [x] Recipient (`Nimal P.`) and Amount (`1,200.00 LKR`) are locked and pre-populated.
-   - [x] Kasun confirms with PIN `123456` $\rightarrow$ payment executes instantly.
+### Step 5: Pay Utility Bill from Virtual Card
+1. Navigate to **Pay Hub** (`/pay-hub`) $\rightarrow$ tap **"Pay Bills"** (`/bills`).
+2. Select Category: `Electricity` $\rightarrow$ Select Biller: `Simulated Electricity Board (SIM_ELEC_01)`.
+3. Enter Account Reference: `1009876543`.
+4. Enter Amount: `3,450.00 LKR` (345,000 minor units).
+5. Review Fee Breakdown:
+   - Bill Amount: `3,450.00 LKR`
+   - Convenience Fee: `30.00 LKR` (3,000 minor units)
+   - Total Payable: `3,480.00 LKR` (348,000 minor units)
+6. Choose Payment Method: `Virtual Daily Card (**** 0010)`.
+7. Authorize with PIN `123456`.
+- **Verification**: Payment succeeds with status `COMPLETED`. Receipt issued with total `348,000 minor units`.
 
 ---
 
-## Step 7: Tamper-Evident Transaction History & Audit Receipts
-
-**Objective:** Demonstrate transaction history filters and cryptographic tamper validation.
-
-1. In the Mobile App, tap the **"History"** tab in the bottom navigation.
-2. Observe the chronological stream of transactions from Steps 2, 3, 5, and 6.
-3. Test Filters:
-   - Filter by **"Completed"** $\rightarrow$ only successful transfers appear.
-   - Filter by **"Failed"** $\rightarrow$ the 50,000.00 LKR decline appears.
-4. Tap the first completed transfer (`500.00 LKR`).
-5. In the **Transaction Details** screen, tap **"View Digital Receipt"**.
-6. **Verification Checkpoint:**
-   - [x] Shows unique LankaPay Reference ID, Bank Reference, and Timestamp.
-   - [x] Displays **SHA-256 Tamper Checksum**: `SHA256:...`.
-   - [x] Tap **"Verify Integrity"** $\rightarrow$ verifies checksum matches event log state.
+### Step 6: Create Recurring Scheduled Standing Order
+1. In **Pay Hub**, tap **"Scheduled Payments"** $\rightarrow$ tap **"+"** (`/scheduled/create`).
+2. Payee Type: `Electricity Bill` (`SIM_ELEC_01`).
+3. Amount: `3,500.00 LKR`.
+4. Frequency: `Monthly on the 1st`.
+5. Tap **"Create Schedule"** and authorize with PIN `123456`.
+- **Verification**: Schedule status is `ACTIVE`; appears in scheduled payments list with next execution date.
 
 ---
 
-## Step 8: Emergency Identity Freeze & Discoverability Toggle
-
-**Objective:** Demonstrate consumer privacy rights and fraud prevention controls.
-
-1. In the Mobile App, tap **"Settings"** $\rightarrow$ **"Privacy & Payment Identity"**.
-2. Toggle **"Emergency Identity Freeze"** to **ON**.
-3. Confirm the warning prompt: *"Freezing your payment identity prevents all incoming and outgoing transfers."*
-4. Attempt a transfer to Kasun from another user:
-   - Recipient Lookup for `0770000001`.
-5. **Verification Checkpoint:**
-   - [x] Lookup returns error: **`LOOKUP_IDENTITY_FROZEN`**.
-   - [x] No bank routing data or account information is returned.
-6. Toggle **"Emergency Identity Freeze"** to **OFF** $\rightarrow$ identity resumes active status.
+### Step 7: Split Dinner Bill with Friends
+1. In **Pay Hub**, tap **"Split a Bill"** $\rightarrow$ tap **"New Split"** (`/split/create`).
+2. Title: `Dinner at Cinnamon Leaf`. Total Amount: `6,000.00 LKR`.
+3. Add Participants:
+   - Friend 1: `Nimali Silva` (`+94772345678`) – `2,000.00 LKR`
+   - Friend 2: `Kasun Perera` (`+94773456789`) – `2,000.00 LKR`
+   - Your Share: `2,000.00 LKR`
+4. Tap **"Create Split"**.
+5. On the Split Details screen, tap **"Send Reminders"**. Tap again immediately to observe the 60-second cooldown rate limit.
+- **Verification**: Split shows progress `"1 of 3 settled"`. Reminders trigger with rate-limiting feedback.
 
 ---
 
-## Step 9: Virtual & Linked Card Scenario (Add, Verify, Pay, Freeze, Decline, Unfreeze, Remove)
-
-> ⚠ **TEST CARDS ONLY**: Cards in LankaPay are strictly simulated. Refer to `docs/test-cards.md` for test numbers. Never enter real card credentials.
-
-**Objective:** Demonstrate complete PCI-compliant card lifecycle and card-funded payment flow.
-
-### 9.1 Link Test Card & Verify Bank OTP
-1. In the Mobile App, navigate to the **"Accounts"** tab in bottom navigation.
-2. Toggle the segmented control to **"Cards"** (`seg_cards`).
-3. Tap the **"+" (Add Card)** button (`cards_add`).
-4. Select or enter test card from `docs/test-cards.md` (e.g. Test Card 1: `ALWAYS_APPROVED` ending in `0010`, CVV `111`, expiry `12/27`).
-5. Confirm the explicit card linking consent checkbox and tap **"Link Card"**.
-6. The screen prompts for **Bank OTP Challenge** (`card_challenge_otp`).
-7. Enter the 6-digit bank verification OTP (e.g. `112233`) and confirm.
-8. **Verification Checkpoint:**
-   - [x] Card appears in carousel with label **"TEST CARD"**.
-   - [x] Masked number shows `•••• 0010` (no full PAN).
-   - [x] Status is active and shows remaining daily limit.
-
-### 9.2 Pay from the Card & Inspect Digital Receipt
-1. Tap **"Send"** on Home screen, lookup recipient Nimal (`0770000002`).
-2. On amount screen, enter `1000.00` LKR.
-3. In the **"Pay from"** selector (`pay_from_selector`), choose your test card `•••• 0010 (TEST CARD)`.
-4. On the confirmation screen:
-   - [x] Displays principal amount: `1,000.00 LKR`.
-   - [x] Displays simulated card fee: `15.00 LKR (Simulated Card Processing Fee 1.5%)`.
-   - [x] Displays total debited: `1,015.00 LKR`.
-   - [x] Payment method is labeled: `Paid with card •••• 0010 (TEST CARD)`.
-5. Authenticate with step-up PIN (`123456`).
-6. **Verification Checkpoint:**
-   - [x] Transfer completes immediately (`COMPLETED`).
-   - [x] Digital receipt shows fee breakdown, transaction reference, and card payment method.
-
-### 9.3 Freeze Card & Attempt Payment (Decline Verification)
-1. Return to the **"Cards"** tab, select the card, and tap **"Freeze"** (`card_action_freeze`).
-2. Card updates to a frosted overlay with a snowflake icon and status badge **"FROZEN"**.
-3. Attempt to make a send or QR payment of `500.00` LKR selecting this frozen card.
-4. **Verification Checkpoint:**
-   - [x] Payment is declined with error code `CARD_FROZEN`.
-   - [x] Screen presents friendly recovery suggestion: *"Unfreeze card or select another payment source"*.
-
-### 9.4 Unfreeze & Remove Card
-1. Return to **"Cards"** tab and tap **"Unfreeze"** (`card_action_unfreeze`).
-2. Enter step-up PIN (`123456`) $\rightarrow$ Card status resumes **"ACTIVE"**.
-3. Tap **"Settings"** on the card actions and select **"Remove Card"**.
-4. Confirm step-up PIN $\rightarrow$ Card is securely removed and deleted from user view.
+### Step 8: View Spend Analytics & Monthly Budget
+1. Tap the **Activity / Spend** info tile on the Home Screen (`/activity`).
+2. Observe Monthly Breakdown:
+   - Spent this month: `Rs 3,480.00`
+   - Monthly Budget: `Rs 50,000.00`
+   - Used fraction: `6.96%`
+   - Category Breakdown: `Utilities & Bills: 100%`
+- **Verification**: Only `COMPLETED` transactions are counted toward budget metrics.
 
 ---
 
-## 10. Evaluation Completion Checklist
+### Step 9: Earn & Redeem Loyalty Rewards Points
+1. Tap the **Rewards** pill on the Home Screen (`/rewards`).
+2. Observe Points Balance: User earned points on the completed utility bill payment.
+3. Switch to the **Offers** tab $\rightarrow$ select `Rs 500 Fuel Voucher (500 pts)`.
+4. Tap **"Redeem Voucher"**.
+- **Verification**: Points balance decreases by 500; voucher code `LANKAPAY-FUEL-500` is generated. Non-fiat points ledger strictly separates loyalty points from currency.
 
-| Evaluation Area | Target Behavior | Result |
-| :--- | :--- | :--- |
-| **Privacy & Security** | Display name masked; no plain account numbers; PIN BCrypt hashed | Passed |
-| **Multi-Bank Core** | 3 linked banks; default account switching; multi-gateway dispatch | Passed |
-| **Resilience & Idempotency** | Double-tap protection; timeout reconciliation queue; safe failure | Passed |
-| **LankaQR Interoperability** | Dynamic QR with amount lock, digital signature, and expiration | Passed |
-| **Admin Back-Office** | Gateway health toggle; reconciliation settlement; audit log search | Passed |
+---
+
+### Step 10: In-Store Payment at City Merchant
+1. Navigate to the **City** tab (`/city`).
+2. Search for `Cinnamon Leaf Bistro` or filter by category `Food & Cafes`.
+3. Tap the merchant card $\rightarrow$ tap **"Pay via LankaQR"**.
+4. Confirm amount `1,500.00 LKR` and authorize payment.
+- **Verification**: LankaQR payload resolves; payment succeeds; points credited to rewards ledger.
+
+---
+
+### Step 11: Customer Support & Automated FAQ Bot
+1. Navigate to the **Chat** tab (`/support`).
+2. Observe safety banner: `"Never share your OTP, PIN, or full card number."`
+3. Tap FAQ shortcut: `"How do I freeze my card?"`
+4. FAQ bot responds immediately with instructions.
+5. Tap **"Talk to Agent"** to test human handoff queue.
+- **Verification**: Bot messages are HTML-sanitized; conversation status transitions to `WAITING_FOR_AGENT`.
+
+---
+
+### Step 12: Statement Export & Administrative Compliance
+1. In Settings, select **"Export Statement"**.
+2. Select Month: `October 2026` $\rightarrow$ Format: `PDF / CSV`.
+3. Open the **Admin Web Console** (`/api/v1/admin/users/1/audit`).
+4. Inspect the immutable audit log:
+   - Account creation
+   - Card provisioning
+   - Utility bill payment
+   - Schedule creation
+   - Points accrual
+- **Verification**: All financial actions produce cryptographically attributable audit entries.

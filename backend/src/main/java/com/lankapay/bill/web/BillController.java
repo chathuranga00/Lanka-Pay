@@ -21,6 +21,7 @@ import java.util.List;
 @RestController
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Bills", description = "Bill inquiries, bill payments, reconciliation, and payment receipts")
+@com.lankapay.feature.annotation.FeatureToggle("bills")
 public class BillController {
 
     private final BillService billService;

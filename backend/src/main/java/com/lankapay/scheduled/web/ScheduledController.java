@@ -23,6 +23,7 @@ import java.util.List;
 @RestController
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Scheduled Payments", description = "Recurring and scheduled transfers and bill payments")
+@com.lankapay.feature.annotation.FeatureToggle("scheduled")
 public class ScheduledController {
 
     private final ScheduledPaymentService scheduledPaymentService;

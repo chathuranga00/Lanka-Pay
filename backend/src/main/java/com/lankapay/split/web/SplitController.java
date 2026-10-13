@@ -20,6 +20,7 @@ import java.util.List;
 @RestController
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Bill Splits", description = "Group bill splitting, participant payment requests, and reminder management")
+@com.lankapay.feature.annotation.FeatureToggle("split")
 public class SplitController {
 
     private final SplitService splitService;

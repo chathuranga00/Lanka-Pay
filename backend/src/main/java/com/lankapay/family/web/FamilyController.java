@@ -23,6 +23,7 @@ import java.util.List;
 @Tag(name = "Family", description = "Simulated guardian-managed family member accounts for minors")
 @RestController
 @RequestMapping("/api/v1/family")
+@com.lankapay.feature.annotation.FeatureToggle("family")
 public class FamilyController {
 
     private final FamilyService familyService;

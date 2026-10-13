@@ -139,6 +139,7 @@ Widget createTestHomeApp({
       GoRoute(path: '/search', builder: (_, __) => const Scaffold(body: Text('Search Screen'))),
       GoRoute(path: '/rewards', builder: (_, __) => const Scaffold(body: Text('Rewards Screen'))),
       GoRoute(path: '/history', builder: (_, __) => const Scaffold(body: Text('History Screen'))),
+      GoRoute(path: '/activity', builder: (_, __) => const Scaffold(body: Text('History Screen'))),
       GoRoute(path: '/accounts', builder: (_, __) => const Scaffold(body: Text('Accounts Screen'))),
       GoRoute(path: '/accounts/add', builder: (_, __) => const Scaffold(body: Text('Add Account Screen'))),
       GoRoute(path: '/bills', builder: (_, __) => const Scaffold(body: Text('Bills Screen'))),

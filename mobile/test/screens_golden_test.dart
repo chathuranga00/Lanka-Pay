@@ -49,6 +49,142 @@ void main() {
       );
     });
 
+    testWidgets('Pay Hub Screen - Light Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/pay-hub',
+        fixedThemeMode: ThemeMode.light,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/pay_hub_screen_light.png'),
+      );
+    });
+
+    testWidgets('Pay Hub Screen - Dark Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/pay-hub',
+        fixedThemeMode: ThemeMode.dark,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/pay_hub_screen_dark.png'),
+      );
+    });
+
+    testWidgets('City Screen - Light Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/city',
+        fixedThemeMode: ThemeMode.light,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/city_screen_light.png'),
+      );
+    });
+
+    testWidgets('City Screen - Dark Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/city',
+        fixedThemeMode: ThemeMode.dark,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/city_screen_dark.png'),
+      );
+    });
+
+    testWidgets('Chat Screen - Light Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/support',
+        fixedThemeMode: ThemeMode.light,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_screen_light.png'),
+      );
+    });
+
+    testWidgets('Chat Screen - Dark Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/support',
+        fixedThemeMode: ThemeMode.dark,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_screen_dark.png'),
+      );
+    });
+
+    testWidgets('Explore Screen - Light Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/explore',
+        fixedThemeMode: ThemeMode.light,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/explore_screen_light.png'),
+      );
+    });
+
+    testWidgets('Explore Screen - Dark Mode Golden', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(createE2ETestApp(
+        initialLocation: '/explore',
+        fixedThemeMode: ThemeMode.dark,
+      ));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/explore_screen_dark.png'),
+      );
+    });
+
     testWidgets('Accounts Screen - Light Mode Golden', (WidgetTester tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 2.0;

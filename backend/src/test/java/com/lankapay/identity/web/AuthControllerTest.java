@@ -29,6 +29,10 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.lankapay.admin.service.AdminUserService;
+import org.springframework.data.domain.PageImpl;
+import java.util.List;
+
 /**
  * MockMvc integration tests for AuthController.
  *
@@ -47,6 +51,7 @@ class AuthControllerTest {
     @Autowired ObjectMapper  objectMapper;
 
     @MockBean AuthService authService;
+    @MockBean AdminUserService adminUserService;
     // Keep the real JwtService wired – it uses the test secret from application-test.yml
     // We only need to mock AuthService (the business layer).
 
@@ -429,6 +434,9 @@ class AuthControllerTest {
         @Test
         @DisplayName("ADMIN JWT can access /admin endpoints → 200")
         void adminAllowed() throws Exception {
+            when(adminUserService.searchUsers(any(), any(), any(), any(), any()))
+                    .thenReturn(new PageImpl<>(List.of()));
+
             mockMvc.perform(get("/api/v1/admin/users")
                             .header("Authorization", adminJwt()))
                     .andExpect(status().isOk());

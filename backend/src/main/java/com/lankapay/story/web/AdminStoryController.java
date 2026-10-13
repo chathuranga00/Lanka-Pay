@@ -32,6 +32,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/admin/stories")
 @PreAuthorize("hasRole('ADMIN')")
+@com.lankapay.feature.annotation.FeatureToggle("stories")
 public class AdminStoryController {
 
     private final StoryService storyService;

@@ -181,6 +181,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/search',
         builder: (context, state) => const SearchScreen(),
       ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/pay-hub',
+        builder: (context, state) => const PayHubScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/support',
+        builder: (context, state) => const ChatScreen(),
+      ),
 
       // Full-screen flows (hide bottom tab bar, pushed on root navigator)
       GoRoute(

@@ -18,6 +18,7 @@ import java.util.List;
 @RestController
 @Tag(name = "Admin Support", description = "Admin support inbox, message replies, and conversation resolution (audited)")
 @PreAuthorize("hasRole('ADMIN')")
+@com.lankapay.feature.annotation.FeatureToggle("support")
 public class AdminSupportController {
 
     private final SupportService supportService;

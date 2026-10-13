@@ -23,6 +23,7 @@ import java.util.List;
 @RestController
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Analytics & Statements", description = "Spending breakdown, budgets, and bank statements")
+@com.lankapay.feature.annotation.FeatureToggle("analytics")
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;

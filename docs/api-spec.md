@@ -1,722 +1,454 @@
-# Lanka Pay – API Specification
+# LankaPay Super-App – REST API Specification
 
-> **Draft** – will be verified against `docs/MASTER_PROMPT.md` section 16 once populated.
-
-Base URL: `http://localhost:8080/api/v1`
-Auth: Bearer JWT in `Authorization` header unless marked **Public**.
-All request/response bodies are `application/json`.
-All monetary amounts are `DECIMAL(15,2)` strings in LKR unless noted.
+> **Base URL**: `http://localhost:8080/api/v1`  
+> **Auth**: Bearer JWT in `Authorization` header unless designated `Public`  
+> **Monetary Standard**: All monetary values are strictly represented in **integer minor units** (`amountMinor`, `feeMinor`, `totalMinor` as 64-bit integers, 1 LKR = 100 minor units).
 
 ---
 
-## Auth Errors (all endpoints)
+## 1. Global Headers & Common Error Codes
 
-| HTTP | Code | Meaning |
+### 1.1 Standard Request Headers
+| Header | Type | Description |
 |---|---|---|
-| 401 | `UNAUTHORIZED` | Missing or invalid JWT |
-| 403 | `FORBIDDEN` | Valid JWT but insufficient role / object-level access denied |
-| 429 | `RATE_LIMITED` | Too many requests |
+| `Authorization` | `String` | `Bearer <access-token>` (Required for non-public endpoints) |
+| `Idempotency-Key` | `UUID` | Required for all state-mutating payment and creation endpoints |
+| `X-Step-Up-Pin` | `String` | Required 6-digit PIN for high-value actions (card unfreeze, payments > threshold) |
+| `X-Correlation-Id` | `UUID` | Optional client trace identifier (propagated to audit logs) |
+
+### 1.2 Global Error Responses
+| HTTP | Error Code | Description |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Request payload failed schema or business constraint checks |
+| 401 | `UNAUTHORIZED` | Missing, malformed, or expired JWT token |
+| 403 | `FORBIDDEN` | Insufficient permissions or IDOR object access denied |
+| 403 | `FEATURE_DISABLED` | Server-side feature flag is disabled (`{"error": "FEATURE_DISABLED", "feature": "bills"}`) |
+| 404 | `NOT_FOUND` | Referenced entity was not found |
+| 409 | `IDEMPOTENCY_CONFLICT` | Replay with different payload under an active idempotency key |
+| 422 | `INSUFFICIENT_FUNDS` | Debited account or card does not possess required balance |
+| 429 | `RATE_LIMIT_EXCEEDED`| Request rate limit exceeded; includes cooldown guidance |
+| 500 | `INTERNAL_ERROR` | Unexpected server condition (error details redacted) |
 
 ---
 
-## 1. Identity – `/auth`
+## 2. Authentication & Identity (`/auth`)
 
-### POST `/auth/register` — Public
-Register a new user.
-
-**Request**
+### POST `/auth/register` (Public)
+Initiates user registration.
 ```json
+// Request
 {
   "phone": "+94771234567",
   "fullName": "Kamal Perera",
-  "nic": "199012345678"
+  "nic": "199012345678",
+  "pin": "123456"
 }
-```
 
-**Response 202**
-```json
+// Response 202 Accepted
 {
   "userId": 1,
-  "expiresAt": "2025-01-01T10:05:00Z"
+  "status": "PENDING_OTP",
+  "otpExpiresAt": "2026-10-14T10:05:00Z"
 }
 ```
 
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 400 | `VALIDATION_ERROR` | Missing / invalid fields |
-| 409 | `PHONE_ALREADY_REGISTERED` | Phone already in use |
-| 409 | `NIC_ALREADY_REGISTERED` | NIC already in use |
-
----
-
-### POST `/auth/verify-otp` — Public
-Verify phone OTP after registration or login.
-
-**Request**
+### POST `/auth/verify-otp` (Public)
+Validates registration or login OTP.
 ```json
-{ "userId": 1, "otp": "847291" }
-```
+// Request
+{ "userId": 1, "otp": "123456" }
 
-**Response 200**
-```json
+// Response 200 OK
 {
-  "accessToken": "<jwt>",
-  "refreshToken": "<token>",
-  "expiresIn": 1800
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "d748f93e...",
+  "tokenType": "Bearer",
+  "expiresIn": 3600
 }
 ```
 
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 400 | `OTP_INVALID` | Wrong OTP |
-| 410 | `OTP_EXPIRED` | OTP TTL exceeded |
-| 429 | `OTP_MAX_ATTEMPTS` | 5 failed attempts; account locked for 15 min |
-
----
-
-### POST `/auth/login` — Public
-Authenticate with phone + PIN.
-
-**Request**
+### POST `/auth/login` (Public)
+Authenticates existing user with phone and PIN.
 ```json
+// Request
 { "phone": "+94771234567", "pin": "123456" }
-```
 
-**Response 200** – same as verify-otp 200.
-
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 401 | `INVALID_CREDENTIALS` | Wrong phone or PIN |
-| 403 | `ACCOUNT_FROZEN` | Account has been frozen |
-
----
-
-### POST `/auth/refresh` — Public
-Exchange refresh token for new access token.
-
-**Request**
-```json
-{ "refreshToken": "<token>" }
-```
-
-**Response 200**
-```json
-{ "accessToken": "<jwt>", "expiresIn": 1800 }
-```
-
----
-
-### POST `/auth/logout` — Authenticated
-Revoke refresh token.
-
-**Request** – empty body
-**Response 204** – No Content
-
----
-
-### PATCH `/auth/change-pin` — Authenticated
-Change user PIN.
-
-**Request**
-```json
-{ "currentPin": "123456", "newPin": "654321" }
-```
-
-**Response 200**
-```json
-{ "message": "PIN updated successfully" }
-```
-
----
-
-## 2. Registry – `/registry`
-
-### GET `/registry/lookup` — Authenticated
-Look up a payee by phone number.
-
-**Query Params:** `phone=+94771234567`
-
-**Response 200**
-```json
+// Response 200 OK
 {
-  "payeeId": 42,
-  "displayName": "Kamal P.",
-  "maskedPhone": "+9477***4567"
+  "accessToken": "eyJhbGciOi...",
+  "refreshToken": "d748f93e...",
+  "tokenType": "Bearer",
+  "expiresIn": 3600
 }
 ```
 
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 404 | `USER_NOT_FOUND` | No active, discoverable user with that phone |
-
 ---
 
-### PATCH `/registry/discovery` — Authenticated
-Enable or disable phone discovery.
+## 3. Accounts & Bank Integration (`/accounts`)
 
-**Request**
+### GET `/accounts`
+Lists all linked accounts owned by the authenticated caller.
 ```json
-{ "discoverable": false }
-```
-
-**Response 200**
-```json
-{ "discoverable": false }
-```
-
----
-
-## 3. Bank Integration – `/bank-accounts`
-
-### POST `/bank-accounts` — Authenticated
-Link a bank account.
-
-**Request**
-```json
-{
-  "bankCode": "SIMULATED_BOC",
-  "accountNumber": "1234567890",
-  "accountName": "Kamal Perera"
-}
-```
-
-**Response 201**
-```json
-{
-  "bankAccountId": 7,
-  "bankCode": "SIMULATED_BOC",
-  "maskedNumber": "****7890",
-  "accountName": "Kamal Perera",
-  "status": "ACTIVE",
-  "simulated": true
-}
-```
-
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 422 | `BANK_VERIFICATION_FAILED` | Adapter could not verify account (SIMULATED) |
-| 409 | `ACCOUNT_ALREADY_LINKED` | Duplicate account for this user |
-
----
-
-### GET `/bank-accounts` — Authenticated
-List user's linked bank accounts.
-
-**Response 200**
-```json
+// Response 200 OK
 [
   {
-    "bankAccountId": 7,
-    "bankCode": "SIMULATED_BOC",
-    "maskedNumber": "****7890",
+    "id": 1,
+    "institutionCode": "BOC",
+    "bankName": "Bank of Ceylon",
+    "maskedAccountNumber": "•••• 5678",
+    "label": "Primary Account",
     "isDefault": true,
-    "status": "ACTIVE",
-    "simulated": true
+    "balanceMinor": 12545000,
+    "currency": "LKR",
+    "status": "ACTIVE"
   }
 ]
 ```
 
----
-
-### DELETE `/bank-accounts/{bankAccountId}` — Authenticated
-Unlink a bank account. Object-level check: account must belong to requesting user.
-
-**Response 204** – No Content
-
----
-
-### PATCH `/bank-accounts/{bankAccountId}/default` — Authenticated
-Set a linked account as the default.
-
-**Response 200**
+### POST `/accounts/link`
+Links a simulated bank account with consent.
 ```json
-{ "bankAccountId": 7, "isDefault": true }
-```
-
----
-
-## 4. Transfers – `/transfers`
-
-### POST `/transfers` — Authenticated
-Initiate a peer-to-peer transfer.
-
-**Request**
-```json
+// Request
 {
-  "payeeId": 42,
-  "amount": "1500.00",
-  "currency": "LKR",
-  "note": "Lunch split"
-}
-```
-
-**Response 200**
-```json
-{
-  "transferId": 99,
-  "reference": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "COMPLETED",
-  "amount": "1500.00",
-  "currency": "LKR",
-  "bankTxRef": "SIM-abc123",
-  "simulated": true,
-  "createdAt": "2025-01-01T10:30:00Z"
-}
-```
-
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 400 | `INVALID_AMOUNT` | Amount ≤ 0 or exceeds max |
-| 422 | `DAILY_LIMIT_EXCEEDED` | Sender's daily cap reached |
-| 422 | `BANK_DEBIT_FAILED` | Adapter debit rejected (SIMULATED) |
-| 404 | `PAYEE_NOT_FOUND` | payeeId does not exist or not discoverable |
-
----
-
-### GET `/transfers` — Authenticated
-List the authenticated user's transfer history.
-
-**Query Params:** `page=0&size=20&direction=SENT|RECEIVED`
-
-**Response 200**
-```json
-{
-  "content": [ { "transferId": 99, "reference": "...", "amount": "1500.00", "status": "COMPLETED", "simulated": true } ],
-  "page": 0,
-  "size": 20,
-  "totalElements": 1
-}
-```
-
----
-
-### GET `/transfers/{transferId}` — Authenticated
-Get a single transfer. Object-level check: user must be sender or receiver.
-
-**Response 200** – full transfer object as above.
-
----
-
-## 5. QR – `/qr`
-
-### POST `/qr/generate` — Authenticated
-Generate a payment QR code.
-
-**Request**
-```json
-{
-  "amount": "500.00",
-  "currency": "LKR",
-  "note": "Table 5 bill"
-}
-```
-
-**Response 200**
-```json
-{
-  "qrId": "qr-uuid",
-  "qrPayload": "LANKAPAY:qr-uuid:500.00:LKR:Table+5+bill",
-  "expiresAt": "2025-01-01T10:45:00Z"
-}
-```
-
----
-
-### POST `/qr/pay` — Authenticated
-Pay via scanned QR payload.
-
-**Request**
-```json
-{ "qrPayload": "LANKAPAY:qr-uuid:500.00:LKR:Table+5+bill" }
-```
-
-**Response 200** – transfer object (same as POST `/transfers` 200).
-
-**Errors**
-| HTTP | Code | Reason |
-|---|---|---|
-| 404 | `QR_NOT_FOUND` | Unknown QR payload |
-| 410 | `QR_EXPIRED` | QR TTL exceeded |
-| 409 | `QR_ALREADY_USED` | QR was already paid |
-| 400 | `QR_SELF_PAYMENT` | Payer and merchant are the same user |
-
----
-
-## 6. Admin – `/admin` (ROLE_ADMIN only)
-
-### GET `/admin/users` — Admin
-Search users.
-
-**Query Params:** `phone`, `nic`, `status`, `page`, `size`
-
-**Response 200** – paginated list of user summaries (no plaintext PII).
-
----
-
-### GET `/admin/users/{userId}` — Admin
-Get user detail.
-
-**Response 200**
-```json
-{
-  "userId": 1,
-  "displayName": "Kamal P.",
-  "maskedPhone": "+9477***4567",
-  "maskedNic": "1990****",
-  "status": "ACTIVE",
-  "role": "USER",
-  "createdAt": "2025-01-01T09:00:00Z"
-}
-```
-
----
-
-### PATCH `/admin/users/{userId}/status` — Admin
-Freeze or reactivate a user.
-
-**Request**
-```json
-{ "status": "FROZEN", "reason": "Suspicious activity" }
-```
-
-**Response 200**
-```json
-{ "userId": 1, "status": "FROZEN" }
-```
-
----
-
-### GET `/admin/transfers` — Admin
-Search all transfers.
-
-**Query Params:** `userId`, `status`, `from`, `to`, `page`, `size`
-
-**Response 200** – paginated transfer list.
-
----
-
-### GET `/admin/audit-log` — Admin
-Query the audit log.
-
-**Query Params:** `actorId`, `eventType`, `from`, `to`, `page`, `size`
-
-**Response 200** – paginated audit events.
-
----
-
-## 7. Common Error Response Shape
-
-```json
-{
-  "status": 400,
-  "code": "VALIDATION_ERROR",
-  "message": "phone must be in E.164 format",
-  "timestamp": "2025-01-01T10:00:00Z",
-  "path": "/api/v1/auth/register"
-}
-```
-
-Stack traces are **never** included in responses.
-
----
-
-## 8. Cards & Simulated Vault – `/cards` and `/sim-vault`
-
-> ⚠ **SIMULATED PROTOTYPE ONLY**: All card operations are test demonstrations. Never enter real card data.
-
-### POST `/sim-vault/v1/tokenize`
-Tokenize a test card. Validates against the seeded sandbox table.
-
-**Request**
-```json
-{
-  "pan": "9900XXXXXXXX0010",
-  "expMonth": "12",
-  "expYear": "27",
-  "cvv": "111",
-  "holderName": "Test Approved"
-}
-```
-
-**Response 200**
-```json
-{
-  "cardToken": "8ca8826a-2826-4cc3-af97-7e202d2b12fa",
-  "last4": "0010",
-  "expMonth": "12",
-  "expYear": "27",
-  "brandLabel": "TEST CARD",
-  "simulated": true,
-  "tokenExpiresAt": "2026-10-13T12:15:00Z"
-}
-```
-
----
-
-### GET `/api/v1/cards`
-List active, pending, and frozen cards owned by the authenticated user.
-
-**Response 200**
-```json
-[
-  {
-    "id": 101,
-    "last4": "0010",
-    "expMonth": "12",
-    "expYear": "27",
-    "brandLabel": "TEST CARD",
-    "nickname": "Daily Card",
-    "cardKind": "LINKED",
-    "status": "ACTIVE",
-    "onlinePaymentsEnabled": true,
-    "perPaymentLimitMinor": 5000000,
-    "dailyLimitMinor": 20000000,
-    "remainingDailyLimitMinor": 19000000,
-    "simulated": true
-  }
-]
-```
-
----
-
-### POST `/api/v1/cards`
-Link an existing tokenized card with user consent and step-up PIN. Initiates bank OTP challenge (`PENDING_VERIFICATION`).
-
-**Headers:** `X-Step-Up-Pin: 123456` (or in body)
-
-**Request**
-```json
-{
-  "cardToken": "8ca8826a-2826-4cc3-af97-7e202d2b12fa",
-  "nickname": "Daily Card",
-  "linkedBankAccountId": 1,
+  "institutionCode": "BOC",
+  "accountNumber": "100234567890",
+  "accountName": "Kamal Perera",
+  "label": "Salary Account",
   "consentGiven": true
 }
 ```
 
-**Response 201**
-```json
-{
-  "id": 101,
-  "last4": "0010",
-  "status": "PENDING_VERIFICATION",
-  "challengeRef": "chal-778899"
-}
-```
-
 ---
 
-### POST `/api/v1/cards/{id}/verify`
-Complete the bank OTP ownership challenge to transition card from `PENDING_VERIFICATION` to `ACTIVE`.
+## 4. Cards & SimVault (`/cards`)
 
-**Request**
+### GET `/cards`
+Returns active tokenized and virtual cards for the caller.
 ```json
-{
-  "otp": "112233"
-}
+// Response 200 OK
+[
+  {
+    "id": 101,
+    "cardToken": "tok_sim_0010",
+    "last4": "0010",
+    "brandLabel": "TEST CARD",
+    "nickname": "Virtual Daily Card",
+    "cardKind": "VIRTUAL",
+    "status": "ACTIVE",
+    "perPaymentLimitMinor": 2500000,
+    "dailyLimitMinor": 10000000,
+    "simulated": true
+  }
+]
 ```
 
-**Response 200**
+### POST `/cards/virtual`
+Issues a new instant virtual card linked to a bank account.
 ```json
-{
-  "id": 101,
-  "status": "ACTIVE"
-}
-```
-
----
-
-### POST `/api/v1/cards/virtual`
-Issue an instant virtual card tied to an active bank account.
-
-**Headers:** `X-Step-Up-Pin: 123456`
-
-**Request**
-```json
+// Request
 {
   "linkedBankAccountId": 1,
-  "nickname": "Online Shopping"
+  "nickname": "Shopping Card",
+  "perPaymentLimitMinor": 5000000
 }
 ```
 
-**Response 201**
-```json
-{
-  "id": 102,
-  "last4": "0010",
-  "cardKind": "VIRTUAL",
-  "status": "ACTIVE"
-}
-```
+### POST `/cards/{id}/freeze` / `/cards/{id}/unfreeze`
+Freezes card instantly or unfreezes with step-up verification.
+`X-Step-Up-Pin: 123456` required on unfreeze.
 
 ---
 
-### POST `/api/v1/cards/{id}/freeze`
-Freeze a card immediately to stop all future debits.
+## 5. Transfers & LankaPay-ID (`/transfers`)
 
-**Response 200**
+### POST `/transfers`
+Executes an instant P2P or inter-bank transfer.
 ```json
+// Headers: Idempotency-Key: c9d8e7b6-1234-4567-8901-abcdef123456
+// Request
 {
-  "id": 101,
-  "status": "FROZEN"
+  "receiverPhone": "+94772345678",
+  "amountMinor": 250000,
+  "currency": "LKR",
+  "description": "Lunch split",
+  "fundingType": "ACCOUNT",
+  "fundingSourceId": 1
 }
-```
 
----
-
-### POST `/api/v1/cards/{id}/unfreeze`
-Unfreeze a card back to `ACTIVE`. Requires step-up PIN in `X-Step-Up-Pin` header.
-
-**Headers:** `X-Step-Up-Pin: 123456`
-
-**Response 200**
-```json
+// Response 200 OK
 {
-  "id": 101,
-  "status": "ACTIVE"
-}
-```
-
----
-
-### POST `/api/v1/cards/{id}/reveal`
-Reveal virtual card PAN, CVV, and full expiry. Strictly limited to `VIRTUAL` cards.
-Protected by step-up PIN and rate limited to 3 reveals per hour. Returns `Cache-Control: no-store`.
-
-**Headers:** `X-Step-Up-Pin: 123456`
-
-**Response 200**
-```json
-{
-  "cardId": 102,
-  "last4": "0010",
-  "pan": "9900XXXXXXXX0010",
-  "cvv": "111",
-  "expMonth": "12",
-  "expYear": "27",
-  "brandLabel": "TEST CARD",
-  "expiresInSeconds": 30,
+  "transferId": 501,
+  "reference": "TX-501-ABC",
+  "status": "COMPLETED",
+  "amountMinor": 250000,
+  "currency": "LKR",
+  "receiverDisplayName": "Nimali Silva",
+  "completedAt": "2026-10-14T01:10:00Z",
   "simulated": true
 }
 ```
 
 ---
 
-### PATCH `/api/v1/cards/{id}`
-Update nickname, limits, or toggle online payments. Requires step-up PIN.
+## 6. Home Screen Aggregator (`/home`)
 
-**Headers:** `X-Step-Up-Pin: 123456`
+### GET `/home`
+High-performance resilient dashboard aggregation endpoint.
+Guaranteed < 500ms response SLA with section failure isolation.
 
-**Request**
 ```json
+// Response 200 OK
 {
-  "nickname": "Personal Card",
-  "perPaymentLimitMinor": 2500000,
-  "dailyLimitMinor": 10000000,
-  "onlinePaymentsEnabled": false
-}
-```
-
-**Response 200** – updated card object.
-
----
-
-### DELETE `/api/v1/cards/{id}`
-Soft-delete / remove card (`REMOVED` status). Requires step-up PIN in `X-Step-Up-Pin` header.
-
-**Headers:** `X-Step-Up-Pin: 123456`
-
-**Response 204 No Content**
-
----
-
-## 14. Family Finance (Simulated Guardian & Child Accounts) – `/api/v1/family`
-
-Endpoints for guardian-managed minor accounts. Strictly enforces data minimisation (first name, age band, initials only; no phone, no lookup discoverability, no geolocation, no photos).
-
-> **LEGAL NOTICE:**
-> Real-world use requires independent legal advice on minors' privacy regulations (COPPA, GDPR-K) and verifiable parental consent (VPC).
-
-### POST `/api/v1/family/members` — Authenticated Guardian
-Create a new family member profile.
-```json
-{
-  "firstName": "Kasun",
-  "ageBand": "AGE_10_TO_13",
-  "avatarInitials": "KA",
-  "dailyLimitMinor": 500000,
-  "monthlyLimitMinor": 2500000,
-  "allowedCategories": ["FOOD", "EDUCATION", "TRANSPORT"],
-  "allowanceSchedule": {
-    "enabled": true,
-    "amountMinor": 50000,
-    "frequency": "WEEKLY",
-    "sourceAccount": "Primary Account"
+  "greeting": {
+    "status": "OK",
+    "data": { "fullName": "Kamal Perera", "initial": "K", "salutation": "Good morning, Kamal" }
+  },
+  "wallet": {
+    "status": "OK",
+    "data": {
+      "primaryBalanceMinor": 12545000,
+      "primaryBalanceLkr": "125,450.00",
+      "currency": "LKR",
+      "isSimulated": true,
+      "defaultAccount": {
+        "id": 1,
+        "bankName": "Bank of Ceylon",
+        "maskedAccountNumber": "•••• 5678"
+      }
+    }
+  },
+  "spendSummary": {
+    "status": "OK",
+    "data": {
+      "totalSpentMinor": 348000,
+      "totalSpentLkr": "3,480.00",
+      "budgetMinor": 5000000,
+      "budgetUsedFraction": 0.0696,
+      "month": "October",
+      "hasTransactions": true
+    }
+  },
+  "rewardsPoints": {
+    "status": "OK",
+    "data": { "points": "1,250 pts", "hasNewOffers": true }
+  },
+  "nudge": {
+    "status": "OK",
+    "data": {
+      "nudgeId": "security_tip",
+      "type": "SECURITY_TIP",
+      "message": "Never share your PIN, OTP, or password with anyone.",
+      "actionLabel": "Security Settings",
+      "actionRoute": "/settings/security"
+    }
   }
 }
 ```
-**Response 201 Created**
 
 ---
 
-### GET `/api/v1/family/members` — Authenticated Guardian
-List all family members managed by this guardian.
+## 7. Utility Bills (`/bills`)
 
-**Response 200**
+*Guarded by `@FeatureToggle(FeatureName.BILLS)`*
 
----
+### GET `/bills/billers`
+Lists utility and telco billers with fee schedules.
+```json
+// Response 200 OK
+[
+  {
+    "id": "SIM_ELEC_01",
+    "name": "Simulated Electricity Board",
+    "category": "ELECTRICITY",
+    "convenienceFeeMinor": 3000
+  }
+]
+```
 
-### GET `/api/v1/family/members/{id}` — Authenticated Guardian
-Get details and controls for a family member. Only the managing guardian can access.
+### POST `/bills/pay`
+Executes utility payment with fee calculation.
+```json
+// Headers: Idempotency-Key: uuid, X-Step-Up-Pin: 123456
+// Request
+{
+  "billerId": "SIM_ELEC_01",
+  "accountReference": "1009876543",
+  "amountMinor": 345000,
+  "fundingType": "CARD",
+  "fundingSourceId": 101
+}
 
-**Response 200** / **403 Forbidden**
-
----
-
-### PUT `/api/v1/family/members/{id}/controls` — Authenticated Guardian
-Update spending limits, allowed categories, freeze toggle, and allowance schedule.
-
-**Response 200**
-
----
-
-### POST `/api/v1/family/members/{id}/freeze` — Authenticated Guardian
-Quick freeze / unfreeze toggle (`?frozen=true|false`).
-
-**Response 200**
-
----
-
-### POST `/api/v1/family/members/{id}/fund` — Authenticated Guardian
-Credit simulated balance into the child profile. Only the guardian can fund.
-
-**Response 200**
-
----
-
-### POST `/api/v1/family/members/{id}/spend` — Authenticated / Child Simulated Client
-Execute purchase validated against guardian controls (limits, category, freeze, balance).
-
-**Response 200** / **400 Bad Request (Rule Violation)**
-
----
-
-### GET `/api/v1/family/members/{id}/child-view` — Authenticated
-Minimal child-safe dashboard view (first name, initials, balance, remaining daily limit, allowed categories).
-
-**Response 200**
+// Response 200 OK
+{
+  "receiptId": "REC-98765",
+  "billerName": "Simulated Electricity Board",
+  "amountMinor": 345000,
+  "convenienceFeeMinor": 3000,
+  "totalMinor": 348000,
+  "status": "COMPLETED",
+  "timestamp": "2026-10-14T01:15:00Z"
+}
+```
 
 ---
 
-### DELETE `/api/v1/family/members/{id}` — Authenticated Guardian
-Permanently deletes family member profile and purges activity per data minimisation and retention rules.
+## 8. Standing Orders & Scheduled Payments (`/scheduled`)
 
-**Response 204 No Content**
+*Guarded by `@FeatureToggle(FeatureName.SCHEDULED)`*
 
+### POST `/scheduled`
+Creates a recurring monthly or weekly scheduled payment.
+```json
+// Request
+{
+  "payeeType": "BILLER",
+  "payeeTarget": "SIM_ELEC_01",
+  "amountMinor": 350000,
+  "frequency": "MONTHLY",
+  "startDate": "2026-11-01"
+}
+```
 
+### POST `/scheduled/{id}/pause` / `/scheduled/{id}/resume`
+Toggles active schedule status.
+
+---
+
+## 9. Bill Splitting (`/split`)
+
+*Guarded by `@FeatureToggle(FeatureName.SPLIT)`*
+
+### POST `/split`
+Creates an equal or custom group bill split.
+```json
+// Request
+{
+  "title": "Dinner at Cinnamon Leaf",
+  "totalAmountMinor": 600000,
+  "participants": [
+    { "phone": "+94772345678", "name": "Nimali Silva", "amountMinor": 200000 },
+    { "phone": "+94773456789", "name": "Kasun Perera", "amountMinor": 200000 }
+  ]
+}
+```
+
+### POST `/split/{id}/remind`
+Sends rate-limited reminder SMS/push notification to pending participants.
+Enforces a 60-second cooldown per split.
+
+---
+
+## 10. Loyalty Rewards (`/rewards`)
+
+*Guarded by `@FeatureToggle(FeatureName.REWARDS)`*
+
+### GET `/rewards/balance`
+Returns point balance, tier level, and expiry.
+```json
+// Response 200 OK
+{
+  "points": 1250,
+  "tier": "SILVER",
+  "expiringPoints": 150,
+  "expiryDate": "2026-12-31"
+}
+```
+
+### POST `/rewards/redeem`
+Redeems loyalty points for a merchant discount voucher.
+```json
+// Request
+{ "offerId": "off_fuel_100", "pointsCost": 500 }
+
+// Response 200 OK
+{
+  "voucherCode": "LANKAPAY-FUEL-500",
+  "discountMinor": 50000,
+  "merchantId": "merch_fuel_1",
+  "remainingPoints": 750
+}
+```
+
+---
+
+## 11. City & In-Store Discovery (`/city`)
+
+*Guarded by `@FeatureToggle(FeatureName.CITY)`*
+
+### GET `/city/merchants`
+Returns local merchant catalog with active offers.
+Filterable by `category` (`food`, `groceries`, `fuel`) and `query`.
+
+### POST `/city/resolve-qr`
+Parses LankaQR payload string and returns merchant identity and transaction metadata.
+
+---
+
+## 12. Support & Customer Service (`/support`)
+
+*Guarded by `@FeatureToggle(FeatureName.SUPPORT)`*
+
+### POST `/support/conversations/{id}/messages`
+Sends user query to FAQ bot or live support agent. Output is strictly HTML-sanitized.
+
+### POST `/support/conversations/{id}/request-agent`
+Transfers automated conversation session to human operator queue.
+
+---
+
+## 13. Financial Literacy Stories (`/stories`)
+
+*Guarded by `@FeatureToggle(FeatureName.STORIES)`*
+
+### GET `/stories`
+Returns active educational stories with whitelisted app routes.
+```json
+// Response 200 OK
+[
+  {
+    "id": "story-1",
+    "title": "Protect Your Security PIN",
+    "caption": "Best practices for card safety",
+    "seen": false,
+    "pages": [
+      {
+        "text": "Never disclose your PIN to any third party.",
+        "actionLabel": "Security Settings",
+        "deepLink": "/settings/security"
+      }
+    ]
+  }
+]
+```
+
+### POST `/stories/{id}/seen`
+Records story view state for user.
+
+---
+
+## 14. Server-Side Feature Toggles (`/features`, `/admin/features`)
+
+### GET `/features` (Public)
+Lists all feature toggle states for mobile client hydration.
+```json
+// Response 200 OK
+{
+  "bills": true,
+  "scheduled": true,
+  "split": true,
+  "rewards": true,
+  "city": true,
+  "support": true,
+  "stories": true,
+  "family": false,
+  "investments": false
+}
+```
+
+### PUT `/admin/features/{featureName}` (Admin Only)
+Enables or disables feature toggle with audit attribution.
+```json
+// Request
+{ "enabled": false, "reason": "Scheduled maintenance" }
+```
+When disabled, subsequent API requests to the module return `HTTP 403 FEATURE_DISABLED`.

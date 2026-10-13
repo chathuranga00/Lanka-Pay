@@ -60,38 +60,41 @@ public class SimulatedDataSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         log.info("[SIMULATED] Checking database for simulated demo test accounts...");
+        try {
+            // Ensure Admin user exists
+            seedUserIfAbsent("+94770000001", "Operations Administrator [TEST]", "198000000001", UserRole.ADMIN, null);
 
-        // Ensure Admin user exists
-        seedUserIfAbsent("+94770000001", "Operations Administrator [TEST]", "198000000001", UserRole.ADMIN, null);
+            // 1. Kasun Perera [TEST] – 3 accounts at Banks A/B/C, default B
+            seedUserIfAbsent("+94771000001", "Kasun Perera [TEST]", "199010000001", UserRole.CUSTOMER, user -> {
+                linkAccount(user, "SIMULATED_BANK_A", "101001", "Kasun Perera [TEST]", "Savings Account A [TEST]", false);
+                linkAccount(user, "SIMULATED_BANK_B", "201001", "Kasun Perera [TEST]", "Salary Account B [TEST]", true); // Default B
+                linkAccount(user, "SIMULATED_BANK_C", "301001", "Kasun Perera [TEST]", "Investment Account C [TEST]", false);
+            });
 
-        // 1. Kasun Perera [TEST] – 3 accounts at Banks A/B/C, default B
-        seedUserIfAbsent("+94771000001", "Kasun Perera [TEST]", "199010000001", UserRole.CUSTOMER, user -> {
-            linkAccount(user, "SIMULATED_BANK_A", "101001", "Kasun Perera [TEST]", "Savings Account A [TEST]", false);
-            linkAccount(user, "SIMULATED_BANK_B", "201001", "Kasun Perera [TEST]", "Salary Account B [TEST]", true); // Default B
-            linkAccount(user, "SIMULATED_BANK_C", "301001", "Kasun Perera [TEST]", "Investment Account C [TEST]", false);
-        });
+            // 2. Nimal Silva [TEST] – 1 account at Bank A
+            seedUserIfAbsent("+94771000002", "Nimal Silva [TEST]", "199010000002", UserRole.CUSTOMER, user -> {
+                linkAccount(user, "SIMULATED_BANK_A", "101002", "Nimal Silva [TEST]", "Primary Account [TEST]", true);
+            });
 
-        // 2. Nimal Silva [TEST] – 1 account at Bank A
-        seedUserIfAbsent("+94771000002", "Nimal Silva [TEST]", "199010000002", UserRole.CUSTOMER, user -> {
-            linkAccount(user, "SIMULATED_BANK_A", "101002", "Nimal Silva [TEST]", "Primary Account [TEST]", true);
-        });
+            // 3. Scenario account: Failure (Bank A, account 100400 triggers HARD_FAILURE)
+            seedUserIfAbsent("+94771000003", "Fail Scenario User [TEST]", "199010000003", UserRole.CUSTOMER, user -> {
+                linkAccount(user, "SIMULATED_BANK_A", "100400", "Fail Account [TEST]", "Hard Failure Account [TEST]", true);
+            });
 
-        // 3. Scenario account: Failure (Bank A, account 100400 triggers HARD_FAILURE)
-        seedUserIfAbsent("+94771000003", "Fail Scenario User [TEST]", "199010000003", UserRole.CUSTOMER, user -> {
-            linkAccount(user, "SIMULATED_BANK_A", "100400", "Fail Account [TEST]", "Hard Failure Account [TEST]", true);
-        });
+            // 4. Scenario account: Timeout (Bank A, account 100200 triggers TIMEOUT_SUCCEEDED)
+            seedUserIfAbsent("+94771000004", "Timeout Scenario User [TEST]", "199010000004", UserRole.CUSTOMER, user -> {
+                linkAccount(user, "SIMULATED_BANK_A", "100200", "Timeout Account [TEST]", "Timeout Trigger Account [TEST]", true);
+            });
 
-        // 4. Scenario account: Timeout (Bank A, account 100200 triggers TIMEOUT_SUCCEEDED)
-        seedUserIfAbsent("+94771000004", "Timeout Scenario User [TEST]", "199010000004", UserRole.CUSTOMER, user -> {
-            linkAccount(user, "SIMULATED_BANK_A", "100200", "Timeout Account [TEST]", "Timeout Trigger Account [TEST]", true);
-        });
+            // 5. Scenario account: Reversal (Bank A, account 100500 triggers LATER_REVERSAL)
+            seedUserIfAbsent("+94771000005", "Reversal Scenario User [TEST]", "199010000005", UserRole.CUSTOMER, user -> {
+                linkAccount(user, "SIMULATED_BANK_A", "100500", "Reversal Account [TEST]", "Reversal Trigger Account [TEST]", true);
+            });
 
-        // 5. Scenario account: Reversal (Bank A, account 100500 triggers LATER_REVERSAL)
-        seedUserIfAbsent("+94771000005", "Reversal Scenario User [TEST]", "199010000005", UserRole.CUSTOMER, user -> {
-            linkAccount(user, "SIMULATED_BANK_A", "100500", "Reversal Account [TEST]", "Reversal Trigger Account [TEST]", true);
-        });
-
-        log.info("[SIMULATED] Demo test accounts verification completed successfully.");
+            log.info("[SIMULATED] Demo test accounts verification completed successfully.");
+        } catch (Exception ex) {
+            log.warn("[SIMULATED] Datastore unavailable during seeding; skipping simulated accounts initialization: {}", ex.getMessage());
+        }
     }
 
     private UserAccount seedUserIfAbsent(String phone, String fullName, String nic, UserRole role, AccountInitializer onInit) {

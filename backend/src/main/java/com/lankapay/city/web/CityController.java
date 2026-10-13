@@ -21,6 +21,7 @@ import java.util.List;
 
 @RestController
 @Tag(name = "City", description = "Simulated merchant discovery, categories, offers, favourites, and in-store pay flow")
+@com.lankapay.feature.annotation.FeatureToggle("city")
 public class CityController {
 
     private final CityService cityService;

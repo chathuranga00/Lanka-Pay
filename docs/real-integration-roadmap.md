@@ -1,9 +1,10 @@
 # LankaPay ID — Real Integration & Regulatory Roadmap (Phase 7)
 
-> ⚠️ **IMPORTANT ARCHITECTURAL DISCLAIMER**  
-> This prototype currently operates **exclusively with simulated bank adapters (`SIMULATED_BANK_A`, `SIMULATED_BANK_B`, `SIMULATED_BANK_C`)** and in-memory test stubs.  
+> ⚠️ **STATUTORY & REGULATORY DISCLAIMER**  
+> **LankaPay ID is an educational and technological simulation.** It is **not** an official product of LankaClear (Pvt) Ltd, the Central Bank of Sri Lanka (CBSL), or any commercial bank or financial institution.  
+> This prototype currently operates **exclusively with simulated bank adapters (`SIMULATED_BANK_A`, `SIMULATED_BANK_B`, `SIMULATED_BANK_C`)**, simulated utility biller adapters, simulated loyalty ledgers, and in-memory test stubs.  
 > **This repository does NOT claim that direct private APIs currently exist for all Sri Lankan commercial banks, nor does it contain unauthorized or proprietary banking endpoints.**  
-> Moving from this technological prototype to a live, production-grade payment network requires formal regulatory licensing, commercial banking sponsorship, and clearing house certification as documented in this roadmap.
+> Moving from this technological prototype to a live, production-grade payment network requires formal regulatory licensing under CBSL, commercial banking sponsorship, and clearing house certification as documented in this roadmap.
 
 ---
 
@@ -78,9 +79,12 @@ The current REST/JSON simulation must be replaced with industry-standard clearin
 
 | Functional Area | Current Prototype | Production Standard | Migration Requirements |
 | :--- | :--- | :--- | :--- |
-| **Inter-bank Messaging** | REST / Mock Adapters | **ISO 20022 XML** | Implementation of `pacs.008` (Financial Institutional Customer Credit Transfer), `pacs.002` (Payment Status Report), and `camt.053` (Cash Management Statement). |
-| **Retail Debit** | Internal Transfer Engine | **JustPay API Protocol** | Strict validation of JustPay digital certificate signing, bank tokenization, and sponsor bank validation. |
-| **QR Code Processing** | Static/Dynamic JSON Token | **EMVCo / LankaQR Spec** | Compliance with EMVCo Merchant-Presented and Consumer-Presented QR specifications with Tag 00 to Tag 63 CRC16 checksums. |
+| **Inter-bank Credit Transfers** | REST / Mock Adapters (`SimulatedBankAdapter`) | **ISO 20022 XML / CEFTS** | Implementation of `pacs.008` (Financial Institutional Customer Credit Transfer), `pacs.002` (Payment Status Report), and `camt.053` (Cash Management Statement) routing through LankaPay CEFTS switch. |
+| **Payment Card & ATM/POS Transactions** | Simulated Card Vault (`SimulatedCardVault`) | **ISO 8583 / AS 2805** | Financial transaction messaging (MTI `0100`/`0110` Authorization, `0200`/`0210` Financial Transaction, `0420` Reversal) interfacing with domestic card switches (LankaPay Common Card and Payment Switch - CCAPS) and international schemes (Visa/Mastercard). |
+| **Retail Debit & P2P Pull** | Internal Transfer Engine | **JustPay API Protocol** | Strict validation of JustPay digital certificate signing, bank tokenization, customer challenge mandates, and sponsor bank settlement. |
+| **QR Code Processing** | Static/Dynamic JSON Token | **EMVCo / LankaQR Spec** | Compliance with Central Bank of Sri Lanka National LankaQR Code Specifications (based on EMVCo Merchant-Presented and Consumer-Presented QR specifications with Tag 00 to Tag 63 CRC16 checksum validation). |
+| **Utility Bill Presentment & Payment** | `SimulatedBillerAdapter` | **LankaPay EBPP / Biller APIs** | Implementation of Electronic Bill Presentment & Payment (EBPP) standardized messaging, real-time bill inquiry, settlement batch files, and biller reconciliation files. |
+| **Recurring & Scheduled Payments** | JVM `@Scheduled` Task Engine | **CBSL Direct Debit Mandates** | Customer electronic mandate registration (e-Mandate), pre-debit notifications (24-hour lead time), and automated bank clearing journals via SLIPS / CEFTS direct debit. |
 | **Network Transport** | Public Internet HTTPS | **Dedicated Leased Lines / VPN** | Dual redundant IPsec VPN tunnels or LankaPay Network Leased Lines with Mutual TLS (mTLS) using X.509 RSA-4096 / ECC certificates. |
 
 ---

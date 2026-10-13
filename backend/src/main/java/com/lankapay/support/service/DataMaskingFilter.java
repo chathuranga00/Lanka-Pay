@@ -22,6 +22,9 @@ public final class DataMaskingFilter {
             "(?<!\\d)\\d{6}(?!\\d)"
     );
 
+    // HTML tags to sanitize
+    private static final Pattern HTML_TAG_PATTERN = Pattern.compile("<[^>]*>", Pattern.CASE_INSENSITIVE);
+
     public static String mask(String input) {
         if (input == null || input.isBlank()) {
             return input;
@@ -32,6 +35,10 @@ public final class DataMaskingFilter {
 
         // Mask 6-digit OTP codes next
         masked = SIX_DIGIT_OTP_PATTERN.matcher(masked).replaceAll("[OTP_MASKED]");
+
+        // Sanitize raw HTML tags to prevent XSS / raw HTML injection in chats
+        masked = HTML_TAG_PATTERN.matcher(masked).replaceAll("");
+        masked = masked.replace("<", "&lt;").replace(">", "&gt;");
 
         return masked;
     }

@@ -21,6 +21,7 @@ import java.util.List;
 @RequestMapping("/api/v1/saved-billers")
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Saved Billers", description = "CRUD operations for user saved billers")
+@com.lankapay.feature.annotation.FeatureToggle("bills")
 public class SavedBillerController {
 
     private final SavedBillerService savedBillerService;

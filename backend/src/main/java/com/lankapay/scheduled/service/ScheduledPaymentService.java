@@ -116,8 +116,9 @@ public class ScheduledPaymentService {
         if (request.startDate() == null) {
             throw new ValidationException("START_DATE_REQUIRED", "Start date is required");
         }
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        if (request.startDate().isBefore(today)) {
+        LocalDate todayUtc = LocalDate.now(ZoneOffset.UTC);
+        LocalDate todayLocal = LocalDate.now(java.time.ZoneId.systemDefault());
+        if (request.startDate().isBefore(todayUtc) && request.startDate().isBefore(todayLocal)) {
             throw new ValidationException("INVALID_START_DATE", "Start date cannot be in the past");
         }
         if (request.endDate() != null && request.endDate().isBefore(request.startDate())) {
@@ -175,7 +176,7 @@ public class ScheduledPaymentService {
 
         // 7. Calculate initial nextRunAt
         Instant nextRunAt;
-        if (request.startDate().equals(today)) {
+        if (request.startDate().isEqual(todayUtc) || request.startDate().isEqual(todayLocal)) {
             nextRunAt = Instant.now();
         } else {
             nextRunAt = request.startDate().atTime(9, 0).atZone(ZoneOffset.UTC).toInstant();

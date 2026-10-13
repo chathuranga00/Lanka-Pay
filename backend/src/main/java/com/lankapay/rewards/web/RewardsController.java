@@ -28,6 +28,7 @@ import java.util.List;
 
 @RestController
 @Tag(name = "Rewards", description = "Simulated rewards points, append-only ledger, offers and redemptions")
+@com.lankapay.feature.annotation.FeatureToggle("rewards")
 public class RewardsController {
 
     private final RewardsService rewardsService;

@@ -65,26 +65,30 @@ public class CityService {
     @PostConstruct
     public void initQrRecords() {
         if (qrStore == null) return;
-        List<CityMerchant> merchants = merchantStore.findAllMerchants();
-        for (CityMerchant m : merchants) {
-            if (m.qrReference() != null && qrStore.findQrByReferenceOrQrId(m.qrReference()).isEmpty()) {
-                QrCodeRecord record = new QrCodeRecord(
-                        null,
-                        9999L,
-                        m.id(),
-                        m.qrReference(),
-                        QrType.STATIC,
-                        null,
-                        "LKR",
-                        m.name() + " - Simulated QR",
-                        QrStatus.ACTIVE,
-                        false,
-                        "LANKAQR-SIMULATED-" + m.id(),
-                        null,
-                        Instant.now()
-                );
-                qrStore.saveQr(record);
+        try {
+            List<CityMerchant> merchants = merchantStore.findAllMerchants();
+            for (CityMerchant m : merchants) {
+                if (m.qrReference() != null && qrStore.findQrByReferenceOrQrId(m.qrReference()).isEmpty()) {
+                    QrCodeRecord record = new QrCodeRecord(
+                            null,
+                            9999L,
+                            m.id(),
+                            m.qrReference(),
+                            QrType.STATIC,
+                            null,
+                            "LKR",
+                            m.name() + " - Simulated QR",
+                            QrStatus.ACTIVE,
+                            false,
+                            "LANKAQR-SIMULATED-" + m.id(),
+                            null,
+                            Instant.now()
+                    );
+                    qrStore.saveQr(record);
+                }
             }
+        } catch (Exception ex) {
+            log.warn("Could not pre-initialize merchant QR records in CityService: {}", ex.getMessage());
         }
     }
 

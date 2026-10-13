@@ -1,5 +1,6 @@
 package com.lankapay.story.web;
 
+import com.lankapay.feature.annotation.FeatureToggle;
 import com.lankapay.story.service.StoryService;
 import com.lankapay.story.web.dto.StoryActionClickResponse;
 import com.lankapay.story.web.dto.StoryResponse;
@@ -18,6 +19,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/v1/stories")
+@FeatureToggle("stories")
 public class StoryController {
 
     private final StoryService storyService;

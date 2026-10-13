@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @Tag(name = "Admin City", description = "Admin controls for managing simulated merchants and offers (audited)")
 @PreAuthorize("hasRole('ADMIN')")
+@com.lankapay.feature.annotation.FeatureToggle("city")
 public class AdminCityController {
 
     private final CityService cityService;

@@ -30,6 +30,8 @@ import 'package:lankapay_id/features/cards/domain/card_model.dart';
 import 'package:lankapay_id/features/settings/presentation/privacy_settings_screen.dart';
 import 'package:lankapay_id/features/home/data/home_api_model.dart';
 import 'package:lankapay_id/features/home/data/home_providers.dart';
+import 'package:lankapay_id/features/stories/data/stories_api_service.dart';
+import 'package:lankapay_id/features/stories/domain/story.dart';
 import 'package:lankapay_id/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -551,6 +553,27 @@ class FakeAllKeysBillService extends BillService {
   Future<List<SavedBillerModel>> listSavedBillers() async => [];
 }
 
+class FakeAllKeysStoriesApiService implements StoriesApiService {
+  @override
+  Future<List<Story>> getStories() async => [
+        const Story(
+          id: 'story-1',
+          title: 'Link Account',
+          caption: 'Add your account',
+          imageOrGradient: 'gradient:linear(135deg, #4F46E5, #3B82F6)',
+          seen: false,
+          priority: 10,
+          contentPages: [],
+        ),
+      ];
+
+  @override
+  Future<void> markSeen(String storyId) async {}
+
+  @override
+  Future<void> recordActionClick(String storyId) async {}
+}
+
 Widget createE2ETestApp({
   String initialLocation = '/home',
   FakeAllKeysBankAccountService? bankService,
@@ -581,6 +604,7 @@ Widget createE2ETestApp({
           .overrideWithValue(notifService ?? FakeAllKeysNotificationService()),
       qrServiceProvider.overrideWithValue(qrService ?? FakeAllKeysQrService()),
       billServiceProvider.overrideWithValue(FakeAllKeysBillService()),
+      storiesApiServiceProvider.overrideWithValue(FakeAllKeysStoriesApiService()),
       homeAggregateProvider.overrideWith((ref) => Future.value(fakeHomeResponseAllKeys)),
     ],
     child: Consumer(

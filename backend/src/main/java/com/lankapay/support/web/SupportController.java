@@ -21,6 +21,7 @@ import java.util.Map;
 
 @RestController
 @Tag(name = "Support", description = "Customer support conversations, messages, FAQ bot, and inquiry resolution")
+@com.lankapay.feature.annotation.FeatureToggle("support")
 public class SupportController {
 
     private final SupportService supportService;

@@ -20,6 +20,7 @@ import java.util.List;
 @Tag(name = "Savings Goals", description = "Simulated savings ledger goals management")
 @RestController
 @RequestMapping("/api/v1/goals")
+@com.lankapay.feature.annotation.FeatureToggle("goals")
 public class GoalController {
 
     private final GoalService goalService;
