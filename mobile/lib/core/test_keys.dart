@@ -343,4 +343,22 @@ abstract final class AppTestKeys {
   static const Key storyViewer = Key('story_viewer');
   static const Key storyClose = Key('story_close');
   static const Key storyAction = Key('story_action');
+
+  // ---------------------------------------------------------------------------
+  // Bills (bill_*, biller_*, saved_biller_*)
+  // ---------------------------------------------------------------------------
+  static Key biller(String id) => Key('biller_$id');
+  static const Key billReference = Key('bill_reference');
+  static const Key billPay = Key('bill_pay');
+  static Key savedBiller(dynamic id) => Key('saved_biller_$id');
+  static const Key billsSearch = Key('bills_search');
+  static const Key billsCategoryGrid = Key('bills_category_grid');
+  static const Key savedBillersList = Key('saved_billers_list');
+  static const Key billAmountField = Key('bill_amount_field');
+  static const Key billPinField = Key('bill_pin_field');
+  static const Key billSaveCheckbox = Key('bill_save_checkbox');
+  static const Key billNicknameField = Key('bill_nickname_field');
+  static const Key billResultDone = Key('bill_result_done');
+  static const Key billResultRetry = Key('bill_result_retry');
+  static const Key billHistoryFilter = Key('bill_history_filter');
 }

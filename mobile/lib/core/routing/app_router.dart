@@ -29,6 +29,11 @@ import '../../features/more/presentation/more_screen.dart';
 import '../../features/cards/presentation/add_card/add_card_flow_screen.dart';
 import '../../features/cards/presentation/widgets/test_cards_list_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
+import '../../features/bills/domain/bill_models.dart';
+import '../../features/bills/presentation/bills_screen.dart';
+import '../../features/bills/presentation/bill_details_screen.dart';
+import '../../features/bills/presentation/bill_result_screen.dart';
+import '../../features/bills/presentation/bills_history_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -228,10 +233,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
         path: '/bills',
-        builder: (context, state) => Scaffold(
-          appBar: AppBar(title: const Text('Pay Bills')),
-          body: const Center(child: Text('Bill Payments')),
-        ),
+        builder: (context, state) => const BillsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/bills/details',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          return BillDetailsScreen(
+            biller: extra['biller'] as BillerModel?,
+            savedBiller: extra['savedBiller'] as SavedBillerModel?,
+          );
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/bills/result',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          final receipt = extra['receipt'] as BillPaymentReceiptModel;
+          return BillResultScreen(receipt: receipt);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/bills/history',
+        builder: (context, state) => const BillsHistoryScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
