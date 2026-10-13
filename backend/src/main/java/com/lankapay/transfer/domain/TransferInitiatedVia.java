@@ -3,5 +3,6 @@ package com.lankapay.transfer.domain;
 public enum TransferInitiatedVia {
     APP,
     QR,
-    BILL_PAYMENT
+    BILL_PAYMENT,
+    SCHEDULED
 }

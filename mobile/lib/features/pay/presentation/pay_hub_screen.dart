@@ -1054,13 +1054,7 @@ class _PayHubScreenState extends ConsumerState<PayHubScreen> {
           ),
           child: const Icon(Icons.schedule_rounded, color: Color(0xFF6366F1), size: 22),
         ),
-        onTap: () {
-          if (scheduledEnabled) {
-            context.push('/history');
-          } else {
-            _showComingSoon(context, 'Scheduled Payments');
-          }
-        },
+        onTap: () => context.push('/scheduled'),
       ),
 
       // 5. Split a bill [pay_split] (flagged)

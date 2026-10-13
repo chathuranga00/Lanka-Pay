@@ -34,6 +34,10 @@ import '../../features/bills/presentation/bills_screen.dart';
 import '../../features/bills/presentation/bill_details_screen.dart';
 import '../../features/bills/presentation/bill_result_screen.dart';
 import '../../features/bills/presentation/bills_history_screen.dart';
+import '../../features/scheduled/domain/scheduled_models.dart';
+import '../../features/scheduled/presentation/scheduled_list_screen.dart';
+import '../../features/scheduled/presentation/schedule_create_screen.dart';
+import '../../features/scheduled/presentation/schedule_details_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -259,6 +263,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: rootNavigatorKey,
         path: '/bills/history',
         builder: (context, state) => const BillsHistoryScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/scheduled',
+        builder: (context, state) => const ScheduledListScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/scheduled/create',
+        builder: (context, state) => const ScheduleCreateScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/scheduled/details',
+        builder: (context, state) {
+          final schedule = state.extra as ScheduledPaymentModel;
+          return ScheduleDetailsScreen(schedule: schedule);
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

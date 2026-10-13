@@ -138,6 +138,15 @@ public class BillService {
     }
 
     @Transactional
+    public BillPaymentReceiptResponse payScheduledBill(
+            User user,
+            PayBillRequest request,
+            String idempotencyKey
+    ) {
+        return payBillInternal(user, request, idempotencyKey, null, "127.0.0.1", false);
+    }
+
+    @Transactional
     public BillPaymentReceiptResponse payBill(
             User user,
             PayBillRequest request,
@@ -145,9 +154,22 @@ public class BillService {
             String stepUpPinHeader,
             String clientIp
     ) {
-        // 1. Step-up Authentication check
         String pinToVerify = (request.pin() != null && !request.pin().isBlank()) ? request.pin() : stepUpPinHeader;
-        verifyStepUpPin(user.getId(), pinToVerify);
+        return payBillInternal(user, request, idempotencyKey, pinToVerify, clientIp, true);
+    }
+
+    private BillPaymentReceiptResponse payBillInternal(
+            User user,
+            PayBillRequest request,
+            String idempotencyKey,
+            String pinToVerify,
+            String clientIp,
+            boolean verifyPin
+    ) {
+        // 1. Step-up Authentication check
+        if (verifyPin) {
+            verifyStepUpPin(user.getId(), pinToVerify);
+        }
 
         // 2. Idempotency Check
         String payloadHash = hashPayload(request);

@@ -361,4 +361,20 @@ abstract final class AppTestKeys {
   static const Key billResultDone = Key('bill_result_done');
   static const Key billResultRetry = Key('bill_result_retry');
   static const Key billHistoryFilter = Key('bill_history_filter');
+
+  // ---------------------------------------------------------------------------
+  // Scheduled Payments (sched_*)
+  // ---------------------------------------------------------------------------
+  static Key sched(dynamic id) => Key('sched_$id');
+  static const Key schedCreate = Key('sched_create');
+  static const Key schedPause = Key('sched_pause');
+  static const Key schedCancel = Key('sched_cancel');
+  static const Key schedResume = Key('sched_resume');
+  static const Key schedTypeTransfer = Key('sched_type_transfer');
+  static const Key schedTypeBill = Key('sched_type_bill');
+  static const Key schedAmountField = Key('sched_amount_field');
+  static const Key schedPayeeField = Key('sched_payee_field');
+  static const Key schedPinField = Key('sched_pin_field');
+  static const Key schedConsentCheckbox = Key('sched_consent_checkbox');
+  static const Key schedConfirmDialogBtn = Key('sched_confirm_dialog_btn');
 }

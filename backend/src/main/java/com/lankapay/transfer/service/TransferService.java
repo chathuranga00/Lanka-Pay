@@ -190,20 +190,40 @@ public class TransferService {
     }
 
     @Transactional
+    public TransferResponse initiateScheduledTransfer(InitiateTransferRequest request,
+                                                       User sender,
+                                                       String idempotencyKey,
+                                                       String clientIp) {
+        return initiateTransferInternal(request, sender, null, idempotencyKey, clientIp, false, TransferInitiatedVia.SCHEDULED);
+    }
+
+    @Transactional
     public TransferResponse initiateTransfer(InitiateTransferRequest request,
                                              User sender,
                                              String pin,
                                              String idempotencyKey,
                                              String clientIp) {
+        return initiateTransferInternal(request, sender, pin, idempotencyKey, clientIp, true, TransferInitiatedVia.APP);
+    }
+
+    private TransferResponse initiateTransferInternal(InitiateTransferRequest request,
+                                                      User sender,
+                                                      String pin,
+                                                      String idempotencyKey,
+                                                      String clientIp,
+                                                      boolean verifyPin,
+                                                      TransferInitiatedVia initiatedVia) {
 
         // 1. Step-up authentication: verify sender PIN before executing financial debit
-        if (pin == null || pin.isBlank()) {
-            log.warn("Step-up authentication failed: PIN is missing for user id={}", sender.getId());
-            throw new AuthorizationException("STEP_UP_AUTH_REQUIRED", "Step-up authentication required: PIN must be provided");
-        }
-        if (!passwordEncoder.matches(pin, sender.getPasswordHash())) {
-            log.warn("Step-up authentication failed for user id={}", sender.getId());
-            throw new InvalidCredentialsException("INVALID_PIN", "Invalid PIN provided for step-up authentication");
+        if (verifyPin) {
+            if (pin == null || pin.isBlank()) {
+                log.warn("Step-up authentication failed: PIN is missing for user id={}", sender.getId());
+                throw new AuthorizationException("STEP_UP_AUTH_REQUIRED", "Step-up authentication required: PIN must be provided");
+            }
+            if (!passwordEncoder.matches(pin, sender.getPasswordHash())) {
+                log.warn("Step-up authentication failed for user id={}", sender.getId());
+                throw new InvalidCredentialsException("INVALID_PIN", "Invalid PIN provided for step-up authentication");
+            }
         }
 
         // 2. Idempotency check: same key + same payload -> return cached; same key + diff payload -> 409
@@ -285,7 +305,7 @@ public class TransferService {
                     payee,
                     request.amount(),
                     request.currency() != null ? request.currency() : "LKR",
-                    TransferInitiatedVia.APP
+                    initiatedVia
             );
             transfer.setIdempotencyKey(idempotencyKey);
             transfer.setNote(request.note());
@@ -317,7 +337,7 @@ public class TransferService {
                     null,
                     request.note(),
                     true,
-                    TransferInitiatedVia.APP,
+                    initiatedVia,
                     null,
                     1L,
                     Instant.now(),
@@ -376,7 +396,7 @@ public class TransferService {
                 payee,
                 request.amount(),
                 request.currency() != null ? request.currency() : "LKR",
-                TransferInitiatedVia.APP
+                initiatedVia
         );
         transfer.setIdempotencyKey(idempotencyKey);
         transfer.setNote(request.note());
@@ -406,7 +426,7 @@ public class TransferService {
                 null,
                 request.note(),
                 true,
-                TransferInitiatedVia.APP,
+                initiatedVia,
                 null,
                 1L,
                 Instant.now(),
