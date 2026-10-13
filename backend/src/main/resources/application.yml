@@ -102,6 +102,25 @@ app:
     # Token validity after tokenize before it must be used to link a card.
     token-ttl-minutes: ${VAULT_TOKEN_TTL_MINUTES:15}
 
+  features:
+    environment: ${APP_ENVIRONMENT:SANDBOX_SIMULATED}
+    disclaimer: "All modules operate under simulated financial data. Non-payment banking services require licensed institutional partners."
+    flags:
+      stories: ${FEATURE_STORIES:false}
+      bills: ${FEATURE_BILLS:false}
+      scheduled: ${FEATURE_SCHEDULED:false}
+      split: ${FEATURE_SPLIT:false}
+      analytics: ${FEATURE_ANALYTICS:false}
+      rewards: ${FEATURE_REWARDS:false}
+      city: ${FEATURE_CITY:false}
+      support: ${FEATURE_SUPPORT:false}
+      insights: ${FEATURE_INSIGHTS:false}
+      goals: ${FEATURE_GOALS:false}
+      family: ${FEATURE_FAMILY:false}
+      investments: false
+      borrowing: false
+      insurance: false
+
   base-url: ${APP_BASE_URL:http://localhost:8080}
 
 # ── Logging ───────────────────────────────────────────────
