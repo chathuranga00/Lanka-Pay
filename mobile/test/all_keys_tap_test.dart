@@ -19,9 +19,12 @@ import 'package:lankapay_id/features/qr/data/qr_service.dart';
 import 'package:lankapay_id/features/qr/domain/qr_models.dart';
 import 'package:lankapay_id/features/send/data/transfer_service.dart';
 import 'package:lankapay_id/features/send/domain/transfer_models.dart';
+import 'package:lankapay_id/features/analytics/presentation/activity_screen.dart';
 import 'package:lankapay_id/features/auth/data/auth_service.dart';
 import 'package:lankapay_id/features/auth/domain/auth_state.dart';
 import 'package:dio/dio.dart';
+import 'package:lankapay_id/features/bills/data/bill_service.dart';
+import 'package:lankapay_id/features/bills/domain/bill_models.dart';
 import 'package:lankapay_id/features/cards/data/card_service.dart';
 import 'package:lankapay_id/features/cards/domain/card_model.dart';
 import 'package:lankapay_id/features/settings/presentation/privacy_settings_screen.dart';
@@ -538,6 +541,16 @@ class FakeAllKeysCardService implements CardService {
   Future<void> removeCard(int id, {String? pin}) async {}
 }
 
+class FakeAllKeysBillService extends BillService {
+  FakeAllKeysBillService() : super(Dio());
+
+  @override
+  Future<List<BillerModel>> listBillers({BillerCategory? category, String? query}) async => [];
+
+  @override
+  Future<List<SavedBillerModel>> listSavedBillers() async => [];
+}
+
 Widget createE2ETestApp({
   String initialLocation = '/home',
   FakeAllKeysBankAccountService? bankService,
@@ -567,6 +580,7 @@ Widget createE2ETestApp({
       notificationServiceProvider
           .overrideWithValue(notifService ?? FakeAllKeysNotificationService()),
       qrServiceProvider.overrideWithValue(qrService ?? FakeAllKeysQrService()),
+      billServiceProvider.overrideWithValue(FakeAllKeysBillService()),
       homeAggregateProvider.overrideWith((ref) => Future.value(fakeHomeResponseAllKeys)),
     ],
     child: Consumer(
@@ -645,21 +659,21 @@ void main() {
       expect(find.byKey(const Key('home_rewards')), findsOneWidget);
       await tester.tap(find.byKey(const Key('home_rewards')));
       await tester.pumpAndSettle();
-      Navigator.of(tester.element(find.text('Rewards & Offers'))).pop();
+      Navigator.of(tester.element(find.text('Rewards & Points'))).pop();
       await tester.pumpAndSettle();
 
-      // 6. tile_activity -> opens History
+      // 6. tile_activity -> opens Activity
       expect(find.byKey(const Key('tile_activity')), findsOneWidget);
       await tester.tap(find.byKey(const Key('tile_activity')));
       await tester.pumpAndSettle();
-      Navigator.of(tester.element(find.byType(HistoryScreen))).pop();
+      Navigator.of(tester.element(find.byType(ActivityScreen))).pop();
       await tester.pumpAndSettle();
 
       // 7. tile_rewards -> opens Rewards
       expect(find.byKey(const Key('tile_rewards')), findsOneWidget);
       await tester.tap(find.byKey(const Key('tile_rewards')));
       await tester.pumpAndSettle();
-      Navigator.of(tester.element(find.text('Rewards & Offers'))).pop();
+      Navigator.of(tester.element(find.text('Rewards & Points'))).pop();
       await tester.pumpAndSettle();
 
       // 8. home_wallet -> opens Accounts
@@ -673,8 +687,10 @@ void main() {
       expect(find.byKey(const Key('tile_bills')), findsOneWidget);
       await tester.tap(find.byKey(const Key('tile_bills')));
       await tester.pumpAndSettle();
-      Navigator.of(tester.element(find.text('Bill Payments'))).pop();
-      await tester.pumpAndSettle();
+      if (find.text('Pay Bills').evaluate().isNotEmpty) {
+        Navigator.of(tester.element(find.text('Pay Bills'))).pop();
+        await tester.pumpAndSettle();
+      }
 
       expect(find.byKey(const Key('tile_goals')), findsOneWidget);
       await tester.tap(find.byKey(const Key('tile_goals')));

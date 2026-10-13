@@ -417,6 +417,17 @@ abstract final class AppTestKeys {
   static const Key rewardsLedger = Key('rewards_ledger');
   static const Key rewardsRedeemConfirm = Key('rewards_redeem_confirm');
   static const Key rewardsPinField = Key('rewards_pin_field');
+
+  // ---------------------------------------------------------------------------
+  // City & Merchants (city_cat_*, merchant_*, merchant_pay, merchant_fav)
+  // ---------------------------------------------------------------------------
+  static Key cityCat(String name) => Key('city_cat_${name.toLowerCase()}');
+  static Key merchant(dynamic id) => Key('merchant_$id');
+  static const Key merchantPay = Key('merchant_pay');
+  static const Key merchantFav = Key('merchant_fav');
+  static const Key citySearchInput = Key('city_search_input');
+  static const Key cityOffersRow = Key('city_offers_row');
+  static const Key cityMerchantsList = Key('city_merchants_list');
 }
 
 typedef TestKeys = AppTestKeys;
