@@ -195,7 +195,7 @@ void main() {
       await tester.pumpWidget(createAccountsScreenTestWidget(bankService: bankService));
       await tester.pumpAndSettle();
 
-      expect(find.text('Accounts'), findsOneWidget);
+      expect(find.text('Accounts'), findsWidgets);
       expect(find.byKey(const Key('accounts_add')), findsOneWidget);
       expect(find.text('Receiving'), findsOneWidget);
       expect(find.byType(SimulatedBadge), findsWidgets);

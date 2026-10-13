@@ -22,6 +22,8 @@ import '../../features/settings/presentation/settings_screen.dart';
 import '../../features/settings/presentation/privacy_settings_screen.dart';
 import '../../features/settings/presentation/security_settings_screen.dart';
 import '../../features/more/presentation/more_screen.dart';
+import '../../features/cards/presentation/add_card/add_card_flow_screen.dart';
+import '../../features/cards/presentation/widgets/test_cards_list_screen.dart';
 import '../widgets/dev_design_system_screen.dart';
 import 'app_shell.dart';
 
@@ -130,6 +132,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: rootNavigatorKey,
         path: '/accounts/add',
         builder: (context, state) => const AddBankAccountScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/cards/add',
+        builder: (context, state) => const AddCardFlowScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/cards/test-cards',
+        builder: (context, state) => const TestCardsListScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

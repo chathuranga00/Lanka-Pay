@@ -70,6 +70,55 @@ abstract final class AppTestKeys {
   static const Key reverifyAccountBtn = Key('reverify_account_btn');
 
   // ---------------------------------------------------------------------------
+  // Cards (seg_*, cards_*, card_*, btn_card_*, flow_add_card, etc.)
+  // ---------------------------------------------------------------------------
+  static const Key segAccounts = Key('seg_accounts');
+  static const Key segCards = Key('seg_cards');
+  static const Key cardsAdd = Key('cards_add');
+  static const Key cardToggleVisibility = Key('card_toggle_visibility');
+  static const Key btnAddCard = Key('btn_add_card');
+  static const Key btnFreezeCard = Key('btn_freeze_card');
+  static const Key btnCardDetails = Key('btn_card_details');
+  static const Key btnCardSettings = Key('btn_card_settings');
+  static const Key flowAddCard = Key('flow_add_card');
+  static Key card(dynamic id) => Key('card_$id');
+  static const Key confirmFreezeCardBtn = Key('confirm_freeze_card_btn');
+  static const Key confirmUnfreezeCardBtn = Key('confirm_unfreeze_card_btn');
+  static const Key confirmRemoveCardBtn = Key('confirm_remove_card_btn');
+  static const Key stepUpPinInput = Key('step_up_pin_input');
+  static const Key stepUpPinConfirmBtn = Key('step_up_pin_confirm_btn');
+  static const Key btnChooseTestCard = Key('btn_choose_test_card');
+  static const Key btnChooseVirtualCard = Key('btn_choose_virtual_card');
+  static const Key inputCardNumber = Key('input_card_number');
+  static const Key inputCardExpiry = Key('input_card_expiry');
+  static const Key inputCardCvv = Key('input_card_cvv');
+  static const Key inputCardHolderName = Key('input_card_holder_name');
+  static const Key inputCardNickname = Key('input_card_nickname');
+  static const Key checkboxCardConsent = Key('checkbox_card_consent');
+  static const Key btnCardFormSubmit = Key('btn_card_form_submit');
+  static const Key bannerTestCardNotice = Key('banner_test_card_notice');
+  static const Key linkTestCardsScreen = Key('link_test_cards_screen');
+  static const Key inputCardOtp = Key('input_card_otp');
+  static const Key btnCardOtpVerify = Key('btn_card_otp_verify');
+  static const Key btnCardOtpResend = Key('btn_card_otp_resend');
+  static const Key otpCooldownText = Key('otp_cooldown_text');
+  static const Key otpAttemptsText = Key('otp_attempts_text');
+  static const Key cardOtpSuccess = Key('card_otp_success');
+  static const Key btnCardOtpDone = Key('btn_card_otp_done');
+  static const Key cardRevealSheet = Key('card_reveal_sheet');
+  static const Key revealCountdownTimer = Key('reveal_countdown_timer');
+  static const Key cardSettingsSheet = Key('card_settings_sheet');
+  static const Key cardSettingsNicknameField = Key('card_settings_nickname_field');
+  static const Key cardSettingsSaveNicknameBtn = Key('card_settings_save_nickname_btn');
+  static const Key cardSettingsPerPaymentLimitField = Key('card_settings_per_payment_limit_field');
+  static const Key cardSettingsDailyLimitField = Key('card_settings_daily_limit_field');
+  static const Key cardSettingsSaveLimitsBtn = Key('card_settings_save_limits_btn');
+  static const Key cardSettingsOnlineSwitch = Key('card_settings_online_switch');
+  static const Key cardSettingsBackingAccountDropdown = Key('card_settings_backing_account_dropdown');
+  static const Key cardSettingsRemoveBtn = Key('card_settings_remove_btn');
+  static const Key emptyAddCardBtn = Key('empty_add_card_btn');
+
+  // ---------------------------------------------------------------------------
   // Send (send_*)
   // ---------------------------------------------------------------------------
   static const Key sendScanQr = Key('send_scan_qr');

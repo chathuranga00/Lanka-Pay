@@ -6,6 +6,7 @@ import com.lankapay.identity.otp.OtpProvider;
 import com.lankapay.simvault.internal.SimulatedCardVaultImpl;
 import com.lankapay.simvault.internal.VaultComponents;
 import com.lankapay.virtualcard.provider.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -31,6 +32,7 @@ public class SimulatedCardVault implements CardProvider {
 
     private final SimulatedCardVaultImpl impl;
 
+    @Autowired
     public SimulatedCardVault(
             @Value("${app.encryption.vault-card-key}")                              String vaultKey,
             @Value("${app.sim-vault.token-ttl-minutes:15}")                         long   tokenTtl,

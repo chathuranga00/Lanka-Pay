@@ -20,6 +20,8 @@ class AccountCard extends StatefulWidget {
   final AccountCardStyle style;
   final VoidCallback? onTap;
   final String? expiryText;
+  final String? pausedText;
+  final String? statusBadgeText;
   final bool showDigitToggle;
   final bool hideDigitsByDefault;
   final bool? isDigitsRevealed;
@@ -38,6 +40,8 @@ class AccountCard extends StatefulWidget {
     this.style = AccountCardStyle.charcoal,
     this.onTap,
     this.expiryText,
+    this.pausedText,
+    this.statusBadgeText,
     this.showDigitToggle = false,
     this.hideDigitsByDefault = false,
     this.isDigitsRevealed,
@@ -187,6 +191,26 @@ class _AccountCardState extends State<AccountCard> {
                               ),
                               const SizedBox(width: 6),
                             ],
+                            if (widget.statusBadgeText != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.20),
+                                  borderRadius: AppTokens.borderRadiusSmall,
+                                ),
+                                child: Text(
+                                  widget.statusBadgeText!,
+                                  style: const TextStyle(
+                                    fontFamily: AppTokens.fontFamily,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
                             const SimulatedBadge(compact: true),
                           ],
                         ),
@@ -312,9 +336,9 @@ class _AccountCardState extends State<AccountCard> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              'Receiving paused',
-                              style: TextStyle(
+                            Text(
+                              widget.pausedText ?? 'Receiving paused',
+                              style: const TextStyle(
                                 fontFamily: AppTokens.fontFamily,
                                 color: Colors.white,
                                 fontSize: 14,

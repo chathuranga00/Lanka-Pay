@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/token_storage.dart';
 import '../domain/auth_state.dart';
-import 'profile_service.dart';
 
 /// Service managing remote authentication calls against the LankaPay backend
 class AuthService {

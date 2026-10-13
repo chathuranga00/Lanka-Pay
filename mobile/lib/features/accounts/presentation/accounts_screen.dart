@@ -15,6 +15,14 @@ import '../../history/data/history_service.dart';
 import '../../history/presentation/receipt_screen.dart';
 import '../../home/data/home_providers.dart';
 import '../../send/domain/transfer_models.dart';
+import 'package:intl/intl.dart';
+import '../../../core/test_keys.dart';
+import '../../../core/widgets/empty_state.dart';
+import '../../cards/data/card_service.dart';
+import '../../cards/domain/card_model.dart';
+import '../../cards/presentation/widgets/card_details_sheet.dart';
+import '../../cards/presentation/widgets/card_settings_sheet.dart';
+import '../../cards/presentation/widgets/step_up_pin_dialog.dart';
 import '../data/bank_account_service.dart';
 import '../domain/bank_account_model.dart';
 
@@ -26,14 +34,19 @@ class AccountsScreen extends ConsumerStatefulWidget {
 }
 
 class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBindingObserver {
+  int _selectedSegment = 0; // 0: Accounts, 1: Cards
   late PageController _pageController;
+  late PageController _cardPageController;
   int _selectedIndex = 0;
+  int _selectedCardIndex = 0;
   bool _digitsRevealed = false;
+  bool _cardDigitsRevealed = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(viewportFraction: 0.85);
+    _cardPageController = PageController(viewportFraction: 0.85);
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -41,6 +54,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
+    _cardPageController.dispose();
     super.dispose();
   }
 
@@ -54,11 +68,17 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
           _digitsRevealed = false;
         });
       }
+      if (_cardDigitsRevealed && mounted) {
+        setState(() {
+          _cardDigitsRevealed = false;
+        });
+      }
     }
   }
 
   Future<void> _refreshAll() async {
     ref.invalidate(bankAccountsProvider);
+    ref.invalidate(cardsProvider);
     ref.invalidate(recentTransactionsProvider);
   }
 
@@ -577,6 +597,14 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(cardsProvider);
+    if (_selectedSegment == 1) {
+      return _buildCardsScreen(context);
+    }
+    return _buildAccountsScreen(context);
+  }
+
+  Widget _buildAccountsScreen(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final accountsAsync = ref.watch(bankAccountsProvider);
@@ -1023,7 +1051,11 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 10),
+
+        // Segmented Control (Accounts | Cards)
+        _buildSegmentedControl(isDark),
+        const SizedBox(height: 12),
 
         // Receiving / Linked Label
         Row(
@@ -1080,7 +1112,9 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
             const SimulatedBadge(compact: true),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
+        _buildSegmentedControl(isDark),
+        const SizedBox(height: 12),
         const Text(
           'Receiving',
           style: TextStyle(fontSize: 13, color: Colors.grey),
@@ -1091,6 +1125,656 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> with WidgetsBin
           style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900),
         ),
       ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Segmented Control (Accounts | Cards)
+  // ---------------------------------------------------------------------------
+  Widget _buildSegmentedControl(bool isDark) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.08) : Colors.black.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSegmentItem(
+            index: 0,
+            label: 'Accounts',
+            key: AppTestKeys.segAccounts,
+            isDark: isDark,
+          ),
+          _buildSegmentItem(
+            index: 1,
+            label: 'Cards',
+            key: AppTestKeys.segCards,
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentItem({
+    required int index,
+    required String label,
+    required Key key,
+    required bool isDark,
+  }) {
+    final isSelected = _selectedSegment == index;
+    return InkWell(
+      key: key,
+      onTap: () {
+        HapticFeedback.lightImpact();
+        setState(() => _selectedSegment = index);
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? (isDark ? AppTokens.mutedSurfaceDark : Colors.white)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            color: isSelected
+                ? (isDark ? Colors.white : AppTokens.textPrimaryLight)
+                : (isDark ? Colors.white60 : Colors.black54),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Cards Experience
+  // ---------------------------------------------------------------------------
+  Widget _buildCardsScreen(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardsAsync = ref.watch(cardsProvider);
+
+    if (cardsAsync.hasError && !cardsAsync.hasValue) {
+      return GradientHeaderScaffold(
+        scrollable: true,
+        header: _buildCardsHeader(context, isDark, [], null),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 54, color: AppTokens.error),
+                const SizedBox(height: 16),
+                const Text(
+                  'Failed to load cards',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  cardsAsync.error.toString().replaceFirst('Exception: ', ''),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  key: AppTestKeys.btnRetry,
+                  onPressed: () => ref.read(cardsProvider.notifier).refresh(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return cardsAsync.when(
+      loading: () => GradientHeaderScaffold(
+        scrollable: false,
+        header: _buildCardsLoadingHeader(context, isDark),
+        body: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: Column(
+            children: [
+              SkeletonAccountCard(key: Key('skeleton_card_1')),
+              SizedBox(height: 24),
+              SkeletonAccountCard(key: Key('skeleton_card_2')),
+            ],
+          ),
+        ),
+      ),
+      error: (err, stack) => GradientHeaderScaffold(
+        scrollable: true,
+        header: _buildCardsHeader(context, isDark, [], null),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 54, color: AppTokens.error),
+                const SizedBox(height: 16),
+                const Text(
+                  'Failed to load cards',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  err.toString().replaceFirst('Exception: ', ''),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  key: AppTestKeys.btnRetry,
+                  onPressed: () => ref.read(cardsProvider.notifier).refresh(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      data: (cards) {
+        if (cards.isEmpty) {
+          return GradientHeaderScaffold(
+            scrollable: true,
+            header: _buildCardsHeader(context, isDark, [], null),
+            body: RefreshIndicator(
+              onRefresh: _refreshAll,
+              color: AppTokens.primaryViolet,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: _buildEmptyCardsView(context, isDark),
+              ),
+            ),
+          );
+        }
+
+        final safeIndex = _selectedCardIndex.clamp(0, cards.length - 1);
+        final selectedCard = cards[safeIndex];
+
+        return GradientHeaderScaffold(
+          scrollable: false,
+          bodyPadding: EdgeInsets.zero,
+          header: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildCardsHeader(context, isDark, cards, selectedCard),
+              const SizedBox(height: 16),
+              _buildCardsCarousel(context, isDark, cards),
+            ],
+          ),
+          body: RefreshIndicator(
+            onRefresh: _refreshAll,
+            color: AppTokens.primaryViolet,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTokens.screenHorizontalPadding,
+                vertical: AppTokens.space16,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildCardActionsRow(selectedCard),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Recent activity',
+                    style: TextStyle(
+                      fontFamily: AppTokens.fontFamily,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildNoTransactionsWidget(isDark),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCardsHeader(
+    BuildContext context,
+    bool isDark,
+    List<CardModel> cards,
+    CardModel? selectedCard,
+  ) {
+    final availableLimit = selectedCard != null
+        ? 'LKR ${NumberFormat("#,##0.00").format(selectedCard.dailyLimit)}'
+        : '--';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Title Row with + Button
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Cards',
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                letterSpacing: -0.5,
+              ),
+            ),
+            Row(
+              children: [
+                const SimulatedBadge(compact: true),
+                const SizedBox(width: 4),
+                IconButton(
+                  key: AppTestKeys.cardsAdd,
+                  icon: const Icon(Icons.add_rounded),
+                  color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+                  onPressed: () => context.push('/cards/add'),
+                  tooltip: 'Add new card',
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+
+        // Segmented Control
+        _buildSegmentedControl(isDark),
+        const SizedBox(height: 12),
+
+        // Available Label
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              'Available',
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const SimulatedBadge(compact: true),
+          ],
+        ),
+        const SizedBox(height: 2),
+
+        // Big Number (remaining daily limit of selected card)
+        Text(
+          availableLimit,
+          style: TextStyle(
+            fontFamily: AppTokens.fontFamily,
+            fontSize: 34,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.0,
+            color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardsLoadingHeader(BuildContext context, bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Cards',
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight,
+              ),
+            ),
+            const SimulatedBadge(compact: true),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _buildSegmentedControl(isDark),
+        const SizedBox(height: 12),
+        const Text(
+          'Available',
+          style: TextStyle(fontSize: 13, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          '--',
+          style: TextStyle(fontSize: 34, fontWeight: FontWeight.w900),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardsCarousel(BuildContext context, bool isDark, List<CardModel> cards) {
+    final safeIndex = _selectedCardIndex.clamp(0, cards.length - 1);
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 200,
+          child: PageView.builder(
+            controller: _cardPageController,
+            itemCount: cards.length,
+            onPageChanged: (index) {
+              HapticFeedback.lightImpact();
+              setState(() {
+                _selectedCardIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final card = cards[index];
+              final isCharcoal = index.isEven;
+              final isCurrent = index == safeIndex;
+              final reduceMotion = MediaQuery.of(context).disableAnimations;
+
+              String? statusBadge;
+              if (card.isFrozen) {
+                statusBadge = 'FROZEN';
+              } else if (card.isExpired) {
+                statusBadge = 'EXPIRED';
+              } else if (card.isPendingVerification) {
+                statusBadge = 'PENDING VERIFICATION';
+              }
+
+              return AnimatedScale(
+                scale: (!reduceMotion && !isCurrent) ? 0.94 : 1.0,
+                duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: AccountCard(
+                    key: Key('card_${card.id}'),
+                    bankName: 'TEST CARD',
+                    nickname: card.nickname?.isNotEmpty == true
+                        ? card.nickname!
+                        : (card.isVirtual ? 'Virtual Card' : 'Linked Card'),
+                    maskedNumber: '•••• •••• •••• ${card.last4}',
+                    expiryText: card.formattedExpiry,
+                    style: isCharcoal ? AccountCardStyle.charcoal : AccountCardStyle.lavender,
+                    isPaused: card.isFrozen,
+                    pausedText: 'Frozen',
+                    statusBadgeText: statusBadge,
+                    showDigitToggle: true,
+                    hideDigitsByDefault: true,
+                    isDigitsRevealed: _cardDigitsRevealed,
+                    onToggleVisibility: () {
+                      setState(() {
+                        _cardDigitsRevealed = !_cardDigitsRevealed;
+                      });
+                    },
+                    toggleVisibilityKey: AppTestKeys.cardToggleVisibility,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Page Indicator Dots
+        if (cards.length > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(cards.length, (i) {
+              final isSelected = i == safeIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: isSelected ? 22 : 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppTokens.primaryViolet
+                      : (isDark ? Colors.white.withOpacity(0.3) : Colors.black.withOpacity(0.2)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCardActionsRow(CardModel selectedCard) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        // 1. Add card
+        ActionButton(
+          key: AppTestKeys.btnAddCard,
+          icon: Icons.add_rounded,
+          label: 'Add card',
+          onTap: () => context.push('/cards/add'),
+        ),
+
+        // 2. Freeze / Unfreeze
+        ActionButton(
+          key: AppTestKeys.btnFreezeCard,
+          icon: Icons.ac_unit_rounded,
+          label: selectedCard.isFrozen ? 'Unfreeze' : 'Freeze',
+          isActive: selectedCard.isFrozen,
+          onTap: () => _handleCardFreeze(selectedCard),
+        ),
+
+        // 3. Details
+        ActionButton(
+          key: AppTestKeys.btnCardDetails,
+          icon: Icons.credit_card_outlined,
+          label: 'Details',
+          onTap: () => _handleCardDetails(selectedCard),
+        ),
+
+        // 4. Settings
+        ActionButton(
+          key: AppTestKeys.btnCardSettings,
+          icon: Icons.settings_outlined,
+          label: 'Settings',
+          onTap: () => _handleCardSettings(selectedCard),
+        ),
+      ],
+    );
+  }
+
+  void _handleCardFreeze(CardModel card) {
+    if (!card.isFrozen) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Freeze Card?'),
+          content: const Text('Transactions on this card will be temporarily blocked.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              key: AppTestKeys.confirmFreezeCardBtn,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTokens.primaryViolet,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.of(ctx).pop();
+                try {
+                  await ref.read(cardsProvider.notifier).freezeCard(card.id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Card frozen successfully')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to freeze card: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Freeze'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _handleCardUnfreeze(card);
+    }
+  }
+
+  Future<void> _handleCardUnfreeze(CardModel card) async {
+    final pin = await showStepUpPinDialog(
+      context,
+      title: 'Unfreeze Card',
+      subtitle: 'Enter your 6-digit PIN to unfreeze this card.',
+    );
+    if (pin == null) return;
+
+    try {
+      await ref.read(cardsProvider.notifier).unfreezeCard(card.id, pin: pin);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Card unfrozen successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to unfreeze card: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleCardDetails(CardModel card) async {
+    if (card.isLinked) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Linked Card Details'),
+          content: const Text(
+            'Card details are never shown for linked physical cards for security purposes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Got it'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Virtual card: requires step-up PIN auth
+    final pin = await showStepUpPinDialog(
+      context,
+      title: 'Reveal Card Details',
+      subtitle: 'Enter your 6-digit PIN to view sensitive card details.',
+    );
+    if (pin == null) return;
+
+    if (mounted) {
+      CardDetailsSheet.show(context, cardId: card.id, pin: pin);
+    }
+  }
+
+  void _handleCardSettings(CardModel card) {
+    CardSettingsSheet.show(context, card: card);
+  }
+
+  Widget _buildEmptyCardsView(BuildContext context, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40.0),
+      child: EmptyState(
+        icon: Icons.credit_card_rounded,
+        title: 'Add your first card',
+        description: 'Link an existing test card or issue an instant virtual card to get started.',
+        actionLabel: 'Add your first card',
+        actionKey: AppTestKeys.emptyAddCardBtn,
+        onActionTap: () => context.push('/cards/add'),
+      ),
+    );
+  }
+
+  Widget _buildNoTransactionsWidget(bool isDark) {
+    return Container(
+      key: const Key('accounts_no_transactions'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: isDark ? AppTokens.mutedSurfaceDark : AppTokens.mutedSurfaceLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+          width: 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.black.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.credit_card_rounded,
+              size: 22,
+              color: isDark ? Colors.white60 : Colors.black45,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'No transaction yet',
+              style: TextStyle(
+                fontFamily: AppTokens.fontFamily,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -18,6 +18,9 @@ import 'package:lankapay_id/features/send/data/transfer_service.dart';
 import 'package:lankapay_id/features/send/domain/transfer_models.dart';
 import 'package:lankapay_id/features/auth/data/auth_service.dart';
 import 'package:lankapay_id/features/auth/domain/auth_state.dart';
+import 'package:dio/dio.dart';
+import 'package:lankapay_id/features/cards/data/card_service.dart';
+import 'package:lankapay_id/features/cards/domain/card_model.dart';
 import 'package:lankapay_id/features/settings/presentation/privacy_settings_screen.dart';
 import 'package:lankapay_id/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -333,6 +336,107 @@ class FakeAllKeysAuthNotifier extends AuthNotifier {
   }
 }
 
+class FakeAllKeysCardService implements CardService {
+  @override
+  Dio get dio => Dio();
+  @override
+  Dio get vaultDio => Dio();
+
+  List<CardModel> cards = [
+    const CardModel(
+      id: 101,
+      userId: 1,
+      cardKind: CardKind.virtual,
+      status: CardStatus.active,
+      last4: '1234',
+      expMonth: 12,
+      expYear: 2028,
+      nickname: 'Virtual Daily',
+      perPaymentLimitMinor: 2500000,
+      dailyLimitMinor: 10000000,
+      onlinePaymentsEnabled: true,
+      brandLabel: 'TEST CARD',
+      linkedBankAccountId: 1,
+    ),
+  ];
+
+  @override
+  Future<TokenizeResultModel> tokenize({
+    required String pan,
+    required String expMonth,
+    required String expYear,
+    required String cvv,
+    required String holderName,
+  }) async =>
+      const TokenizeResultModel(
+        cardToken: 'tok_test_allkeys',
+        last4: '1234',
+        expMonth: '12',
+        expYear: '28',
+        brandLabel: 'TEST CARD',
+      );
+
+  @override
+  Future<List<CardModel>> listCards() async => List.from(cards);
+
+  @override
+  Future<CardModel> getCard(int id) async => cards.firstWhere((c) => c.id == id);
+
+  @override
+  Future<CardModel> linkCard({
+    required String cardToken,
+    String? nickname,
+    int? linkedBankAccountId,
+    bool consentGiven = true,
+    String? pin,
+  }) async => cards.first;
+
+  @override
+  Future<CardModel> issueVirtualCard({
+    required int linkedBankAccountId,
+    String? nickname,
+    String? pin,
+  }) async => cards.first;
+
+  @override
+  Future<CardModel> verifyCard({
+    required int id,
+    required String otp,
+  }) async => cards.first;
+
+  @override
+  Future<CardModel> freezeCard(int id) async => cards.first;
+
+  @override
+  Future<CardModel> unfreezeCard(int id, {String? pin}) async => cards.first;
+
+  @override
+  Future<CardRevealModel> revealCard(int id, {String? pin}) async =>
+      const CardRevealModel(
+        cardId: 101,
+        last4: '1234',
+        pan: '9900000000000010',
+        expMonth: '12',
+        expYear: '28',
+        cvv: '123',
+        brandLabel: 'TEST CARD',
+      );
+
+  @override
+  Future<CardModel> patchCard(
+    int id, {
+    String? nickname,
+    int? perPaymentLimitMinor,
+    int? dailyLimitMinor,
+    bool? onlinePaymentsEnabled,
+    int? linkedBankAccountId,
+    String? pin,
+  }) async => cards.first;
+
+  @override
+  Future<void> removeCard(int id) async {}
+}
+
 Widget createE2ETestApp({
   String initialLocation = '/home',
   FakeAllKeysBankAccountService? bankService,
@@ -340,6 +444,7 @@ Widget createE2ETestApp({
   FakeAllKeysTransferService? transferService,
   FakeAllKeysNotificationService? notifService,
   FakeAllKeysQrService? qrService,
+  FakeAllKeysCardService? cardService,
   ThemeMode? fixedThemeMode,
 }) {
   return ProviderScope(
@@ -352,6 +457,8 @@ Widget createE2ETestApp({
         themeControllerProvider.overrideWith(() => FixedThemeController(fixedThemeMode)),
       bankAccountServiceProvider
           .overrideWithValue(bankService ?? FakeAllKeysBankAccountService()),
+      cardServiceProvider
+          .overrideWithValue(cardService ?? FakeAllKeysCardService()),
       historyServiceProvider
           .overrideWithValue(historyService ?? FakeAllKeysHistoryService()),
       transferServiceProvider
