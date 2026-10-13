@@ -13,9 +13,10 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
   const [updatingCode, setUpdatingCode] = useState<string | null>(null);
 
   const handleToggleActive = async (bank: BankConfig) => {
-    setUpdatingCode(bank.code);
+    const code = bank.bankCode ?? bank.code ?? '';
+    setUpdatingCode(code);
     try {
-      await adminApi.updateBankConfig(bank.code, { active: !bank.active });
+      await adminApi.updateBankConfig(code, { active: !bank.active });
       onRefresh();
     } catch (err: any) {
       alert(`Bank update failed: ${err.message}`);
@@ -25,14 +26,15 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
   };
 
   const handleAdjustLatency = async (bank: BankConfig) => {
-    const newLatency = prompt(`Enter simulated latency in milliseconds for ${bank.name}:`, bank.baseLatencyMs.toString());
+    const code = bank.bankCode ?? bank.code ?? '';
+    const newLatency = prompt(`Enter simulated latency in milliseconds for ${bank.displayName ?? bank.name}:`, (bank.baseLatencyMs ?? 0).toString());
     if (newLatency === null) return;
     const latencyVal = parseInt(newLatency, 10);
     if (isNaN(latencyVal) || latencyVal < 0) return;
 
-    setUpdatingCode(bank.code);
+    setUpdatingCode(code);
     try {
-      await adminApi.updateBankConfig(bank.code, { baseLatencyMs: latencyVal });
+      await adminApi.updateBankConfig(code, { baseLatencyMs: latencyVal });
       onRefresh();
     } catch (err: any) {
       alert(`Latency update failed: ${err.message}`);
@@ -42,14 +44,15 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
   };
 
   const handleAdjustFailureRate = async (bank: BankConfig) => {
-    const newRate = prompt(`Enter failure rate percentage (0 - 100) for ${bank.name}:`, bank.failureRatePercent.toString());
+    const code = bank.bankCode ?? bank.code ?? '';
+    const newRate = prompt(`Enter failure rate percentage (0 - 100) for ${bank.displayName ?? bank.name}:`, (bank.failureRatePercent ?? 0).toString());
     if (newRate === null) return;
     const rateVal = parseFloat(newRate);
     if (isNaN(rateVal) || rateVal < 0 || rateVal > 100) return;
 
-    setUpdatingCode(bank.code);
+    setUpdatingCode(code);
     try {
-      await adminApi.updateBankConfig(bank.code, { failureRatePercent: rateVal });
+      await adminApi.updateBankConfig(code, { failureRatePercent: rateVal });
       onRefresh();
     } catch (err: any) {
       alert(`Failure rate update failed: ${err.message}`);
@@ -86,14 +89,14 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
             <div style={{
               padding: '12px',
               borderRadius: '12px',
-              backgroundColor: health.overallStatus === 'HEALTHY' ? 'rgba(27, 135, 85, 0.2)' : 'rgba(217, 119, 6, 0.2)',
-              color: health.overallStatus === 'HEALTHY' ? 'var(--success)' : 'var(--warning)',
+              backgroundColor: health.overallStatus === 'UP' ? 'rgba(27, 135, 85, 0.2)' : 'rgba(217, 119, 6, 0.2)',
+              color: health.overallStatus === 'UP' ? 'var(--success)' : 'var(--warning)',
             }}>
               <Activity size={24} />
             </div>
             <div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Overall Integration Health</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: health.overallStatus === 'HEALTHY' ? 'var(--success)' : 'var(--warning)' }}>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: health.overallStatus === 'UP' ? 'var(--success)' : 'var(--warning)' }}>
                 {health.overallStatus}
               </div>
             </div>
@@ -119,7 +122,7 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
             <div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Active Participating Banks</div>
               <div style={{ fontSize: '18px', fontWeight: 800 }}>
-                {health.activeBanksCount} / {health.totalBanksCount} Online
+                {banks.filter((b) => b.active).length} / {banks.length} Online
               </div>
             </div>
           </div>
@@ -177,7 +180,7 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
                     }}
                   >
                     <Clock size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                    {b.baseLatencyMs} ms ✎
+                    {b.baseLatencyMs ?? 0} ms ✎
                   </button>
                 </td>
                 <td style={{ padding: '14px 18px' }}>
@@ -185,13 +188,13 @@ export const BankConfigView: React.FC<BankConfigViewProps> = ({ banks, health, o
                     onClick={() => handleAdjustFailureRate(b)}
                     style={{
                       padding: '4px 8px',
-                      backgroundColor: b.failureRatePercent > 0 ? 'rgba(217, 119, 6, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                      backgroundColor: (b.failureRatePercent ?? 0) > 0 ? 'rgba(217, 119, 6, 0.2)' : 'rgba(255, 255, 255, 0.05)',
                       borderRadius: '6px',
-                      color: b.failureRatePercent > 0 ? 'var(--warning)' : 'var(--text-primary)',
+                      color: (b.failureRatePercent ?? 0) > 0 ? 'var(--warning)' : 'var(--text-primary)',
                       fontSize: '12px',
                     }}
                   >
-                    {b.failureRatePercent}% ✎
+                    {b.failureRatePercent ?? 0}% ✎
                   </button>
                 </td>
                 <td style={{ padding: '14px 18px' }}>

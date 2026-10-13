@@ -7,6 +7,9 @@ import type {
   FraudAlertStatus,
   AuditLogEntry,
   AdminAuthSession,
+  Story,
+  CreateStoryPayload,
+  UpdateStoryPayload,
 } from '../types/admin';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
@@ -232,6 +235,64 @@ class AdminApiClient {
       details:  e.details  ?? e.detailJson  ?? '',
       clientIp: e.clientIp ?? e.ipAddress   ?? '',
     }));
+  }
+
+  // ── Stories ───────────────────────────────────────────────────
+
+  async getStories(): Promise<Story[]> {
+    const res = await fetch(`${BASE_URL}/admin/stories`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch stories');
+    return (await res.json()) as Story[];
+  }
+
+  async getStory(id: string): Promise<Story> {
+    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}`, { headers: this.getHeaders() });
+    if (!res.ok) throw new Error('Failed to fetch story');
+    return (await res.json()) as Story;
+  }
+
+  async createStory(payload: CreateStoryPayload): Promise<Story> {
+    const res = await fetch(`${BASE_URL}/admin/stories`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+      throw new Error((err['message'] as string) || 'Failed to create story');
+    }
+    return (await res.json()) as Story;
+  }
+
+  async updateStory(id: string, payload: UpdateStoryPayload): Promise<Story> {
+    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+      throw new Error((err['message'] as string) || 'Failed to update story');
+    }
+    return (await res.json()) as Story;
+  }
+
+  async publishStory(id: string): Promise<Story> {
+    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}/publish`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to publish story');
+    return (await res.json()) as Story;
+  }
+
+  async archiveStory(id: string): Promise<Story> {
+    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}/archive`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to archive story');
+    return (await res.json()) as Story;
   }
 }
 

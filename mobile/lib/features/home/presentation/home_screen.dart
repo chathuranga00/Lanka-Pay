@@ -13,6 +13,9 @@ import '../../../core/widgets/simulated_badge.dart';
 import '../data/home_api_model.dart';
 import '../data/home_providers.dart';
 import 'widgets/avatar_sheet.dart';
+import '../../stories/domain/story.dart';
+import '../../stories/presentation/stories_provider.dart';
+import '../../stories/presentation/widgets/story_card.dart';
 
 /// Pixel-perfect Neo-Banking Home Dashboard tab matching the target design language.
 /// Driven by GET /api/v1/home with resilient per-section shimmers, errors, and empty states.
@@ -205,10 +208,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 3. Stories Row
   // ---------------------------------------------------------------------------
   Widget _buildStoriesRow(BuildContext context, bool isDark, AsyncValue<HomeAggregateResponseModel> homeAsync) {
+    if (homeAsync.isLoading) {
+      return const SizedBox(
+        key: Key('home_stories'),
+        height: 104,
+        child: SkeletonStoriesRow(key: Key('home_stories_skeleton')),
+      );
+    }
+
+    final storiesAsync = ref.watch(storiesNotifierProvider);
+
     return SizedBox(
       key: const Key('home_stories'),
       height: 104,
-      child: const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
+      child: storiesAsync.when(
+        data: (stories) {
+          if (stories.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: stories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (ctx, index) {
+              return StoryCard(
+                story: stories[index],
+                allStories: stories,
+                index: index,
+              );
+            },
+          );
+        },
+        loading: () => const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
+        error: (_, __) => const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
+      ),
     );
   }
 

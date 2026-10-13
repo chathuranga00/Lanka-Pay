@@ -128,15 +128,15 @@ export const UncertainQueueView: React.FC<UncertainQueueViewProps> = ({ queue, o
                   <td style={{ padding: '14px 18px', fontWeight: 700 }}>
                     LKR {tx.amount.toFixed(2)}
                   </td>
-                  <td style={{ padding: '14px 18px' }}>{tx.senderPhone || 'N/A'}</td>
-                  <td style={{ padding: '14px 18px' }}>{tx.receiverDisplayName || 'N/A'}</td>
+                  <td style={{ padding: '14px 18px' }}>{tx.senderMaskedPhone || 'N/A'}</td>
+                  <td style={{ padding: '14px 18px' }}>{tx.receiverFullName || 'N/A'}</td>
                   <td style={{ padding: '14px 18px', color: 'var(--text-secondary)', fontSize: '12px' }}>
                     {tx.failureReason || 'Bank Adapter Timeout / State Unknown'}
                   </td>
                   <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                     <button
-                      disabled={reconcilingId === tx.id}
-                      onClick={() => handleReconcileOne(tx.id)}
+                      disabled={reconcilingId === (tx.transferId ?? tx.id)}
+                      onClick={() => handleReconcileOne(tx.transferId ?? tx.id ?? 0)}
                       style={{
                         padding: '6px 12px',
                         backgroundColor: 'rgba(212, 175, 55, 0.2)',

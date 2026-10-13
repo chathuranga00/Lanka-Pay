@@ -127,3 +127,62 @@ export interface AdminAuthSession {
   fullName: string;
   role: UserRole;
 }
+
+// ── Stories ───────────────────────────────────────────────────────────────
+export type StoryAudience =
+  | 'ALL'
+  | 'NEW_USERS'
+  | 'HAS_CARD'
+  | 'NO_CARD'
+  | 'HAS_BANK_ACCOUNT'
+  | 'NO_BANK_ACCOUNT';
+
+export type StoryStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+
+export interface StoryPage {
+  text: string;
+  imageRef?: string;
+  actionLabel?: string;
+  deepLink?: string;
+}
+
+export interface Story {
+  id: string;
+  title: string;
+  caption: string;
+  imageOrGradient: string;
+  contentPages: StoryPage[];
+  audience: StoryAudience;
+  startsAt?: string;
+  endsAt?: string;
+  priority: number;
+  status: StoryStatus;
+  seen?: boolean;
+  actionClickCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateStoryPayload {
+  id?: string;
+  title: string;
+  caption: string;
+  imageOrGradient?: string;
+  contentPages: StoryPage[];
+  audience?: StoryAudience;
+  startsAt?: string;
+  endsAt?: string;
+  priority?: number;
+  publishNow?: boolean;
+}
+
+export interface UpdateStoryPayload {
+  title?: string;
+  caption?: string;
+  imageOrGradient?: string;
+  contentPages?: StoryPage[];
+  audience?: StoryAudience;
+  startsAt?: string;
+  endsAt?: string;
+  priority?: number;
+}

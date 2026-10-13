@@ -316,4 +316,12 @@ abstract final class AppTestKeys {
   static const Key nudgeBanner = Key('nudge_banner');
   static const Key productTile = Key('product_tile');
   static const Key appBottomNav = Key('app_bottom_nav');
+
+  // ---------------------------------------------------------------------------
+  // Stories (story_*)
+  // ---------------------------------------------------------------------------
+  static Key story(String id) => Key('story_$id');
+  static const Key storyViewer = Key('story_viewer');
+  static const Key storyClose = Key('story_close');
+  static const Key storyAction = Key('story_action');
 }

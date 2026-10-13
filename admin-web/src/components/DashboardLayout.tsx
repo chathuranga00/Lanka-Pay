@@ -9,6 +9,7 @@ import {
   RefreshCw,
   LayoutDashboard,
   ShieldCheck,
+  BookOpen,
 } from 'lucide-react';
 import type {
   AdminAuthSession,
@@ -25,13 +26,14 @@ import { BankConfigView } from './BankConfigView';
 import { UncertainQueueView } from './UncertainQueueView';
 import { FraudAlertsView } from './FraudAlertsView';
 import { AuditLogView } from './AuditLogView';
+import { StoriesManagerView } from './StoriesManagerView';
 
 interface DashboardLayoutProps {
   session: AdminAuthSession;
   onLogout: () => void;
 }
 
-type TabType = 'overview' | 'users' | 'banks' | 'uncertain' | 'fraud' | 'audit';
+type TabType = 'overview' | 'users' | 'banks' | 'uncertain' | 'fraud' | 'stories' | 'audit';
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -140,6 +142,12 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
               label="Fraud & Risk Alerts"
               badge={openAlertsCount > 0 ? openAlertsCount : undefined}
               badgeColor="var(--error)"
+            />
+            <NavItem
+              active={activeTab === 'stories'}
+              onClick={() => setActiveTab('stories')}
+              icon={<BookOpen size={18} />}
+              label="Stories & Nudges"
             />
             <NavItem
               active={activeTab === 'audit'}
@@ -329,6 +337,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
           {activeTab === 'banks' && <BankConfigView banks={banks} health={health} onRefresh={fetchAllData} />}
           {activeTab === 'uncertain' && <UncertainQueueView queue={queue} onRefresh={fetchAllData} />}
           {activeTab === 'fraud' && <FraudAlertsView alerts={alerts} onRefresh={fetchAllData} />}
+          {activeTab === 'stories' && <StoriesManagerView />}
           {activeTab === 'audit' && <AuditLogView logs={logs} />}
         </main>
       </div>
