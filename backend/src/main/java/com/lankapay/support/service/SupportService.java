@@ -35,9 +35,12 @@ public class SupportService {
     private final AuditService auditService;
     private final NotificationStore notificationStore;
     private final TransactionStore transactionStore;
+    private final GeminiSupportService geminiSupportService;
 
     private final AtomicLong conversationIdSeq = new AtomicLong(1000);
     private final AtomicLong messageIdSeq = new AtomicLong(5000);
+
+    private record BotResponse(String text, boolean transferToAgent) {}
 
     @Autowired
     public SupportService(
@@ -46,7 +49,8 @@ public class SupportService {
             SupportRateLimiter rateLimiter,
             @Autowired(required = false) AuditService auditService,
             @Autowired(required = false) NotificationStore notificationStore,
-            @Autowired(required = false) TransactionStore transactionStore
+            @Autowired(required = false) TransactionStore transactionStore,
+            @Autowired(required = false) GeminiSupportService geminiSupportService
     ) {
         this.supportStore = supportStore;
         this.faqBotEngine = faqBotEngine;
@@ -54,6 +58,32 @@ public class SupportService {
         this.auditService = auditService;
         this.notificationStore = notificationStore;
         this.transactionStore = transactionStore;
+        this.geminiSupportService = geminiSupportService;
+    }
+
+    public SupportService(
+            SupportStore supportStore,
+            FaqBotEngine faqBotEngine,
+            SupportRateLimiter rateLimiter,
+            AuditService auditService,
+            NotificationStore notificationStore,
+            TransactionStore transactionStore
+    ) {
+        this(supportStore, faqBotEngine, rateLimiter, auditService, notificationStore, transactionStore, null);
+    }
+
+    private BotResponse resolveBotResponse(String userText, String transactionRef) {
+        if (geminiSupportService != null && geminiSupportService.isAvailable()) {
+            Optional<GeminiSupportService.GeminiAnswer> geminiOpt =
+                    geminiSupportService.askGemini(userText, transactionRef);
+            if (geminiOpt.isPresent()) {
+                GeminiSupportService.GeminiAnswer ans = geminiOpt.get();
+                boolean transfer = ans.transferToAgent() || faqBotEngine.isAgentRequest(userText);
+                return new BotResponse(ans.text(), transfer);
+            }
+        }
+        FaqBotEngine.BotAnswer botAnswer = faqBotEngine.answerUserMessage(userText);
+        return new BotResponse(botAnswer.text(), botAnswer.transferToAgent());
     }
 
     private Long toEntityId(String strId) {
@@ -83,7 +113,7 @@ public class SupportService {
         // Mask user message before saving
         String maskedText = DataMaskingFilter.mask(request.initialMessage());
 
-        FaqBotEngine.BotAnswer botAnswer = faqBotEngine.answerUserMessage(request.initialMessage());
+        BotResponse botAnswer = resolveBotResponse(request.initialMessage(), request.attachedTransactionRef());
         ConversationStatus status = botAnswer.transferToAgent()
                 ? ConversationStatus.WAITING
                 : ConversationStatus.OPEN;
@@ -218,7 +248,7 @@ public class SupportService {
 
         // Bot handles message if conversation is in OPEN state or asking for agent
         if (conv.status() == ConversationStatus.OPEN || faqBotEngine.isAgentRequest(request.text())) {
-            FaqBotEngine.BotAnswer botAnswer = faqBotEngine.answerUserMessage(request.text());
+            BotResponse botAnswer = resolveBotResponse(request.text(), conv.attachedTransactionRef());
             if (botAnswer.transferToAgent()) {
                 conv = conv.withStatus(ConversationStatus.WAITING);
                 supportStore.saveConversation(conv);

@@ -27,7 +27,7 @@ public class FeatureProperties {
         flags.put("analytics", false);
         flags.put("rewards", false);
         flags.put("city", false);
-        flags.put("support", false);
+        flags.put("support", true);
         flags.put("insights", false);
         flags.put("goals", false);
         flags.put("family", false);
