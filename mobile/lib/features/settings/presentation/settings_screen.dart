@@ -77,15 +77,18 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: AppTokens.space16),
 
           // Core Settings Card
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppTokens.cardDark : AppTokens.cardLight,
-              borderRadius: AppTokens.borderRadiusCard,
-              border: Border.all(
-                color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+          Material(
+            color: isDark ? AppTokens.cardDark : AppTokens.cardLight,
+            borderRadius: AppTokens.borderRadiusCard,
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: AppTokens.borderRadiusCard,
+                border: Border.all(
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
               ),
-            ),
-            child: Column(
+              child: Column(
               children: [
                 _buildSettingTile(
                   key: AppTestKeys.settingsPrivacyTile,
@@ -135,20 +138,24 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: AppTokens.space20),
+        ),
+        const SizedBox(height: AppTokens.space20),
 
           // Sign Out Card
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? AppTokens.cardDark : AppTokens.cardLight,
-              borderRadius: AppTokens.borderRadiusCard,
-              border: Border.all(
-                color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+          Material(
+            color: isDark ? AppTokens.cardDark : AppTokens.cardLight,
+            borderRadius: AppTokens.borderRadiusCard,
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: AppTokens.borderRadiusCard,
+                border: Border.all(
+                  color: isDark ? AppTokens.borderDark : AppTokens.borderLight,
+                ),
               ),
-            ),
-            child: Semantics(
-              label: 'Sign out of your LankaPay account',
-              child: ListTile(
+              child: Semantics(
+                label: 'Sign out of your LankaPay account',
+                child: ListTile(
                 key: AppTestKeys.settingsSignOutTile,
                 contentPadding: const EdgeInsets.symmetric(horizontal: AppTokens.space16, vertical: 4),
                 leading: Container(
@@ -186,10 +193,11 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: AppTokens.space32),
-        ],
-      ),
-    );
+        ),
+        const SizedBox(height: AppTokens.space32),
+      ],
+    ),
+  );
   }
 
   Widget _buildSettingTile({

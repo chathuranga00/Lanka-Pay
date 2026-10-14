@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
  * - IP address is extracted from the request and passed to AuthService for audit.
  */
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping({"/api/v1/auth", "/auth"})
 @Tag(name = "Authentication", description = "Register, login, token refresh, logout, change PIN")
 public class AuthController {
 
@@ -126,7 +126,8 @@ public class AuthController {
         TokenResponse tokens = authService.refresh(
                 request.refreshToken(), extractIp(httpRequest));
         // Only return the new access token (refresh token is not rotated on /refresh)
-        return ResponseEntity.ok(TokenResponse.accessOnly(tokens.accessToken(), tokens.expiresIn()));
+        return ResponseEntity.ok(TokenResponse.accessOnly(
+                tokens.accessToken(), tokens.expiresIn(), tokens.userId(), tokens.fullName(), tokens.phone()));
     }
 
     // ── POST /logout ───────────────────────────────────────────

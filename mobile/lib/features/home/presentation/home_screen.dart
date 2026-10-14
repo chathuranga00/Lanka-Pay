@@ -16,6 +16,9 @@ import 'widgets/avatar_sheet.dart';
 import '../../stories/domain/story.dart';
 import '../../stories/presentation/stories_provider.dart';
 import '../../stories/presentation/widgets/story_card.dart';
+import '../../auth/data/auth_service.dart';
+import '../../auth/domain/auth_state.dart';
+import '../../../core/storage/token_storage.dart';
 
 /// Pixel-perfect Neo-Banking Home Dashboard tab matching the target design language.
 /// Driven by GET /api/v1/home with resilient per-section shimmers, errors, and empty states.
@@ -28,6 +31,29 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isBalanceHidden = false;
+  String? _localStoredName;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStoredName();
+  }
+
+  Future<void> _loadStoredName() async {
+    try {
+      final storage = ref.read(tokenStorageProvider);
+      final name = await storage.getUserFullName();
+      if (name != null &&
+          name.trim().isNotEmpty &&
+          name.toLowerCase() != 'user' &&
+          name.toLowerCase() != 'customer' &&
+          mounted) {
+        setState(() {
+          _localStoredName = name.trim();
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _refreshHome() async {
     ref.invalidate(homeAggregateProvider);
@@ -94,10 +120,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final textColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
 
     final greeting = homeAsync.value?.greeting.data;
-    final fullName = greeting?.fullName ?? 'Mikhail';
-    final firstName = greeting != null && greeting.fullName.trim().isNotEmpty
-        ? greeting.fullName.trim().split(' ').first
-        : 'Mikhail';
+    final authState = ref.watch(authStateProvider);
+    final authFullName = authState is AuthAuthenticated ? authState.fullName : null;
+
+    // Filter and clean candidates in priority order:
+    // 1. greeting.fullName (from GET /api/v1/home)
+    // 2. authFullName (from AuthState / TokenResponse)
+    // 3. _localStoredName (from TokenStorage)
+    String? resolvedName;
+    for (final candidate in [greeting?.fullName, authFullName, _localStoredName]) {
+      if (candidate != null && candidate.trim().isNotEmpty) {
+        final cleaned = candidate.replaceAll(RegExp(r'\[.*?\]'), '').trim();
+        if (cleaned.isNotEmpty &&
+            cleaned.toLowerCase() != 'user' &&
+            cleaned.toLowerCase() != 'customer' &&
+            cleaned.toLowerCase() != 'guest') {
+          resolvedName = cleaned;
+          break;
+        }
+      }
+    }
+
+    // Extract the real first name (e.g. "Kasun" from "Kasun Perera" or "Kasun P.")
+    final String firstName;
+    if (resolvedName != null && resolvedName.isNotEmpty) {
+      final parts = resolvedName.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      firstName = parts.isNotEmpty ? parts.first : resolvedName;
+    } else if (greeting?.fullName != null &&
+        greeting!.fullName.trim().isNotEmpty &&
+        greeting.fullName.toLowerCase() != 'user' &&
+        greeting.fullName.toLowerCase() != 'customer') {
+      firstName = greeting.fullName.replaceAll(RegExp(r'\[.*?\]'), '').trim().split(RegExp(r'\s+')).first;
+    } else if (authFullName != null &&
+        authFullName.trim().isNotEmpty &&
+        authFullName.toLowerCase() != 'user' &&
+        authFullName.toLowerCase() != 'customer') {
+      firstName = authFullName.replaceAll(RegExp(r'\[.*?\]'), '').trim().split(RegExp(r'\s+')).first;
+    } else {
+      firstName = 'User';
+    }
 
     final hasNewOffers = homeAsync.value?.rewardsPoints.data?.hasNewOffers ?? false;
 
@@ -114,7 +175,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               AppAvatar(
                 key: const Key('home_avatar'),
-                name: fullName,
+                name: resolvedName ?? firstName,
                 size: 40,
               ),
               const SizedBox(width: 10),

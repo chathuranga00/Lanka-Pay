@@ -31,7 +31,11 @@ class AvatarSheet extends ConsumerWidget {
     final profile = ref.watch(paymentProfileProvider);
     final authState = ref.watch(authStateProvider);
     final phone = (authState is AuthAuthenticated ? authState.phone : null) ?? '+94 77 123 4567';
-    final safeName = profile.safeName ?? 'Kasun Perera';
+    final safeName = (profile.safeName != null && profile.safeName!.isNotEmpty)
+        ? profile.safeName!
+        : (authState is AuthAuthenticated && authState.fullName != null && authState.fullName!.isNotEmpty
+            ? authState.fullName!
+            : 'User');
 
     return Material(
       key: const Key('avatar_sheet'),

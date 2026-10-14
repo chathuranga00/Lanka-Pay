@@ -5,13 +5,14 @@ import type { AdminAuthSession } from '../types/admin';
 
 interface LoginScreenProps {
   onLoginSuccess: (session: AdminAuthSession) => void;
+  initialMessage?: string | null;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, initialMessage }) => {
   const [phone, setPhone] = useState('+94770000001');
   const [pin, setPin] = useState('123456');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialMessage || null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

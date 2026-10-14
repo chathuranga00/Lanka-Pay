@@ -66,15 +66,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/actuator/info").permitAll()
 
                 // ── Auth – all public ──────────────────────────────
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/verify-otp").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/cleanup").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/auth/register").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/verify-otp", "/auth/verify-otp").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/auth/login").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh", "/auth/refresh").permitAll()
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/cleanup", "/auth/cleanup").permitAll()
 
                 // logout and change-pin require a valid JWT (authenticated)
-                .requestMatchers(HttpMethod.POST,  "/api/v1/auth/logout").authenticated()
-                .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/change-pin").authenticated()
+                .requestMatchers(HttpMethod.POST,  "/api/v1/auth/logout", "/auth/logout").authenticated()
+                .requestMatchers(HttpMethod.PATCH, "/api/v1/auth/change-pin", "/auth/change-pin").authenticated()
 
                 // phone verification requires a valid JWT
                 .requestMatchers("/api/v1/auth/verify-phone/**").authenticated()

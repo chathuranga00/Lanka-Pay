@@ -42,10 +42,11 @@ class AuthService {
       },
     );
 
-    // Persist fullName for display before OTP verification completes
+    // Persist fullName and phone for display before OTP verification completes
     await _tokenStorage.saveTokens(
       accessToken: '',
       refreshToken: '',
+      phone: normalizedPhone,
       fullName: fullName.trim(),
     );
 
@@ -70,14 +71,17 @@ class AuthService {
     final data = Map<String, dynamic>.from(response.data as Map);
     final accessToken = data['accessToken'] as String?;
     final refreshToken = data['refreshToken'] as String?;
+    final returnedFullName = data['fullName'] as String? ?? fullName;
+    final returnedUserId = data['userId']?.toString() ?? userId.toString();
+    final returnedPhone = data['phone'] as String? ?? normalizePhone(phone);
 
     if (accessToken != null && refreshToken != null) {
       await _tokenStorage.saveTokens(
         accessToken: accessToken,
         refreshToken: refreshToken,
-        userId: userId.toString(),
-        phone: normalizePhone(phone),
-        fullName: fullName,
+        userId: returnedUserId,
+        phone: returnedPhone,
+        fullName: returnedFullName,
       );
     }
 
@@ -101,14 +105,24 @@ class AuthService {
     final data = Map<String, dynamic>.from(response.data as Map);
     final accessToken = data['accessToken'] as String?;
     final refreshToken = data['refreshToken'] as String?;
-    // Backend may return fullName in the login response
-    final fullName = data['fullName'] as String?;
+    var fullName = data['fullName'] as String?;
+    final userId = data['userId']?.toString();
+    final returnedPhone = data['phone'] as String? ?? normalizedPhone;
+
+    // Preserve existing real name if backend response did not include one
+    if (fullName == null || fullName.trim().isEmpty || fullName == 'User' || fullName == 'Customer') {
+      final existing = await _tokenStorage.getUserFullName();
+      if (existing != null && existing.trim().isNotEmpty && existing != 'User' && existing != 'Customer') {
+        fullName = existing.trim();
+      }
+    }
 
     if (accessToken != null) {
       await _tokenStorage.saveTokens(
         accessToken: accessToken,
         refreshToken: refreshToken ?? '',
-        phone: normalizedPhone,
+        userId: userId,
+        phone: returnedPhone,
         fullName: fullName,
       );
     }
@@ -145,6 +159,17 @@ class AuthService {
 
     return Map<String, dynamic>.from(response.data as Map);
   }
+
+  /// Fetches the user's profile to retrieve real displayName if token response lacked it.
+  Future<Map<String, dynamic>?> getPaymentProfile() async {
+    try {
+      final response = await _dio.get('/payment-profile/me');
+      if (response.statusCode == 200 && response.data is Map) {
+        return Map<String, dynamic>.from(response.data as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
 }
 
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -171,7 +196,26 @@ class AuthNotifier extends Notifier<AuthState> {
     if (token != null && token.isNotEmpty) {
       final userId = await _tokenStorage.getUserId();
       final phone = await _tokenStorage.getUserPhone();
-      final fullName = await _tokenStorage.getUserFullName();
+      var fullName = await _tokenStorage.getUserFullName();
+
+      // If fullName is missing from stored session, query /payment-profile/me
+      if (fullName == null || fullName.trim().isEmpty || fullName == 'User' || fullName == 'Customer') {
+        final profile = await _authService.getPaymentProfile();
+        if (profile != null && profile['displayName'] != null) {
+          final display = profile['displayName'].toString().trim();
+          if (display.isNotEmpty && display != 'User') {
+            fullName = display;
+            await _tokenStorage.saveTokens(
+              accessToken: token,
+              refreshToken: await _tokenStorage.getRefreshToken() ?? '',
+              userId: userId,
+              phone: phone,
+              fullName: fullName,
+            );
+          }
+        }
+      }
+
       state = AuthAuthenticated(
         accessToken: token,
         userId: userId,
@@ -227,11 +271,12 @@ class AuthNotifier extends Notifier<AuthState> {
     required String otp,
     required String phone,
   }) async {
-    state = const AuthLoading(message: 'Verifying OTP code...');
-    // Carry fullName from the pending state so it survives into authenticated state
+    // Preserve fullName BEFORE state transition to AuthLoading
     final pendingFullName = state is AuthOtpPending
         ? (state as AuthOtpPending).fullName
-        : null;
+        : await _tokenStorage.getUserFullName();
+
+    state = const AuthLoading(message: 'Verifying OTP code...');
     try {
       final res = await _authService.verifyOtp(
         userId: userId,
@@ -240,12 +285,16 @@ class AuthNotifier extends Notifier<AuthState> {
         fullName: pendingFullName,
       );
 
+      final resolvedName = (res['fullName'] as String?) ?? pendingFullName;
+      final resolvedUserId = (res['userId']?.toString()) ?? userId.toString();
+      final resolvedPhone = (res['phone'] as String?) ?? AuthService.normalizePhone(phone);
+
       state = AuthAuthenticated(
         accessToken: res['accessToken'] as String? ?? '',
         refreshToken: res['refreshToken'] as String?,
-        userId: userId.toString(),
-        phone: phone,
-        fullName: pendingFullName,
+        userId: resolvedUserId,
+        phone: resolvedPhone,
+        fullName: resolvedName,
       );
       return true;
     } on DioException catch (e) {
@@ -269,13 +318,38 @@ class AuthNotifier extends Notifier<AuthState> {
       );
 
       // Prefer fullName from the backend response; fall back to stored value
-      final fullName = res['fullName'] as String?
+      var fullName = res['fullName'] as String?
           ?? await _tokenStorage.getUserFullName();
+      final userId = res['userId']?.toString()
+          ?? await _tokenStorage.getUserId();
+      final resolvedPhone = res['phone'] as String?
+          ?? AuthService.normalizePhone(phone);
+
+      // Self-heal real name if missing or placeholder
+      if (fullName == null || fullName.trim().isEmpty || fullName == 'User' || fullName == 'Customer') {
+        try {
+          final profile = await _authService.getPaymentProfile();
+          if (profile != null && profile['displayName'] != null) {
+            final display = profile['displayName'].toString().trim();
+            if (display.isNotEmpty && display != 'User' && display != 'Customer') {
+              fullName = display;
+              await _tokenStorage.saveTokens(
+                accessToken: res['accessToken'] as String? ?? '',
+                refreshToken: res['refreshToken'] as String? ?? '',
+                userId: userId,
+                phone: resolvedPhone,
+                fullName: fullName,
+              );
+            }
+          }
+        } catch (_) {}
+      }
 
       state = AuthAuthenticated(
         accessToken: res['accessToken'] as String? ?? '',
         refreshToken: res['refreshToken'] as String?,
-        phone: AuthService.normalizePhone(phone),
+        userId: userId,
+        phone: resolvedPhone,
         fullName: fullName,
       );
       return true;

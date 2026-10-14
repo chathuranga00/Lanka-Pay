@@ -40,6 +40,9 @@ type TabType = 'overview' | 'users' | 'banks' | 'uncertain' | 'fraud' | 'stories
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLogout }) => {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [loading, setLoading] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
 
   // Data states
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -49,10 +52,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
   const [alerts, setAlerts] = useState<FraudAlert[]>([]);
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  const fetchAllData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const [u, b, h, q, a, l] = await Promise.allSettled([
+      const results = await Promise.allSettled([
         adminApi.getUsers(),
         adminApi.getBanks(),
         adminApi.getIntegrationHealth(),
@@ -61,20 +64,52 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
         adminApi.getAuditLogs(),
       ]);
 
+      const [u, b, h, q, a, l] = results;
+
+      // Check if all rejected or any 401 occurred
+      const rejections = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      if (rejections.length === results.length) {
+        const firstErr = (rejections[0]?.reason as Error)?.message || 'Failed to fetch data';
+        setFetchError(firstErr);
+        if (firstErr.includes('expired') || firstErr.includes('unauthorized')) {
+          onLogout();
+          return;
+        }
+      } else if (rejections.length > 0) {
+        const firstErr = (rejections[0]?.reason as Error)?.message || 'Partial update failure';
+        setFetchError(firstErr);
+      } else {
+        setFetchError(null);
+      }
+
       if (u.status === 'fulfilled') setUsers(u.value);
       if (b.status === 'fulfilled') setBanks(b.value);
       if (h.status === 'fulfilled') setHealth(h.value);
       if (q.status === 'fulfilled') setQueue(q.value);
       if (a.status === 'fulfilled') setAlerts(a.value);
       if (l.status === 'fulfilled') setLogs(l.value);
+
+      setLastUpdated(new Date());
+    } catch (err: unknown) {
+      setFetchError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
+  // Re-fetch when switching tabs
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [activeTab]);
+
+  // Periodic background polling every 10 seconds
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer = setInterval(() => {
+      fetchAllData(true);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, [autoRefresh]);
 
   const openAlertsCount = alerts.filter((a) => a.status === 'OPEN').length;
   const uncertainCount = queue.length;
@@ -192,26 +227,92 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ session, onLog
 
         {/* Main Content Area */}
         <main style={{ flex: 1, padding: '32px 40px', overflowY: 'auto', backgroundColor: 'var(--bg-dark)' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-            <button
-              disabled={loading}
-              onClick={fetchAllData}
-              style={{
-                padding: '8px 14px',
-                backgroundColor: 'var(--surface-dark)',
-                border: '1px solid var(--border-dark)',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-              {loading ? 'Refreshing...' : 'Refresh Data'}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              {fetchError ? (
+                <div style={{
+                  padding: '6px 12px',
+                  backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                  border: '1px solid var(--error)',
+                  borderRadius: '8px',
+                  color: '#FCA5A5',
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}>
+                  <span>⚠ {fetchError}</span>
+                  <button
+                    onClick={() => fetchAllData(false)}
+                    style={{ textDecoration: 'underline', color: 'white', fontWeight: 700, marginLeft: '4px' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--success)',
+                    display: 'inline-block',
+                    boxShadow: '0 0 6px var(--success)',
+                  }} />
+                  <span>Live CEFTS Sync</span>
+                  <span style={{ color: 'var(--text-muted)' }}>•</span>
+                  <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setAutoRefresh((prev) => !prev)}
+                title={autoRefresh ? 'Auto-refresh active every 10s' : 'Auto-refresh paused'}
+                style={{
+                  padding: '7px 12px',
+                  backgroundColor: autoRefresh ? 'rgba(27, 135, 85, 0.15)' : 'var(--surface-dark)',
+                  border: `1px solid ${autoRefresh ? 'var(--primary-green-light)' : 'var(--border-dark)'}`,
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: autoRefresh ? 'var(--success)' : 'var(--text-muted)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: autoRefresh ? 'var(--success)' : 'var(--text-muted)',
+                }} />
+                {autoRefresh ? 'Auto-refresh: 10s' : 'Auto-refresh: Paused'}
+              </button>
+
+              <button
+                disabled={loading}
+                onClick={() => fetchAllData(false)}
+                style={{
+                  padding: '7px 14px',
+                  backgroundColor: 'var(--surface-dark)',
+                  border: '1px solid var(--border-dark)',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                {loading ? 'Refreshing...' : 'Refresh Now'}
+              </button>
+            </div>
           </div>
 
           {activeTab === 'overview' && (

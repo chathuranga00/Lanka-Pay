@@ -46,6 +46,28 @@ class AdminApiClient {
     localStorage.removeItem('lankapay_admin_session');
   }
 
+  // ── Central Authenticated Request Handler ────────────────────
+
+  private async request(path: string, options: RequestInit = {}): Promise<Response> {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        ...this.getHeaders(),
+        ...(options.headers || {}),
+      },
+    });
+
+    if (res.status === 401) {
+      this.clearSession();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('lankapay:unauthorized'));
+      }
+      throw new Error('Admin session expired or unauthorized. Please sign in again.');
+    }
+
+    return res;
+  }
+
   // ── Auth ─────────────────────────────────────────────────────
 
   async login(phone: string, pin: string): Promise<AdminAuthSession> {
@@ -89,13 +111,14 @@ class AdminApiClient {
 
   // ── Users ─────────────────────────────────────────────────────
 
-  async getUsers(params?: { phone?: string; nic?: string; status?: string }): Promise<AdminUser[]> {
+  async getUsers(params?: { phone?: string; nic?: string; status?: string; size?: number }): Promise<AdminUser[]> {
     const query = new URLSearchParams();
+    query.set('size', String(params?.size ?? 100));
     if (params?.phone)  query.set('phone', params.phone);
     if (params?.nic)    query.set('nic', params.nic);
     if (params?.status) query.set('status', params.status);
 
-    const res = await fetch(`${BASE_URL}/admin/users?${query}`, { headers: this.getHeaders() });
+    const res = await this.request(`/admin/users?${query}`);
     if (!res.ok) throw new Error('Failed to fetch users');
 
     const data = await res.json() as Record<string, unknown>;
@@ -109,9 +132,8 @@ class AdminApiClient {
 
   async updateUserStatus(userId: number, status: string, reason: string): Promise<void> {
     // Backend expects { status, reason } body — matches UpdateUserStatusRequest
-    const res = await fetch(`${BASE_URL}/admin/users/${userId}/status`, {
+    const res = await this.request(`/admin/users/${userId}/status`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
       body: JSON.stringify({ status, reason }),
     });
     if (!res.ok) {
@@ -123,7 +145,7 @@ class AdminApiClient {
   // ── Banks ─────────────────────────────────────────────────────
 
   async getBanks(): Promise<BankConfig[]> {
-    const res = await fetch(`${BASE_URL}/admin/banks`, { headers: this.getHeaders() });
+    const res = await this.request('/admin/banks');
     if (!res.ok) throw new Error('Failed to fetch bank configs');
 
     const data = await res.json() as BankConfig[] | { content: BankConfig[] };
@@ -138,9 +160,8 @@ class AdminApiClient {
   }
 
   async updateBankConfig(bankCode: string, payload: Partial<BankConfig>): Promise<void> {
-    const res = await fetch(`${BASE_URL}/admin/banks/${bankCode}`, {
+    const res = await this.request(`/admin/banks/${bankCode}`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
       body: JSON.stringify({
         displayName: payload.displayName ?? payload.name,
         active: payload.active,
@@ -152,7 +173,7 @@ class AdminApiClient {
   // ── Integration Health ────────────────────────────────────────
 
   async getIntegrationHealth(): Promise<IntegrationHealth> {
-    const res = await fetch(`${BASE_URL}/admin/integrations/health`, { headers: this.getHeaders() });
+    const res = await this.request('/admin/integrations/health');
     if (!res.ok) throw new Error('Failed to fetch integration health');
     return res.json() as Promise<IntegrationHealth>;
   }
@@ -160,7 +181,7 @@ class AdminApiClient {
   // ── Transfers ─────────────────────────────────────────────────
 
   async getUncertainQueue(): Promise<AdminTransfer[]> {
-    const res = await fetch(`${BASE_URL}/admin/transfers/uncertain-queue`, { headers: this.getHeaders() });
+    const res = await this.request('/admin/transfers/uncertain-queue');
     if (!res.ok) throw new Error('Failed to fetch uncertain queue');
 
     const data = await res.json() as Record<string, unknown>;
@@ -172,17 +193,15 @@ class AdminApiClient {
   }
 
   async reconcileTransfer(transferId: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/admin/transfers/${transferId}/reconcile`, {
+    const res = await this.request(`/admin/transfers/${transferId}/reconcile`, {
       method: 'POST',
-      headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Reconciliation failed');
   }
 
   async reconcileAll(): Promise<void> {
-    const res = await fetch(`${BASE_URL}/admin/transfers/reconcile-all`, {
+    const res = await this.request('/admin/transfers/reconcile-all', {
       method: 'POST',
-      headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Bulk reconciliation failed');
   }
@@ -190,7 +209,7 @@ class AdminApiClient {
   // ── Fraud Alerts ──────────────────────────────────────────────
 
   async getFraudAlerts(): Promise<FraudAlert[]> {
-    const res = await fetch(`${BASE_URL}/admin/risk/fraud-alerts`, { headers: this.getHeaders() });
+    const res = await this.request('/admin/risk/fraud-alerts');
     if (!res.ok) throw new Error('Failed to fetch fraud alerts');
 
     const data = await res.json() as Record<string, unknown>;
@@ -210,9 +229,8 @@ class AdminApiClient {
     status: FraudAlertStatus,
     notes?: string,
   ): Promise<void> {
-    const res = await fetch(`${BASE_URL}/admin/risk/fraud-alerts/${alertId}/status`, {
+    const res = await this.request(`/admin/risk/fraud-alerts/${alertId}/status`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
       body: JSON.stringify({ status, resolutionNotes: notes }),
     });
     if (!res.ok) throw new Error('Failed to update fraud alert status');
@@ -220,12 +238,13 @@ class AdminApiClient {
 
   // ── Audit Log ─────────────────────────────────────────────────
 
-  async getAuditLogs(params?: { eventType?: string; entityType?: string }): Promise<AuditLogEntry[]> {
+  async getAuditLogs(params?: { eventType?: string; entityType?: string; size?: number }): Promise<AuditLogEntry[]> {
     const query = new URLSearchParams();
+    query.set('size', String(params?.size ?? 50));
     if (params?.eventType)  query.set('eventType', params.eventType);
     if (params?.entityType) query.set('entityType', params.entityType);
 
-    const res = await fetch(`${BASE_URL}/admin/audit-log?${query}`, { headers: this.getHeaders() });
+    const res = await this.request(`/admin/audit-log?${query}`);
     if (!res.ok) throw new Error('Failed to fetch audit logs');
 
     const data = await res.json() as Record<string, unknown>;
@@ -244,21 +263,20 @@ class AdminApiClient {
   // ── Stories ───────────────────────────────────────────────────
 
   async getStories(): Promise<Story[]> {
-    const res = await fetch(`${BASE_URL}/admin/stories`, { headers: this.getHeaders() });
+    const res = await this.request('/admin/stories');
     if (!res.ok) throw new Error('Failed to fetch stories');
     return (await res.json()) as Story[];
   }
 
   async getStory(id: string): Promise<Story> {
-    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}`, { headers: this.getHeaders() });
+    const res = await this.request(`/admin/stories/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to fetch story');
     return (await res.json()) as Story;
   }
 
   async createStory(payload: CreateStoryPayload): Promise<Story> {
-    const res = await fetch(`${BASE_URL}/admin/stories`, {
+    const res = await this.request('/admin/stories', {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -269,9 +287,8 @@ class AdminApiClient {
   }
 
   async updateStory(id: string, payload: UpdateStoryPayload): Promise<Story> {
-    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}`, {
+    const res = await this.request(`/admin/stories/${encodeURIComponent(id)}`, {
       method: 'PUT',
-      headers: this.getHeaders(),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -282,18 +299,16 @@ class AdminApiClient {
   }
 
   async publishStory(id: string): Promise<Story> {
-    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}/publish`, {
+    const res = await this.request(`/admin/stories/${encodeURIComponent(id)}/publish`, {
       method: 'POST',
-      headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Failed to publish story');
     return (await res.json()) as Story;
   }
 
   async archiveStory(id: string): Promise<Story> {
-    const res = await fetch(`${BASE_URL}/admin/stories/${encodeURIComponent(id)}/archive`, {
+    const res = await this.request(`/admin/stories/${encodeURIComponent(id)}/archive`, {
       method: 'POST',
-      headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Failed to archive story');
     return (await res.json()) as Story;
@@ -307,25 +322,20 @@ class AdminApiClient {
     if (search && search.trim()) params.append('search', search.trim());
     const query = params.toString() ? `?${params.toString()}` : '';
 
-    const res = await fetch(`${BASE_URL}/admin/support/conversations${query}`, {
-      headers: this.getHeaders(),
-    });
+    const res = await this.request(`/admin/support/conversations${query}`);
     if (!res.ok) throw new Error('Failed to fetch support conversations');
     return (await res.json()) as SupportConversation[];
   }
 
   async getSupportConversation(id: string): Promise<SupportConversationDetail> {
-    const res = await fetch(`${BASE_URL}/admin/support/conversations/${encodeURIComponent(id)}`, {
-      headers: this.getHeaders(),
-    });
+    const res = await this.request(`/admin/support/conversations/${encodeURIComponent(id)}`);
     if (!res.ok) throw new Error('Failed to fetch support conversation details');
     return (await res.json()) as SupportConversationDetail;
   }
 
   async replySupportConversation(id: string, text: string): Promise<SupportMessage> {
-    const res = await fetch(`${BASE_URL}/admin/support/conversations/${encodeURIComponent(id)}/reply`, {
+    const res = await this.request(`/admin/support/conversations/${encodeURIComponent(id)}/reply`, {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ text }),
     });
     if (!res.ok) {
@@ -336,18 +346,15 @@ class AdminApiClient {
   }
 
   async resolveSupportConversation(id: string): Promise<SupportConversation> {
-    const res = await fetch(`${BASE_URL}/admin/support/conversations/${encodeURIComponent(id)}/resolve`, {
+    const res = await this.request(`/admin/support/conversations/${encodeURIComponent(id)}/resolve`, {
       method: 'POST',
-      headers: this.getHeaders(),
     });
     if (!res.ok) throw new Error('Failed to resolve conversation');
     return (await res.json()) as SupportConversation;
   }
 
   async getCannedReplies(): Promise<CannedReply[]> {
-    const res = await fetch(`${BASE_URL}/admin/support/canned-replies`, {
-      headers: this.getHeaders(),
-    });
+    const res = await this.request('/admin/support/canned-replies');
     if (!res.ok) throw new Error('Failed to fetch canned replies');
     return (await res.json()) as CannedReply[];
   }

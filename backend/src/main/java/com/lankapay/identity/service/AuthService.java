@@ -339,7 +339,7 @@ public class AuthService {
         userStore.saveRefreshToken(new RefreshTokenRecord(user.id(), refreshHash, refreshExpiry));
 
         long expiresIn = jwtExpiryMinutes * 60;
-        return TokenResponse.full(accessToken, rawRefresh, expiresIn);
+        return TokenResponse.full(accessToken, rawRefresh, expiresIn, user.id(), user.fullName(), user.phone());
     }
 
     private String generateRawRefreshToken() {
