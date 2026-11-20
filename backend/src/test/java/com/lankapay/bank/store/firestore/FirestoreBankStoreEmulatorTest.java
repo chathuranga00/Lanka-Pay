@@ -548,7 +548,17 @@ class FirestoreBankStoreEmulatorTest {
                 host = System.getProperty("FIRESTORE_EMULATOR_HOST");
             }
             if (host != null && !host.isBlank()) {
-                return ConditionEvaluationResult.enabled("FIRESTORE_EMULATOR_HOST is set: " + host);
+                String[] parts = host.split(":");
+                if (parts.length == 2) {
+                    try {
+                        int port = Integer.parseInt(parts[1]);
+                        if (isPortListening(parts[0], port)) {
+                            return ConditionEvaluationResult.enabled("FIRESTORE_EMULATOR_HOST reachable: " + host);
+                        }
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+                return ConditionEvaluationResult.disabled("Skipping: FIRESTORE_EMULATOR_HOST configured but not reachable: " + host);
             }
             if (isPortListening("localhost", 8085) || isPortListening("127.0.0.1", 8085)) {
                 return ConditionEvaluationResult.enabled("Firestore emulator listening on port 8085");

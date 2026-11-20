@@ -237,11 +237,11 @@ public class TransferService {
         Optional<TransactionRecord> existingTx = transactionStore.findTransferByIdempotencyKey(idempotencyKey);
         if (existingTx.isPresent()) {
             TransactionRecord tx = existingTx.get();
-            if (tx.status() == TransactionStatus.PENDING) {
+            if (tx.status() == TransactionStatus.PENDING || tx.status() == TransactionStatus.PROCESSING) {
                 tx = awaitTransferCompletion(idempotencyKey, tx);
             }
             TransferResponse response = TransferResponse.from(tx);
-            if (tx.status() != TransactionStatus.PENDING && tx.status() != TransactionStatus.CHALLENGE_REQUIRED) {
+            if (tx.status() != TransactionStatus.PENDING && tx.status() != TransactionStatus.PROCESSING && tx.status() != TransactionStatus.CHALLENGE_REQUIRED) {
                 idempotencyService.record(idempotencyKey, payloadHash, tx.id(), response, 200);
             }
             return response;
@@ -358,11 +358,11 @@ public class TransferService {
 
             if (createdRecord.reference() != null && !createdRecord.reference().equals(reference)) {
                 TransactionRecord tx = createdRecord;
-                if (tx.status() == TransactionStatus.PENDING) {
+                if (tx.status() == TransactionStatus.PENDING || tx.status() == TransactionStatus.PROCESSING) {
                     tx = awaitTransferCompletion(idempotencyKey, tx);
                 }
                 TransferResponse response = TransferResponse.from(tx);
-                if (tx.status() != TransactionStatus.PENDING && tx.status() != TransactionStatus.CHALLENGE_REQUIRED) {
+                if (tx.status() != TransactionStatus.PENDING && tx.status() != TransactionStatus.PROCESSING && tx.status() != TransactionStatus.CHALLENGE_REQUIRED) {
                     idempotencyService.record(idempotencyKey, payloadHash, tx.id(), response, 200);
                 }
                 return response;
@@ -446,11 +446,11 @@ public class TransferService {
 
         if (createdRecord.reference() != null && !createdRecord.reference().equals(reference)) {
             TransactionRecord tx = createdRecord;
-            if (tx.status() == TransactionStatus.PENDING) {
+            if (tx.status() == TransactionStatus.PENDING || tx.status() == TransactionStatus.PROCESSING) {
                 tx = awaitTransferCompletion(idempotencyKey, tx);
             }
             TransferResponse response = TransferResponse.from(tx);
-            if (tx.status() != TransactionStatus.PENDING && tx.status() != TransactionStatus.CHALLENGE_REQUIRED) {
+            if (tx.status() != TransactionStatus.PENDING && tx.status() != TransactionStatus.PROCESSING && tx.status() != TransactionStatus.CHALLENGE_REQUIRED) {
                 idempotencyService.record(idempotencyKey, payloadHash, tx.id(), response, 200);
             }
             return response;
@@ -688,7 +688,7 @@ public class TransferService {
     private TransactionRecord awaitTransferCompletion(String idempotencyKey, TransactionRecord current) {
         long deadline = System.currentTimeMillis() + 8000;
         TransactionRecord latest = current;
-        while (latest.status() == TransactionStatus.PENDING && System.currentTimeMillis() < deadline) {
+        while ((latest.status() == TransactionStatus.PENDING || latest.status() == TransactionStatus.PROCESSING) && System.currentTimeMillis() < deadline) {
             try {
                 Thread.sleep(15);
             } catch (InterruptedException e) {

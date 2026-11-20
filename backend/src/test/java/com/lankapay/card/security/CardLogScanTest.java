@@ -62,6 +62,7 @@ class CardLogScanTest {
 
     private ListAppender<ILoggingEvent> listAppender;
     private Logger rootLogger;
+    private Logger lankapayLogger;
 
     @Mock CardStore                      cardStore;
     @Mock CardProvider                   cardProvider;
@@ -78,9 +79,11 @@ class CardLogScanTest {
     @BeforeEach
     void setUp() {
         rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        lankapayLogger = (Logger) LoggerFactory.getLogger("com.lankapay");
         listAppender = new ListAppender<>();
         listAppender.start();
         rootLogger.addAppender(listAppender);
+        lankapayLogger.addAppender(listAppender);
 
         service = new CardService(
                 cardStore,
@@ -97,8 +100,15 @@ class CardLogScanTest {
 
     @AfterEach
     void tearDown() {
-        rootLogger.detachAppender(listAppender);
-        listAppender.stop();
+        if (rootLogger != null && listAppender != null) {
+            rootLogger.detachAppender(listAppender);
+        }
+        if (lankapayLogger != null && listAppender != null) {
+            lankapayLogger.detachAppender(listAppender);
+        }
+        if (listAppender != null) {
+            listAppender.stop();
+        }
     }
 
     @Test

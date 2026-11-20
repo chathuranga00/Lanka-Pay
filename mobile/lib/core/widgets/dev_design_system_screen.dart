@@ -15,7 +15,7 @@ class DevDesignSystemScreen extends ConsumerStatefulWidget {
 
 class _DevDesignSystemScreenState extends ConsumerState<DevDesignSystemScreen> {
   int _selectedNavIndex = 0;
-  bool _showShimmer = false;
+  final bool _showShimmer = false;
   bool _isBalanceHidden = false;
 
   @override
@@ -28,7 +28,6 @@ class _DevDesignSystemScreenState extends ConsumerState<DevDesignSystemScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryTextColor = isDark ? AppTokens.textPrimaryDark : AppTokens.textPrimaryLight;
-    final secondaryTextColor = isDark ? AppTokens.textSecondaryDark : AppTokens.textSecondaryLight;
 
     return Scaffold(
       backgroundColor: isDark ? AppTokens.backgroundDark : AppTokens.backgroundLight,

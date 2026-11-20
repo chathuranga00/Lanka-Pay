@@ -73,7 +73,7 @@ class MonthOverMonthModel {
   final int differenceMinor;
   final double differenceAmount;
   final double percentageChange;
-  final boolean increased;
+  final bool increased;
 
   const MonthOverMonthModel({
     required this.currentMonthSpentMinor,
@@ -100,7 +100,6 @@ class MonthOverMonthModel {
   }
 }
 
-typedef boolean = bool;
 
 class AnalyticsSummaryModel {
   final String month;

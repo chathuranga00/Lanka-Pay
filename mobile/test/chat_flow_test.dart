@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lankapay_id/core/test_keys.dart';
 import 'package:lankapay_id/core/theme/app_theme.dart';
-import 'package:lankapay_id/features/chat/domain/chat_models.dart';
 import 'package:lankapay_id/features/chat/presentation/chat_screen.dart';
 
 Widget createChatTestApp() {

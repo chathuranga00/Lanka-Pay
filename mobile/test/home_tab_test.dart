@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lankapay_id/core/config/feature_flags.dart';
-import 'package:lankapay_id/core/widgets/shimmer_skeletons.dart';
 import 'package:lankapay_id/core/widgets/simulated_badge.dart';
 import 'package:lankapay_id/features/home/data/home_api_model.dart';
 import 'package:lankapay_id/features/home/data/home_providers.dart';
@@ -136,17 +135,17 @@ Widget createTestWidget({
   final router = GoRouter(
     initialLocation: initialLocation,
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
-      GoRoute(path: '/search', builder: (_, __) => const Scaffold(body: Text('Search Screen'))),
-      GoRoute(path: '/rewards', builder: (_, __) => const Scaffold(body: Text('Rewards Screen'))),
-      GoRoute(path: '/history', builder: (_, __) => const Scaffold(body: Text('History Screen'))),
-      GoRoute(path: '/activity', builder: (_, __) => const Scaffold(body: Text('History Screen'))),
-      GoRoute(path: '/accounts', builder: (_, __) => const Scaffold(body: Text('Accounts Screen'))),
-      GoRoute(path: '/accounts/add', builder: (_, __) => const Scaffold(body: Text('Add Account Screen'))),
-      GoRoute(path: '/bills', builder: (_, __) => const Scaffold(body: Text('Bills Screen'))),
-      GoRoute(path: '/explore', builder: (_, __) => const Scaffold(body: Text('Explore Screen'))),
-      GoRoute(path: '/settings', builder: (_, __) => const Scaffold(body: Text('Settings Screen'))),
-      GoRoute(path: '/qr', builder: (_, __) => const Scaffold(body: Text('QR Screen'))),
+      GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
+      GoRoute(path: '/search', builder: (_, _) => const Scaffold(body: Text('Search Screen'))),
+      GoRoute(path: '/rewards', builder: (_, _) => const Scaffold(body: Text('Rewards Screen'))),
+      GoRoute(path: '/history', builder: (_, _) => const Scaffold(body: Text('History Screen'))),
+      GoRoute(path: '/activity', builder: (_, _) => const Scaffold(body: Text('History Screen'))),
+      GoRoute(path: '/accounts', builder: (_, _) => const Scaffold(body: Text('Accounts Screen'))),
+      GoRoute(path: '/accounts/add', builder: (_, _) => const Scaffold(body: Text('Add Account Screen'))),
+      GoRoute(path: '/bills', builder: (_, _) => const Scaffold(body: Text('Bills Screen'))),
+      GoRoute(path: '/explore', builder: (_, _) => const Scaffold(body: Text('Explore Screen'))),
+      GoRoute(path: '/settings', builder: (_, _) => const Scaffold(body: Text('Settings Screen'))),
+      GoRoute(path: '/qr', builder: (_, _) => const Scaffold(body: Text('QR Screen'))),
       ...extraRoutes,
     ],
   );

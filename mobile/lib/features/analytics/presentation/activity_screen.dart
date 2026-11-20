@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 
 import '../../../core/test_keys.dart';
 import '../../../core/theme/app_tokens.dart';
-import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/shimmer_skeletons.dart';
 import '../data/analytics_service.dart';
 import '../domain/analytics_models.dart';
@@ -484,7 +483,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: categories.length,
-            separatorBuilder: (_, __) => const Divider(height: 16),
+            separatorBuilder: (_, _) => const Divider(height: 16),
             itemBuilder: (context, index) {
               final cat = categories[index];
               return InkWell(
@@ -663,7 +662,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: items.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
+        separatorBuilder: (_, _) => const Divider(height: 1),
         itemBuilder: (context, index) {
           final item = items[index];
           final isCredit = item.direction == 'CREDIT';

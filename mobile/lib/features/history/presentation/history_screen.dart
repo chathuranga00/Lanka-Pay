@@ -9,7 +9,6 @@ import '../../../core/widgets/gradient_header_scaffold.dart';
 import '../../../core/widgets/simulated_banner.dart';
 import '../../../core/widgets/transaction_tile.dart';
 import '../../analytics/data/insights_service.dart';
-import '../../analytics/domain/insight_model.dart';
 import '../../send/domain/transfer_models.dart';
 import '../data/history_service.dart';
 import 'receipt_screen.dart';

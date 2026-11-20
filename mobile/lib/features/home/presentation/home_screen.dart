@@ -13,7 +13,6 @@ import '../../../core/widgets/simulated_badge.dart';
 import '../data/home_api_model.dart';
 import '../data/home_providers.dart';
 import 'widgets/avatar_sheet.dart';
-import '../../stories/domain/story.dart';
 import '../../stories/presentation/stories_provider.dart';
 import '../../stories/presentation/widgets/story_card.dart';
 import '../../auth/data/auth_service.dart';
@@ -291,7 +290,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             itemCount: stories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
             itemBuilder: (ctx, index) {
               return StoryCard(
                 story: stories[index],
@@ -302,7 +301,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
         },
         loading: () => const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
-        error: (_, __) => const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
+        error: (_, _) => const SkeletonStoriesRow(key: Key('home_stories_skeleton')),
       ),
     );
   }

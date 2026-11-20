@@ -86,6 +86,7 @@ class FirestoreEmulatorSmokeTest {
         if (container != null && container.isRunning()) {
             container.stop();
         }
+        System.clearProperty("FIRESTORE_EMULATOR_HOST");
     }
 
     @Test

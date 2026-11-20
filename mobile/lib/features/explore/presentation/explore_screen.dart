@@ -680,7 +680,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
                 child: const Row(
                   children: [
                     Icon(Icons.verified_user_outlined, size: 18, color: AppTokens.primaryBlue),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'This university prototype will never launch a fake or unbacked financial flow.',

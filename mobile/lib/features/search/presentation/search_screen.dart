@@ -315,8 +315,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         iconData = Icons.receipt_rounded;
         break;
       case SearchResultType.feature:
-      default:
         iconData = Icons.star_rounded;
+        break;
     }
 
     return Padding(

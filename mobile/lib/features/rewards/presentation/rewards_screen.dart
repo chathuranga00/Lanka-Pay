@@ -135,7 +135,7 @@ class _RewardsScreenState extends ConsumerState<RewardsScreen> with SingleTicker
       child: const Row(
         children: [
           Icon(Icons.info_outline_rounded, size: 20, color: AppTokens.primaryViolet),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               'Simulated points only • No real cashback payout exists. Points hold no cash value.',
@@ -341,7 +341,7 @@ class _RewardsScreenState extends ConsumerState<RewardsScreen> with SingleTicker
             vertical: AppTokens.space12,
           ),
           itemCount: offers.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final offer = offers[index];
             return Material(
@@ -494,7 +494,7 @@ class _RewardsScreenState extends ConsumerState<RewardsScreen> with SingleTicker
                   vertical: 8,
                 ),
                 itemCount: entries.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final item = entries[index];
                   final isEarn = item.type == 'EARN';

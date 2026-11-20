@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lankapay_id/core/config/feature_flags.dart';
 import 'package:lankapay_id/core/test_keys.dart';
 import 'package:lankapay_id/features/explore/presentation/explore_screen.dart';
-import 'package:lankapay_id/features/goals/data/goals_service.dart';
 import 'package:lankapay_id/features/goals/presentation/goal_details_screen.dart';
 import 'package:lankapay_id/features/goals/presentation/goals_screen.dart';
 

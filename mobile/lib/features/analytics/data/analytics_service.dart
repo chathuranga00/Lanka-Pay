@@ -97,7 +97,7 @@ class AnalyticsService {
       data: {
         'month': month,
         'monthlyTotalMinor': monthlyTotalMinor,
-        if (categoryBudgetsMinor != null) 'categoryBudgetsMinor': categoryBudgetsMinor,
+        'categoryBudgetsMinor': ?categoryBudgetsMinor,
       },
     );
     return BudgetModel.fromJson(Map<String, dynamic>.from(response.data as Map));
@@ -108,8 +108,8 @@ class AnalyticsService {
       '/api/v1/budgets',
       data: {
         'month': month,
-        if (monthlyTotalMinor != null) 'monthlyTotalMinor': monthlyTotalMinor,
-        if (categoryBudgetsMinor != null) 'categoryBudgetsMinor': categoryBudgetsMinor,
+        'monthlyTotalMinor': ?monthlyTotalMinor,
+        'categoryBudgetsMinor': ?categoryBudgetsMinor,
       },
     );
     return BudgetModel.fromJson(Map<String, dynamic>.from(response.data as Map));
@@ -121,7 +121,7 @@ class AnalyticsService {
       data: {
         'transactionType': transactionType,
         'category': category,
-        if (colorHex != null) 'colorHex': colorHex,
+        'colorHex': ?colorHex,
       },
     );
   }

@@ -122,7 +122,7 @@ class WalletCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (pointsPill != null) pointsPill!,
+              ?pointsPill,
             ],
           ),
 

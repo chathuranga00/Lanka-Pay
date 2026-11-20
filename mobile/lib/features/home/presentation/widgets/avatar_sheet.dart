@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/theme/theme_controller.dart';
 import '../../../../core/widgets/app_avatar.dart';
 import '../../../auth/data/auth_service.dart';
 import '../../../auth/domain/auth_state.dart';
-import '../../../home/data/home_providers.dart';
 import '../../../settings/presentation/privacy_settings_screen.dart';
 
 /// Modal bottom sheet displaying profile options, payment-ID QR, settings,

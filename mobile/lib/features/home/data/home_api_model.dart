@@ -1,4 +1,5 @@
 /// Models for the GET /api/v1/home aggregated response and sections.
+library;
 
 class HomeSectionModel<T> {
   final String status; // 'OK', 'FAILED', 'UNAVAILABLE'

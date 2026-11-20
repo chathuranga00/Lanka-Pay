@@ -56,6 +56,7 @@ class SimVaultTest {
     SimulatedCardVault vault;
     ListAppender<ILoggingEvent> logCapture;
     Logger rootLogger;
+    Logger lankapayLogger;
 
     // AES-256-GCM test key (32 zero bytes, Base64-URL encoded)
     static final String TEST_KEY =
@@ -77,11 +78,13 @@ class SimVaultTest {
 
     @BeforeEach
     void setUp() {
-        // Attach log capture to root logger
+        // Attach log capture to root logger and com.lankapay logger
         rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        lankapayLogger = (Logger) LoggerFactory.getLogger("com.lankapay");
         logCapture = new ListAppender<>();
         logCapture.start();
         rootLogger.addAppender(logCapture);
+        lankapayLogger.addAppender(logCapture);
 
         vault = new SimulatedCardVault(new SimulatedCardVaultImpl(
                 new VaultComponents(TEST_KEY, 15L, 3L, 5L, 3, 1L,
@@ -90,7 +93,12 @@ class SimVaultTest {
 
     @AfterEach
     void tearDown() {
-        rootLogger.detachAppender(logCapture);
+        if (rootLogger != null && logCapture != null) {
+            rootLogger.detachAppender(logCapture);
+        }
+        if (lankapayLogger != null && logCapture != null) {
+            lankapayLogger.detachAppender(logCapture);
+        }
     }
 
     // ── T-01: Tokenize success ─────────────────────────────────

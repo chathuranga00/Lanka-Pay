@@ -89,6 +89,7 @@ public class CardDemoE2ETest {
 
     private ListAppender<ILoggingEvent> logAppender;
     private Logger rootLogger;
+    private Logger lankapayLogger;
 
     private SimulatedCardVault vault;
     private CardService cardService;
@@ -118,11 +119,13 @@ public class CardDemoE2ETest {
 
     @BeforeEach
     void setUp() {
-        // 1. Attach log appender to root logger to capture ALL log statements across all packages
+        // 1. Attach log appender to root logger and com.lankapay logger to capture ALL log statements across all packages
         rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+        lankapayLogger = (Logger) LoggerFactory.getLogger("com.lankapay");
         logAppender = new ListAppender<>();
         logAppender.start();
         rootLogger.addAppender(logAppender);
+        lankapayLogger.addAppender(logAppender);
 
         inMemoryCards.clear();
         inMemoryTxs.clear();
@@ -268,7 +271,7 @@ public class CardDemoE2ETest {
         DailyLimitService dailyLimitService = new DailyLimitService(transactionStore);
         CardDailyLimitService cardDailyLimitService = new CardDailyLimitService(transactionStore);
         CardTransferFraudService cardFraudService = new CardTransferFraudService();
-        IdempotencyService idempotencyService = new IdempotencyService(transactionStore, new ObjectMapper());
+        IdempotencyService idempotencyService = new IdempotencyService(transactionStore, new ObjectMapper().findAndRegisterModules());
 
         TransferProcessor transferProcessor = new TransferProcessor(
                 transactionStore,
@@ -301,6 +304,9 @@ public class CardDemoE2ETest {
     void tearDown() {
         if (rootLogger != null && logAppender != null) {
             rootLogger.detachAppender(logAppender);
+        }
+        if (lankapayLogger != null && logAppender != null) {
+            lankapayLogger.detachAppender(logAppender);
         }
     }
 

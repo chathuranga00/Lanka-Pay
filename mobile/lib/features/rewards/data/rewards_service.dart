@@ -134,8 +134,8 @@ class RewardsService {
     final body = {
       'rewardType': rewardType,
       'points': points,
-      if (voucherPartner != null) 'voucherPartner': voucherPartner,
-      if (pin != null) 'pin': pin,
+      'voucherPartner': ?voucherPartner,
+      'pin': ?pin,
     };
 
     final headers = <String, dynamic>{};

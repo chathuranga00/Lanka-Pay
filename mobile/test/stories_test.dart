@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lankapay_id/core/theme/app_theme.dart';
 import 'package:lankapay_id/features/stories/data/stories_api_service.dart';
 import 'package:lankapay_id/features/stories/domain/story.dart';
-import 'package:lankapay_id/features/stories/presentation/stories_provider.dart';
 import 'package:lankapay_id/features/stories/presentation/story_deep_link_validator.dart';
 import 'package:lankapay_id/features/stories/presentation/story_viewer_screen.dart';
 import 'package:lankapay_id/features/stories/presentation/widgets/story_card.dart';
@@ -175,7 +174,6 @@ void main() {
       expect(find.text('Link Now'), findsOneWidget);
 
       // 3. Tap right area to advance to page 2
-      final rightTapFinder = find.byType(GestureDetector);
       await tester.tapAt(const Offset(300, 300));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
