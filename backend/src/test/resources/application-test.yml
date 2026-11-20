@@ -1,0 +1,25 @@
+##############################################################
+# Lanka Pay – test profile
+##############################################################
+
+spring:
+  application:
+    name: lankapay-backend-test
+
+app:
+  firebase:
+    project-id: lankapay-test
+    emulator-host: ${FIRESTORE_EMULATOR_HOST:localhost:8085}
+  jwt:
+    secret: test-secret-value-that-is-long-enough-32chars
+    expiry-minutes: 30
+  otp:
+    mode: TEST
+    expiry-seconds: 1800
+  bank-adapter:
+    mode: SIMULATED
+
+logging:
+  level:
+    root: WARN
+    com.lankapay: INFO

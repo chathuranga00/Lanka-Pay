@@ -1,0 +1,841 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LankaPay ID National Payment Identifier & Transfer API",
+    "description": "REST API specification for the LankaPay ID platform, supporting proxy identity resolution, multi-bank linking, instant P2P settlement, LankaQR processing, and administrative reconciliation.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "LankaPay ID Engineering Team",
+      "url": "https://github.com/chathuranga00/Lanka-Pay"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080/api/v1",
+      "description": "Local Development Server"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register a new user",
+        "description": "Initiates registration with mobile number, NIC, and full name. Dispatches simulated OTP.",
+        "security": [],
+        "tags": ["Identity & Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Registration initiated, OTP dispatched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationInitiatedResponse"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "409": { "$ref": "#/components/responses/ConflictError" }
+        }
+      }
+    },
+    "/auth/verify-otp": {
+      "post": {
+        "summary": "Verify OTP and complete registration",
+        "description": "Validates 6-digit SMS OTP, establishes session, and returns JWT access/refresh tokens.",
+        "security": [],
+        "tags": ["Identity & Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOtpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate with mobile number and PIN",
+        "security": [],
+        "tags": ["Identity & Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "summary": "Refresh expired access token",
+        "security": [],
+        "tags": ["Identity & Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New access token issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+        }
+      }
+    },
+    "/registry/lookup": {
+      "get": {
+        "summary": "Lookup recipient payment identity",
+        "description": "Resolves a proxy identifier (phone number) to receiving bank details with privacy masking.",
+        "tags": ["Payment Identity Registry"],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "query",
+            "required": true,
+            "description": "Target phone number (e.g., +94770000002)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recipient profile resolved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentIdentityLookupResponse"
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFoundError" },
+          "429": { "$ref": "#/components/responses/RateLimitError" }
+        }
+      }
+    },
+    "/accounts": {
+      "get": {
+        "summary": "List linked bank accounts",
+        "tags": ["Bank Accounts"],
+        "responses": {
+          "200": {
+            "description": "List of user linked bank accounts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/BankAccountResponse" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Link a new bank account",
+        "tags": ["Bank Accounts"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LinkBankAccountRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Account linked successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BankAccountResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{id}/default": {
+      "put": {
+        "summary": "Set account as primary receiving account",
+        "tags": ["Bank Accounts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default receiving account updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BankAccountResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{id}/toggle-receiving": {
+      "put": {
+        "summary": "Toggle account inbound discoverability",
+        "tags": ["Bank Accounts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receiving toggle updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BankAccountResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/{id}": {
+      "delete": {
+        "summary": "Remove a linked bank account",
+        "tags": ["Bank Accounts"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account removed successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SimpleMessageResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers": {
+      "post": {
+        "summary": "Initiate P2P instant payment",
+        "description": "Executes real-time fund transfer. Requires unique Idempotency-Key header.",
+        "tags": ["Transfers & Settlement"],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "UUID or client-unique request key preventing duplicate debits",
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/InitiateTransferRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer completed successfully",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransferResponse" }
+              }
+            }
+          },
+          "202": {
+            "description": "Transfer accepted, pending asynchronous settlement / reconciliation",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransferResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable transaction (e.g. Insufficient funds, Limit exceeded)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/{id}": {
+      "get": {
+        "summary": "Get transfer status and receipt details",
+        "tags": ["Transfers & Settlement"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transfer details and audit verification checksum",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransferResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transfers/history": {
+      "get": {
+        "summary": "Get filtered transaction history",
+        "tags": ["Transfers & Settlement"],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 0 } },
+          { "name": "size", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "status", "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date-time" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paged transaction history stream",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransferHistoryPageResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/qr/generate-static": {
+      "get": {
+        "summary": "Generate static personal QR code",
+        "tags": ["QR Payments"],
+        "responses": {
+          "200": {
+            "description": "Static QR payload and URI",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QrResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/qr/payment-request": {
+      "post": {
+        "summary": "Create dynamic payment request QR",
+        "tags": ["QR Payments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreatePaymentRequestDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dynamic QR token created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PaymentRequestTokenResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/qr/resolve": {
+      "post": {
+        "summary": "Resolve scanned QR raw string or token",
+        "tags": ["QR Payments"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ResolveQrRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resolved QR payload ready for confirmation",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ResolvedQrPayloadResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile/privacy-settings": {
+      "put": {
+        "summary": "Update discoverability and privacy settings",
+        "tags": ["User Profile & Privacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PrivacySettingsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Privacy settings saved",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PrivacySettingsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profile/freeze": {
+      "post": {
+        "summary": "Toggle emergency payment identity freeze",
+        "tags": ["User Profile & Privacy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FreezeIdentityRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Identity freeze status updated",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FreezeIdentityResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/dashboard": {
+      "get": {
+        "summary": "Get system administrative metrics",
+        "tags": ["Admin Portal"],
+        "responses": {
+          "200": {
+            "description": "Aggregate dashboard statistics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AdminDashboardMetrics" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/reconciliation/queue": {
+      "get": {
+        "summary": "List transactions requiring reconciliation",
+        "tags": ["Admin Portal"],
+        "responses": {
+          "200": {
+            "description": "List of delayed or uncertain transactions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/TransferResponse" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/reconciliation/{id}/reconcile": {
+      "post": {
+        "summary": "Execute administrative reconciliation action",
+        "tags": ["Admin Portal"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReconcileActionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reconciliation finalized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TransferResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide JWT bearer token in Authorization header: Bearer <token>"
+      }
+    },
+    "schemas": {
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["phone", "fullName", "nic", "pin"],
+        "properties": {
+          "phone": { "type": "string", "example": "+94770000001" },
+          "fullName": { "type": "string", "example": "Kasun Perera" },
+          "nic": { "type": "string", "example": "199012345678" },
+          "pin": { "type": "string", "example": "123456" }
+        }
+      },
+      "RegistrationInitiatedResponse": {
+        "type": "object",
+        "properties": {
+          "userId": { "type": "integer", "format": "int64", "example": 101 },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "message": { "type": "string", "example": "OTP dispatched to phone" }
+        }
+      },
+      "VerifyOtpRequest": {
+        "type": "object",
+        "required": ["userId", "otp"],
+        "properties": {
+          "userId": { "type": "integer", "format": "int64", "example": 101 },
+          "otp": { "type": "string", "example": "123456" }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["phone", "pin"],
+        "properties": {
+          "phone": { "type": "string", "example": "+94770000001" },
+          "pin": { "type": "string", "example": "123456" }
+        }
+      },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": { "type": "string" },
+          "refreshToken": { "type": "string" },
+          "expiresIn": { "type": "integer", "example": 900 },
+          "tokenType": { "type": "string", "example": "Bearer" },
+          "userId": { "type": "integer", "format": "int64", "example": 101 },
+          "roles": { "type": "array", "items": { "type": "string" }, "example": ["ROLE_USER"] }
+        }
+      },
+      "PaymentIdentityLookupResponse": {
+        "type": "object",
+        "properties": {
+          "identifier": { "type": "string", "example": "+94770000002" },
+          "displayName": { "type": "string", "example": "Nimal P." },
+          "bankCode": { "type": "string", "example": "SIMULATED_BANK_A" },
+          "bankName": { "type": "string", "example": "Bank A (Commercial Bank)" },
+          "active": { "type": "boolean", "example": true }
+        }
+      },
+      "BankAccountResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64", "example": 201 },
+          "bankCode": { "type": "string", "example": "SIMULATED_BANK_B" },
+          "bankName": { "type": "string", "example": "Bank B (Hatton National)" },
+          "accountNumberMasked": { "type": "string", "example": "****1001" },
+          "accountHolderName": { "type": "string", "example": "Kasun Perera" },
+          "isDefault": { "type": "boolean", "example": true },
+          "receivingEnabled": { "type": "boolean", "example": true },
+          "status": { "type": "string", "example": "VERIFIED" }
+        }
+      },
+      "LinkBankAccountRequest": {
+        "type": "object",
+        "required": ["bankCode", "accountNumber", "accountHolderName"],
+        "properties": {
+          "bankCode": { "type": "string", "example": "SIMULATED_BANK_A" },
+          "accountNumber": { "type": "string", "example": "100100" },
+          "accountHolderName": { "type": "string", "example": "Kasun Perera" }
+        }
+      },
+      "InitiateTransferRequest": {
+        "type": "object",
+        "required": ["senderAccountId", "recipientIdentifier", "amount", "pin"],
+        "properties": {
+          "senderAccountId": { "type": "integer", "format": "int64", "example": 201 },
+          "recipientIdentifier": { "type": "string", "example": "+94770000002" },
+          "amount": { "type": "number", "example": 500.00 },
+          "currency": { "type": "string", "example": "LKR" },
+          "remarks": { "type": "string", "example": "Lunch reimbursement" },
+          "pin": { "type": "string", "example": "123456" }
+        }
+      },
+      "TransferResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "format": "int64", "example": 5001 },
+          "reference": { "type": "string", "example": "3b2a5987-a274-4b5b-9b4e-9827419fa76a" },
+          "providerReference": { "type": "string", "example": "SIM-B-1791700384" },
+          "status": { "type": "string", "example": "COMPLETED" },
+          "amount": { "type": "number", "example": 500.00 },
+          "fee": { "type": "number", "example": 0.00 },
+          "currency": { "type": "string", "example": "LKR" },
+          "senderName": { "type": "string", "example": "Kasun Perera" },
+          "recipientName": { "type": "string", "example": "Nimal P." },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "auditChecksum": { "type": "string", "example": "SHA256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069" }
+        }
+      },
+      "TransferHistoryPageResponse": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TransferResponse" }
+          },
+          "totalElements": { "type": "integer", "example": 42 },
+          "totalPages": { "type": "integer", "example": 3 },
+          "page": { "type": "integer", "example": 0 },
+          "size": { "type": "integer", "example": 20 }
+        }
+      },
+      "QrResponse": {
+        "type": "object",
+        "properties": {
+          "payload": { "type": "string", "example": "lankapay://pay?id=+94770000001&bank=SIMULATED_BANK_B" },
+          "qrImageDataUri": { "type": "string" }
+        }
+      },
+      "CreatePaymentRequestDto": {
+        "type": "object",
+        "required": ["amount", "expiryMinutes"],
+        "properties": {
+          "amount": { "type": "number", "example": 1200.00 },
+          "remarks": { "type": "string", "example": "Dinner split" },
+          "expiryMinutes": { "type": "integer", "example": 15 }
+        }
+      },
+      "PaymentRequestTokenResponse": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "example": "PR-9482-A7F2" },
+          "qrPayload": { "type": "string" },
+          "amount": { "type": "number", "example": 1200.00 },
+          "expiresAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ResolveQrRequest": {
+        "type": "object",
+        "required": ["qrContent"],
+        "properties": {
+          "qrContent": { "type": "string", "example": "PR-9482-A7F2" }
+        }
+      },
+      "ResolvedQrPayloadResponse": {
+        "type": "object",
+        "properties": {
+          "recipientIdentifier": { "type": "string", "example": "+94770000002" },
+          "recipientDisplayName": { "type": "string", "example": "Nimal P." },
+          "bankName": { "type": "string", "example": "Bank A" },
+          "amount": { "type": "number", "example": 1200.00 },
+          "remarks": { "type": "string", "example": "Dinner split" },
+          "expired": { "type": "boolean", "example": false }
+        }
+      },
+      "PrivacySettingsRequest": {
+        "type": "object",
+        "properties": {
+          "phoneDiscoverable": { "type": "boolean", "example": true }
+        }
+      },
+      "PrivacySettingsResponse": {
+        "type": "object",
+        "properties": {
+          "phoneDiscoverable": { "type": "boolean", "example": true }
+        }
+      },
+      "FreezeIdentityRequest": {
+        "type": "object",
+        "required": ["freeze"],
+        "properties": {
+          "freeze": { "type": "boolean", "example": true }
+        }
+      },
+      "FreezeIdentityResponse": {
+        "type": "object",
+        "properties": {
+          "identityFrozen": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Payment identity frozen successfully" }
+        }
+      },
+      "AdminDashboardMetrics": {
+        "type": "object",
+        "properties": {
+          "totalUsers": { "type": "integer", "example": 240 },
+          "activeBankGateways": { "type": "integer", "example": 3 },
+          "todayCompletedVolumeLkr": { "type": "number", "example": 450250.00 },
+          "pendingReconciliationsCount": { "type": "integer", "example": 2 }
+        }
+      },
+      "ReconcileActionRequest": {
+        "type": "object",
+        "required": ["targetStatus"],
+        "properties": {
+          "targetStatus": { "type": "string", "enum": ["COMPLETED", "FAILED"], "example": "COMPLETED" },
+          "adminNotes": { "type": "string", "example": "Confirmed via Bank A clearing journal." }
+        }
+      },
+      "SimpleMessageResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string", "example": "Operation completed successfully" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "errorCode": { "type": "string", "example": "INSUFFICIENT_FUNDS" },
+          "message": { "type": "string", "example": "Account balance is below the requested transfer amount" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "Invalid input parameters",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "ConflictError": {
+        "description": "Resource conflict (e.g. phone or NIC already registered)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "UnauthorizedError": {
+        "description": "Missing, invalid, or expired credentials",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "NotFoundError": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      },
+      "RateLimitError": {
+        "description": "Too many requests (Token-bucket rate limit exceeded)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+          }
+        }
+      }
+    }
+  }
+}

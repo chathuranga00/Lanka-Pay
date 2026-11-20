@@ -1,0 +1,525 @@
+import 'package:flutter/material.dart';
+
+/// Centralized test keys registry for LankaPay ID Mobile Application.
+/// Categorized by prefixes: nav_*, home_*, qa_*, btn_*, account_*, send_*,
+/// tile_*, more_*, theme_*, and associated screen flows.
+abstract final class AppTestKeys {
+  AppTestKeys._();
+
+  // ---------------------------------------------------------------------------
+  // Navigation (nav_*)
+  // ---------------------------------------------------------------------------
+  static const Key navHome = Key('nav_home');
+  static const Key navPay = Key('nav_pay');
+  static const Key navCity = Key('nav_city');
+  static const Key navChat = Key('nav_chat');
+  static const Key navExplore = Key('nav_explore');
+  static const Key navAccounts = Key('nav_accounts');
+  static const Key navSend = Key('nav_send');
+  static const Key navMore = Key('nav_more');
+
+  // ---------------------------------------------------------------------------
+  // Global Search (search_*)
+  // ---------------------------------------------------------------------------
+  static const Key searchScreen = Key('search_screen');
+  static const Key searchInput = Key('search_input');
+  static const Key searchClearBtn = Key('search_clear_btn');
+  static const Key searchRecentList = Key('search_recent_list');
+  static const Key searchClearRecentBtn = Key('search_clear_recent_btn');
+  static const Key searchResultsList = Key('search_results_list');
+  static const Key searchEmptyState = Key('search_empty_state');
+  static const Key searchErrorState = Key('search_error_state');
+  static const Key searchLoading = Key('search_loading');
+
+  // ---------------------------------------------------------------------------
+  // Avatar Sheet (avatar_sheet_*)
+  // ---------------------------------------------------------------------------
+  static const Key avatarSheet = Key('avatar_sheet');
+  static const Key avatarSheetSettings = Key('avatar_sheet_settings');
+  static const Key avatarSheetPrivacy = Key('avatar_sheet_privacy');
+  static const Key avatarSheetSecurity = Key('avatar_sheet_security');
+  static const Key avatarSheetLanguage = Key('avatar_sheet_language');
+  static const Key avatarSheetAppearance = Key('avatar_sheet_appearance');
+  static const Key avatarSheetLogout = Key('avatar_sheet_logout');
+
+  // ---------------------------------------------------------------------------
+  // Home (home_*)
+  // ---------------------------------------------------------------------------
+  static const Key homeAddAccount = Key('home_add_account');
+  static const Key homeAddAccountEmptyBtn = Key('home_add_account_empty_btn');
+  static const Key homeBell = Key('home_bell');
+  static const Key homeBellUnreadDot = Key('home_bell_unread_dot');
+  static const Key homeNotificationsIconBtn = Key('home_notifications_icon_btn');
+  static const Key homeToggleBalance = Key('home_toggle_balance');
+  static const Key homeSearch = Key('home_search');
+  static const Key homeSeeAll = Key('home_see_all');
+  static const Key homeViewAllHistoryBtn = Key('home_view_all_history_btn');
+  static const Key homeQuickSendBtn = Key('home_quick_send_btn');
+  static const Key homeQuickScanBtn = Key('home_quick_scan_btn');
+  static const Key homeQuickRequestBtn = Key('home_quick_request_btn');
+  static const Key homeAccountsEmpty = Key('home_accounts_empty');
+  static const Key homeAccountsError = Key('home_accounts_error');
+  static const Key homeTransactionsEmpty = Key('home_transactions_empty');
+  static const Key homeTransactionsError = Key('home_transactions_error');
+  static const Key homeTransactionsLoading = Key('home_transactions_loading');
+  static Key homeAccount(int id) => Key('home_account_$id');
+  static Key tx(int id) => Key('tx_$id');
+
+  // ---------------------------------------------------------------------------
+  // Quick Actions (qa_*)
+  // ---------------------------------------------------------------------------
+  static const Key qaSend = Key('qa_send');
+  static const Key qaScan = Key('qa_scan');
+  static const Key qaRequest = Key('qa_request');
+  static const Key qaMyQr = Key('qa_my_qr');
+
+  // ---------------------------------------------------------------------------
+  // Action Buttons (btn_*)
+  // ---------------------------------------------------------------------------
+  static const Key btnAddAccount = Key('btn_add_account');
+  static const Key btnFreeze = Key('btn_freeze');
+  static const Key btnAccountSettings = Key('btn_account_settings');
+  static const Key btnDone = Key('btn_done');
+  static const Key btnShare = Key('btn_share');
+  static const Key btnRefresh = Key('btn_refresh');
+  static const Key btnRetry = Key('btn_retry');
+
+  // ---------------------------------------------------------------------------
+  // Accounts (account_*)
+  // ---------------------------------------------------------------------------
+  static const Key accountsAdd = Key('accounts_add');
+  static const Key accountToggleVisibility = Key('account_toggle_visibility');
+  static const Key accountsNoTransactions = Key('accounts_no_transactions');
+  static const Key confirmPauseBtn = Key('confirm_pause_btn');
+  static const Key confirmResumeBtn = Key('confirm_resume_btn');
+  static const Key confirmRemoveAccountBtn = Key('confirm_remove_account_btn');
+  static const Key renameAccountField = Key('rename_account_field');
+  static const Key renameAccountSaveBtn = Key('rename_account_save_btn');
+  static const Key reverifyAccountBtn = Key('reverify_account_btn');
+
+  // ---------------------------------------------------------------------------
+  // Cards (seg_*, cards_*, card_*, btn_card_*, flow_add_card, etc.)
+  // ---------------------------------------------------------------------------
+  static const Key segAccounts = Key('seg_accounts');
+  static const Key segCards = Key('seg_cards');
+  static const Key cardsAdd = Key('cards_add');
+  static const Key cardToggleVisibility = Key('card_toggle_visibility');
+  static const Key btnAddCard = Key('btn_add_card');
+  static const Key btnFreezeCard = Key('btn_freeze_card');
+  static const Key btnCardDetails = Key('btn_card_details');
+  static const Key btnCardSettings = Key('btn_card_settings');
+  static const Key flowAddCard = Key('flow_add_card');
+  static Key card(dynamic id) => Key('card_$id');
+  static const Key confirmFreezeCardBtn = Key('confirm_freeze_card_btn');
+  static const Key confirmUnfreezeCardBtn = Key('confirm_unfreeze_card_btn');
+  static const Key confirmRemoveCardBtn = Key('confirm_remove_card_btn');
+  static const Key stepUpPinInput = Key('step_up_pin_input');
+  static const Key stepUpPinConfirmBtn = Key('step_up_pin_confirm_btn');
+  static const Key btnChooseTestCard = Key('btn_choose_test_card');
+  static const Key btnChooseVirtualCard = Key('btn_choose_virtual_card');
+  static const Key inputCardNumber = Key('input_card_number');
+  static const Key inputCardExpiry = Key('input_card_expiry');
+  static const Key inputCardCvv = Key('input_card_cvv');
+  static const Key inputCardHolderName = Key('input_card_holder_name');
+  static const Key inputCardNickname = Key('input_card_nickname');
+  static const Key checkboxCardConsent = Key('checkbox_card_consent');
+  static const Key btnCardFormSubmit = Key('btn_card_form_submit');
+  static const Key bannerTestCardNotice = Key('banner_test_card_notice');
+  static const Key linkTestCardsScreen = Key('link_test_cards_screen');
+  static const Key inputCardOtp = Key('input_card_otp');
+  static const Key btnCardOtpVerify = Key('btn_card_otp_verify');
+  static const Key btnCardOtpResend = Key('btn_card_otp_resend');
+  static const Key otpCooldownText = Key('otp_cooldown_text');
+  static const Key otpAttemptsText = Key('otp_attempts_text');
+  static const Key cardOtpSuccess = Key('card_otp_success');
+  static const Key btnCardOtpDone = Key('btn_card_otp_done');
+  static const Key cardRevealSheet = Key('card_reveal_sheet');
+  static const Key revealCountdownTimer = Key('reveal_countdown_timer');
+  static const Key cardSettingsSheet = Key('card_settings_sheet');
+  static const Key cardSettingsNicknameField = Key('card_settings_nickname_field');
+  static const Key cardSettingsSaveNicknameBtn = Key('card_settings_save_nickname_btn');
+  static const Key cardSettingsPerPaymentLimitField = Key('card_settings_per_payment_limit_field');
+  static const Key cardSettingsDailyLimitField = Key('card_settings_daily_limit_field');
+  static const Key cardSettingsSaveLimitsBtn = Key('card_settings_save_limits_btn');
+  static const Key cardSettingsOnlineSwitch = Key('card_settings_online_switch');
+  static const Key cardSettingsBackingAccountDropdown = Key('card_settings_backing_account_dropdown');
+  static const Key cardSettingsRemoveBtn = Key('card_settings_remove_btn');
+  static const Key emptyAddCardBtn = Key('empty_add_card_btn');
+
+  // ---------------------------------------------------------------------------
+  // Send (send_*)
+  // ---------------------------------------------------------------------------
+  static const Key sendScanQr = Key('send_scan_qr');
+  static const Key sendSearch = Key('send_search');
+  static const Key sendNew = Key('send_new');
+  static const Key sendPhoneField = Key('send_phone_field');
+  static const Key sendLookupBtn = Key('send_lookup_btn');
+  static const Key sendAmountField = Key('send_amount_field');
+  static const Key sendNoteField = Key('send_note_field');
+  static const Key sendSenderAccountDropdown = Key('send_sender_account_dropdown');
+  static const Key sendReviewBtn = Key('send_review_btn');
+  static Key recipient(int id) => Key('recipient_$id');
+
+  // ---------------------------------------------------------------------------
+  // Card Funding (pay_from_*, card_challenge_*)
+  // ---------------------------------------------------------------------------
+  static const Key payFromSelector = Key('pay_from_selector');
+  static const Key cardChallengeOtp = Key('card_challenge_otp');
+  static const Key inputChallengeOtp = Key('input_challenge_otp');
+  static const Key btnSubmitChallengeOtp = Key('btn_submit_challenge_otp');
+  static const Key resultSuggestedNextStep = Key('result_suggested_next_step');
+  static const Key confirmPaymentMethod = Key('confirm_payment_method');
+  static const Key confirmReference = Key('confirm_reference');
+  static const Key filterFundingAll = Key('filter_funding_all');
+  static const Key filterFundingAccount = Key('filter_funding_account');
+  static const Key filterFundingCard = Key('filter_funding_card');
+  static Key payFromSource(String type, int id) => Key('pay_from_${type}_$id');
+
+  // ---------------------------------------------------------------------------
+  // Pay Hub (pay_*)
+  // ---------------------------------------------------------------------------
+  static const Key paySearch = Key('pay_search');
+  static const Key paySend = Key('pay_send');
+  static const Key payQr = Key('pay_qr');
+  static const Key payBills = Key('pay_bills');
+  static const Key payScheduled = Key('pay_scheduled');
+  static const Key paySplit = Key('pay_split');
+  static const Key payRequest = Key('pay_request');
+  static const Key payBetween = Key('pay_between');
+  static const Key paySeeAll = Key('pay_see_all');
+  static const Key payRecentPayments = Key('pay_recent_payments');
+  static const Key payRecentEmpty = Key('pay_recent_empty');
+  static const Key payRecentError = Key('pay_recent_error');
+  static const Key payFundingSourceSelector = Key('pay_funding_source_selector');
+  static const Key comingSoonSheet = Key('coming_soon_sheet');
+  static const Key comingSoonClose = Key('coming_soon_close');
+
+  // ---------------------------------------------------------------------------
+  // Tiles (tile_*)
+  // ---------------------------------------------------------------------------
+  static const Key tilePayByPhone = Key('tile_pay_by_phone');
+  static const Key tileScanQr = Key('tile_scan_qr');
+  static const Key tileRequests = Key('tile_requests');
+  static const Key tileBetweenAccounts = Key('tile_between_accounts');
+
+  // ---------------------------------------------------------------------------
+  // More (more_*)
+  // ---------------------------------------------------------------------------
+  static const Key moreScreen = Key('more_screen');
+  static const Key moreProfile = Key('more_profile');
+  static const Key moreQr = Key('more_qr');
+  static const Key moreRequests = Key('more_requests');
+  static const Key moreHistory = Key('more_history');
+  static const Key moreNotifications = Key('more_notifications');
+  static const Key morePrivacy = Key('more_privacy');
+  static const Key moreSecurity = Key('more_security');
+  static const Key moreLanguage = Key('more_language');
+  static const Key moreHelp = Key('more_help');
+  static const Key moreLogout = Key('more_logout');
+  static const Key moreLogoutConfirmBtn = Key('more_logout_confirm_btn');
+  static const Key profileCloseBtn = Key('profile_close_btn');
+  static const Key helpCloseBtn = Key('help_close_btn');
+
+  // ---------------------------------------------------------------------------
+  // Theme (theme_*)
+  // ---------------------------------------------------------------------------
+  static const Key themeToggle = Key('theme_toggle');
+  static const Key themeOptionSystem = Key('theme_option_system');
+  static const Key themeOptionLight = Key('theme_option_light');
+  static const Key themeOptionDark = Key('theme_option_dark');
+
+  // ---------------------------------------------------------------------------
+  // Auth & Onboarding
+  // ---------------------------------------------------------------------------
+  static const Key getStartedBtn = Key('get_started_btn');
+  static const Key signInBtn = Key('sign_in_btn');
+  static const Key loginPhoneField = Key('login_phone_field');
+  static const Key loginPinField = Key('login_pin_field');
+  static const Key loginForgotPinBtn = Key('login_forgot_pin_btn');
+  static const Key loginSubmitBtn = Key('login_submit_btn');
+  static const Key loginGotoRegisterBtn = Key('login_goto_register_btn');
+  static const Key registerNameField = Key('register_name_field');
+  static const Key registerPhoneField = Key('register_phone_field');
+  static const Key registerNicField = Key('register_nic_field');
+  static const Key registerPinField = Key('register_pin_field');
+  static const Key registerConfirmPinField = Key('register_confirm_pin_field');
+  static const Key registerSubmitBtn = Key('register_submit_btn');
+  static const Key consentTermsCheckbox = Key('consent_terms_checkbox');
+  static const Key consentPrivacyCheckbox = Key('consent_privacy_checkbox');
+  static const Key consentContinueBtn = Key('consent_continue_btn');
+  static const Key otpInputField = Key('otp_input_field');
+  static const Key otpVerifyBtn = Key('otp_verify_btn');
+  static const Key otpResendBtn = Key('otp_resend_btn');
+  static const Key recoverPhoneField = Key('recover_phone_field');
+  static const Key recoverNicField = Key('recover_nic_field');
+  static const Key recoverSubmitBtn = Key('recover_submit_btn');
+
+  // ---------------------------------------------------------------------------
+  // Add Bank Account
+  // ---------------------------------------------------------------------------
+  static const Key addBankInstitutionDropdown = Key('add_bank_institution_dropdown');
+  static const Key addBankNumberField = Key('add_bank_number_field');
+  static const Key addBankNameField = Key('add_bank_name_field');
+  static const Key addBankLabelField = Key('add_bank_label_field');
+  static const Key addBankConsentCheckbox = Key('add_bank_consent_checkbox');
+  static const Key addBankSubmitBtn = Key('add_bank_submit_btn');
+
+  // ---------------------------------------------------------------------------
+  // Transfers & PIN Auth
+  // ---------------------------------------------------------------------------
+  static const Key transferPinInput = Key('transfer_pin_input');
+  static const Key transferConfirmPinBtn = Key('transfer_confirm_pin_btn');
+  static const Key confirmationContinueBtn = Key('confirmation_continue_btn');
+  static const Key transferRefreshBtn = Key('transfer_refresh_btn');
+  static const Key transferDoneBtn = Key('transfer_done_btn');
+
+  // ---------------------------------------------------------------------------
+  // QR Payments
+  // ---------------------------------------------------------------------------
+  static const Key qrOpenScannerBtn = Key('qr_open_scanner_btn');
+  static const Key qrScanFab = Key('qr_scan_fab');
+  static const Key qrAmountField = Key('qr_amount_field');
+  static const Key qrNoteField = Key('qr_note_field');
+  static const Key qrGenerateDynamicBtn = Key('qr_generate_dynamic_btn');
+
+  // ---------------------------------------------------------------------------
+  // History & Receipts
+  // ---------------------------------------------------------------------------
+  static const Key historyFilterBtn = Key('history_filter_btn');
+  static const Key historyRefreshBtn = Key('history_refresh_btn');
+  static const Key historyResetFilterBtn = Key('history_reset_filter_btn');
+  static const Key historyApplyFiltersBtn = Key('history_apply_filters_btn');
+  static const Key filterChipCompleted = Key('filter_chip_completed');
+  static const Key filterChipFailed = Key('filter_chip_failed');
+  static const Key filterChipReceived = Key('filter_chip_received');
+  static const Key filterChipSent = Key('filter_chip_sent');
+  static const Key filterMinAmountField = Key('filter_min_amount_field');
+  static const Key filterMaxAmountField = Key('filter_max_amount_field');
+  static const Key receiptShareBtn = Key('receipt_share_btn');
+
+  // ---------------------------------------------------------------------------
+  // Notifications & Preferences
+  // ---------------------------------------------------------------------------
+  static const Key notifsMarkAllReadBtn = Key('notifs_mark_all_read_btn');
+  static const Key prefsPushSwitch = Key('prefs_push_switch');
+  static const Key prefsSmsSwitch = Key('prefs_sms_switch');
+  static const Key prefsTxAlertsSwitch = Key('prefs_tx_alerts_switch');
+  static const Key prefsEmailSwitch = Key('prefs_email_switch');
+  static const Key prefsInAppSwitch = Key('prefs_in_app_switch');
+  static const Key prefsSecAlertsSwitch = Key('prefs_sec_alerts_switch');
+
+  // ---------------------------------------------------------------------------
+  // Settings & Security
+  // ---------------------------------------------------------------------------
+  static const Key privacyDiscoverableSwitch = Key('privacy_discoverable_switch');
+  static const Key privacyFreezeSwitch = Key('privacy_freeze_switch');
+  static const Key securityBiometricsSwitch = Key('security_biometrics_switch');
+  static const Key securityStepUpSwitch = Key('security_step_up_switch');
+  static const Key settingsPrivacyTile = Key('settings_privacy_tile');
+  static const Key settingsSecurityTile = Key('settings_security_tile');
+  static const Key settingsSignOutTile = Key('settings_sign_out_tile');
+  static const Key settingsRenameBtn = Key('settings_rename_btn');
+  static const Key settingsSetDefaultBtn = Key('settings_set_default_btn');
+  static const Key settingsRemoveBtn = Key('settings_remove_btn');
+  static const Key settingsToggleDiscoverable = Key('settings_toggle_discoverable');
+  static const Key settingsToggleReceiving = Key('settings_toggle_receiving');
+
+  // ---------------------------------------------------------------------------
+  // Super App Shared Widgets
+  // ---------------------------------------------------------------------------
+  static const Key appAvatar = Key('app_avatar');
+  static const Key searchBarField = Key('search_bar_field');
+  static const Key storyCard = Key('story_card');
+  static const Key infoTile = Key('info_tile');
+  static const Key walletCard = Key('wallet_card');
+  static const Key nudgeBanner = Key('nudge_banner');
+  static const Key productTile = Key('product_tile');
+  static const Key appBottomNav = Key('app_bottom_nav');
+
+  // ---------------------------------------------------------------------------
+  // Stories (story_*)
+  // ---------------------------------------------------------------------------
+  static Key story(String id) => Key('story_$id');
+  static const Key storyViewer = Key('story_viewer');
+  static const Key storyClose = Key('story_close');
+  static const Key storyAction = Key('story_action');
+
+  // ---------------------------------------------------------------------------
+  // Bills (bill_*, biller_*, saved_biller_*)
+  // ---------------------------------------------------------------------------
+  static Key biller(String id) => Key('biller_$id');
+  static const Key billReference = Key('bill_reference');
+  static const Key billPay = Key('bill_pay');
+  static Key savedBiller(dynamic id) => Key('saved_biller_$id');
+  static const Key billsSearch = Key('bills_search');
+  static const Key billsCategoryGrid = Key('bills_category_grid');
+  static const Key savedBillersList = Key('saved_billers_list');
+  static const Key billAmountField = Key('bill_amount_field');
+  static const Key billPinField = Key('bill_pin_field');
+  static const Key billSaveCheckbox = Key('bill_save_checkbox');
+  static const Key billNicknameField = Key('bill_nickname_field');
+  static const Key billResultDone = Key('bill_result_done');
+  static const Key billResultRetry = Key('bill_result_retry');
+  static const Key billHistoryFilter = Key('bill_history_filter');
+
+  // ---------------------------------------------------------------------------
+  // Scheduled Payments (sched_*)
+  // ---------------------------------------------------------------------------
+  static Key sched(dynamic id) => Key('sched_$id');
+  static const Key schedCreate = Key('sched_create');
+  static const Key schedPause = Key('sched_pause');
+  static const Key schedCancel = Key('sched_cancel');
+  static const Key schedResume = Key('sched_resume');
+  static const Key schedTypeTransfer = Key('sched_type_transfer');
+  static const Key schedTypeBill = Key('sched_type_bill');
+  static const Key schedAmountField = Key('sched_amount_field');
+  static const Key schedPayeeField = Key('sched_payee_field');
+  static const Key schedPinField = Key('sched_pin_field');
+  static const Key schedConsentCheckbox = Key('sched_consent_checkbox');
+  static const Key schedConfirmDialogBtn = Key('sched_confirm_dialog_btn');
+
+  // ---------------------------------------------------------------------------
+  // Split Bills (split_*)
+  // ---------------------------------------------------------------------------
+  static Key split(dynamic id) => Key('split_$id');
+  static const Key splitAddPerson = Key('split_add_person');
+  static const Key splitSend = Key('split_send');
+  static const Key splitTitleField = Key('split_title_field');
+  static const Key splitAmountField = Key('split_amount_field');
+  static const Key splitEqualMode = Key('split_equal_mode');
+  static const Key splitCustomMode = Key('split_custom_mode');
+  static const Key splitPersonPhoneField = Key('split_person_phone_field');
+  static const Key splitPersonShareField = Key('split_person_share_field');
+  static Key splitRemind(dynamic id) => Key('split_remind_$id');
+  static const Key splitCancel = Key('split_cancel');
+  static const Key splitPay = Key('split_pay');
+  static const Key splitPinField = Key('split_pin_field');
+  static const Key splitProgress = Key('split_progress');
+
+  // ---------------------------------------------------------------------------
+  // Analytics & Activity (activity_*, budget_*, cat_*, receipt_*)
+  // ---------------------------------------------------------------------------
+  static const Key activityMonthPrev = Key('activity_month_prev');
+  static const Key activityMonthNext = Key('activity_month_next');
+  static const Key budgetEdit = Key('budget_edit');
+  static Key cat(String name) => Key('cat_$name');
+  static const Key receiptShare = Key('receipt_share');
+  static const Key receiptDownload = Key('receipt_download');
+
+  // ---------------------------------------------------------------------------
+  // Rewards (rewards_*)
+  // ---------------------------------------------------------------------------
+  static Key rewardsOffer(dynamic id) => Key('rewards_offer_$id');
+  static const Key rewardsRedeem = Key('rewards_redeem');
+  static const Key rewardsPointsPill = Key('rewards_points_pill');
+  static const Key rewardsTierBadge = Key('rewards_tier_badge');
+  static const Key rewardsExpiring = Key('rewards_expiring');
+  static const Key rewardsLedger = Key('rewards_ledger');
+  static const Key rewardsRedeemConfirm = Key('rewards_redeem_confirm');
+  static const Key rewardsPinField = Key('rewards_pin_field');
+
+  // ---------------------------------------------------------------------------
+  // City & Merchants (city_cat_*, merchant_*, merchant_pay, merchant_fav)
+  // ---------------------------------------------------------------------------
+  static Key cityCat(String name) => Key('city_cat_${name.toLowerCase()}');
+  static Key merchant(dynamic id) => Key('merchant_$id');
+  static const Key merchantPay = Key('merchant_pay');
+  static const Key merchantFav = Key('merchant_fav');
+  static const Key citySearchInput = Key('city_search_input');
+  static const Key cityOffersRow = Key('city_offers_row');
+  static const Key cityMerchantsList = Key('city_merchants_list');
+
+  // ---------------------------------------------------------------------------
+  // Support & Chat (chat_*, faq_*)
+  // ---------------------------------------------------------------------------
+  static const Key chatInput = Key('chat_input');
+  static const Key chatSend = Key('chat_send');
+  static const Key chatAttach = Key('chat_attach');
+  static const Key chatSafetyBanner = Key('chat_safety_banner');
+  static const Key chatStatusChip = Key('chat_status_chip');
+  static Key faq(String id) => Key(id.startsWith('faq_') ? id : 'faq_$id');
+  static Key chatMsg(dynamic id) => Key('chat_msg_$id');
+
+  // ---------------------------------------------------------------------------
+  // Insights & AI Assistant (insights_*, assistant_*)
+  // ---------------------------------------------------------------------------
+  static const Key activityInsightsCard = Key('activity_insights_card');
+  static Key insightDismiss(String type) => Key('insight_dismiss_${type.toLowerCase()}');
+  static Key insightAction(String id) => Key('insight_action_$id');
+
+  static const Key chatAskAi = Key('chat_ask_ai');
+  static const Key assistantConsentView = Key('assistant_consent_view');
+  static const Key assistantConsentToggle = Key('assistant_consent_toggle');
+  static const Key assistantEnableBtn = Key('assistant_enable_btn');
+  static const Key assistantAiDisclaimer = Key('assistant_ai_disclaimer');
+  static const Key assistantThumbsUp = Key('assistant_thumbs_up');
+  static const Key assistantThumbsDown = Key('assistant_thumbs_down');
+  static const Key assistantInput = Key('assistant_input');
+  static const Key assistantSend = Key('assistant_send');
+
+  // ---------------------------------------------------------------------------
+  // Explore Showcase (explore_*)
+  // ---------------------------------------------------------------------------
+  static const Key exploreSearch = Key('explore_search');
+  static const Key exploreAccounts = Key('explore_accounts');
+  static const Key exploreCards = Key('explore_cards');
+  static const Key exploreGoals = Key('explore_goals');
+  static const Key exploreSavingsGoals = Key('explore_savings_goals');
+  static const Key exploreStatements = Key('explore_statements');
+  static const Key exploreBills = Key('explore_bills');
+  static const Key exploreScheduled = Key('explore_scheduled');
+  static const Key exploreSplit = Key('explore_split');
+  static const Key exploreQr = Key('explore_qr');
+  static const Key exploreRequests = Key('explore_requests');
+  static const Key exploreRewards = Key('explore_rewards');
+  static const Key exploreCity = Key('explore_city');
+  static const Key exploreSupport = Key('explore_support');
+  static const Key exploreInsights = Key('explore_insights');
+  static const Key exploreFamily = Key('explore_family');
+  static const Key exploreInvestments = Key('explore_investments');
+  static const Key exploreInsurance = Key('explore_insurance');
+  static const Key exploreLoans = Key('explore_loans');
+  static const Key exploreComingSoonSheet = Key('explore_coming_soon_sheet');
+
+  static Key exploreModule(String name) => Key('explore_${name.toLowerCase()}');
+
+  // ---------------------------------------------------------------------------
+  // Savings Goals (goal_*)
+  // ---------------------------------------------------------------------------
+  static Key goal(String id) => Key('goal_$id');
+  static const Key goalCreateBtn = Key('goal_create_btn');
+  static const Key goalContribute = Key('goal_contribute');
+  static const Key goalContributeBtn = Key('goal_contribute_btn');
+  static const Key goalWithdraw = Key('goal_withdraw');
+  static const Key goalWithdrawBtn = Key('goal_withdraw_btn');
+  static const Key goalNameInput = Key('goal_name_input');
+  static const Key goalTargetInput = Key('goal_target_input');
+  static const Key goalAmountInput = Key('goal_amount_input');
+  static const Key goalPinInput = Key('goal_pin_input');
+  static const Key goalCreateSubmit = Key('goal_create_submit');
+  static const Key goalContributeConfirm = Key('goal_contribute_confirm');
+  static const Key goalWithdrawConfirm = Key('goal_withdraw_confirm');
+
+  // ---------------------------------------------------------------------------
+  // Family & Guardian Controls (family_*)
+  // ---------------------------------------------------------------------------
+  static Key family(String id) => Key('family_$id');
+  static const Key familyLimit = Key('family_limit');
+  static const Key familyDailyLimitInput = Key('family_daily_limit_input');
+  static const Key familyMonthlyLimitInput = Key('family_monthly_limit_input');
+  static const Key familySaveLimitsBtn = Key('family_save_limits_btn');
+  static const Key familyAddMemberBtn = Key('family_add_member_btn');
+  static const Key familyFreezeToggle = Key('family_freeze_toggle');
+  static const Key familyFundBtn = Key('family_fund_btn');
+  static const Key familyFundAmountInput = Key('family_fund_amount_input');
+  static const Key familyFundSubmitBtn = Key('family_fund_submit_btn');
+  static const Key familyChildViewBtn = Key('family_child_view_btn');
+  static const Key familyDeleteBtn = Key('family_delete_btn');
+  static const Key familySimulatedNotice = Key('family_simulated_notice');
+  static const Key familySpendSimulateBtn = Key('family_spend_simulate_btn');
+  static const Key familyFirstNameInput = Key('family_first_name_input');
+  static const Key familyAgeBandInput = Key('family_age_band_input');
+  static const Key familyCreateSubmitBtn = Key('family_create_submit_btn');
+}
+
+typedef TestKeys = AppTestKeys;

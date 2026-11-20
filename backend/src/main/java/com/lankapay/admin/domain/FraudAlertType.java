@@ -1,0 +1,9 @@
+package com.lankapay.admin.domain;
+
+public enum FraudAlertType {
+    VELOCITY_EXCEEDED,
+    NEW_ACCOUNT_LIMIT_EXCEEDED,
+    PER_TRANSACTION_LIMIT_EXCEEDED,
+    DAILY_LIMIT_EXCEEDED,
+    SUSPICIOUS_ACTIVITY
+}

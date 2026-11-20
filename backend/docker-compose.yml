@@ -1,0 +1,18 @@
+##############################################################
+# Lanka Pay – local development Docker Compose
+# Starts Google Cloud Firestore Emulator.
+# The Spring Boot app connects via FIRESTORE_EMULATOR_HOST=localhost:8085
+#
+# Usage:
+#   docker compose up -d          # start Firestore Emulator in background
+#   docker compose down           # stop and remove containers
+##############################################################
+
+services:
+  firestore-emulator:
+    image: google/cloud-sdk:emulators
+    container_name: lankapay_firestore_emulator
+    restart: unless-stopped
+    command: gcloud beta emulators firestore start --host-port=0.0.0.0:8085
+    ports:
+      - "8085:8085"

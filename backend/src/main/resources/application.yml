@@ -1,0 +1,141 @@
+##############################################################
+# Lanka Pay – main application configuration
+# All sensitive values are read from environment variables.
+# See .env.example at the project root.
+##############################################################
+
+spring:
+  application:
+    name: lankapay-backend
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${APP_PORT:8080}
+  servlet:
+    context-path: /
+  error:
+    include-message: never        # never leak internal error messages
+    include-stacktrace: never
+
+# ── Actuator ──────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Lanka Pay Backend
+    description: "University prototype – all banks and payments are SIMULATED"
+    version: 0.0.1-SNAPSHOT
+
+# ── Configuration ─────────────────────────────────────────
+app:
+
+  firebase:
+    credentials-path: ${FIREBASE_CREDENTIALS_PATH:secrets/firebase-service-account.json}
+    project-id: ${FIREBASE_PROJECT_ID:lanka-pay}
+    emulator-host: ${FIRESTORE_EMULATOR_HOST:}
+
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-replace-in-production-must-be-at-least-32-chars}
+    expiry-minutes: ${JWT_EXPIRY_MINUTES:30}
+
+  refresh-token:
+    expiry-days: ${REFRESH_TOKEN_EXPIRY_DAYS:7}
+
+  otp:
+    mode: ${OTP_MODE:TEST}            # TEST = log to console; PROD = real SMS
+    expiry-seconds: ${OTP_EXPIRY_SECONDS:1800}   # 30 minutes in dev (was 300)
+    max-attempts: ${OTP_MAX_ATTEMPTS:5}
+    resend-cooldown-seconds: ${OTP_RESEND_COOLDOWN_SECONDS:60}
+    daily-cap: ${OTP_DAILY_CAP:10}
+
+  login:
+    max-attempts: ${LOGIN_MAX_ATTEMPTS:5}
+    lockout-minutes: ${LOGIN_LOCKOUT_MINUTES:15}
+
+  bank-adapter:
+    mode: ${BANK_ADAPTER_MODE:SIMULATED}
+    # SIMULATED  → SimulatedBankAdapterA/B/C are active (default, safe for all non-prod envs)
+    # REAL_BANK_X → FutureAuthorizedBankAdapter or a real implementation (requires explicit opt-in)
+
+  lookup:
+    # Per-user token bucket: max requests per minute for the lookup endpoint
+    rate-limit-per-user-per-minute: ${LOOKUP_RATE_LIMIT_USER:10}
+    # Per-IP token bucket: prevents unauthenticated / multi-account abuse
+    rate-limit-per-ip-per-minute: ${LOOKUP_RATE_LIMIT_IP:20}
+    # Abuse threshold: warn + audit when a user exceeds this many lookups/day
+    abuse-daily-threshold: ${LOOKUP_ABUSE_THRESHOLD:50}
+
+  encryption:
+    # AES-256-GCM key for encrypting bank account references at rest.
+    # Must be a Base64-URL encoded 32-byte (256-bit) value.
+    # Generate with: openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+    bank-account-key: ${BANK_ACCOUNT_ENCRYPTION_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+
+    # AES-256-GCM key for encrypting vault card records at rest.
+    # MUST be different from bank-account-key.
+    # Generate with: openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+    vault-card-key: ${VAULT_ENCRYPTION_KEY:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=}
+
+  sim-vault:
+    # Active only when app.mode=SIMULATED (the default).
+    # Tokenize rate limits (Bucket4j, in-memory).
+    tokenize-rate-limit-per-user-per-minute: ${VAULT_TOKENIZE_RATE_USER:3}
+    tokenize-rate-limit-per-ip-per-minute:   ${VAULT_TOKENIZE_RATE_IP:5}
+    # After this many consecutive failures the user is locked for the lockout window.
+    tokenize-max-failures: ${VAULT_TOKENIZE_MAX_FAILURES:5}
+    tokenize-lockout-minutes: ${VAULT_TOKENIZE_LOCKOUT_MINUTES:15}
+    # Token validity after tokenize before it must be used to link a card.
+    token-ttl-minutes: ${VAULT_TOKEN_TTL_MINUTES:15}
+
+  features:
+    environment: ${APP_ENVIRONMENT:SANDBOX_SIMULATED}
+    disclaimer: "All modules operate under simulated financial data. Non-payment banking services require licensed institutional partners."
+    flags:
+      stories: ${FEATURE_STORIES:false}
+      bills: ${FEATURE_BILLS:false}
+      scheduled: ${FEATURE_SCHEDULED:false}
+      split: ${FEATURE_SPLIT:false}
+      analytics: ${FEATURE_ANALYTICS:false}
+      rewards: ${FEATURE_REWARDS:false}
+      city: ${FEATURE_CITY:false}
+      support: ${FEATURE_SUPPORT:true}
+      insights: ${FEATURE_INSIGHTS:false}
+      goals: ${FEATURE_GOALS:false}
+      family: ${FEATURE_FAMILY:false}
+      investments: false
+      borrowing: false
+      insurance: false
+
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.5-flash}
+    endpoint: ${GEMINI_ENDPOINT:https://generativelanguage.googleapis.com/v1beta}
+    enabled: ${GEMINI_ENABLED:true}
+    temperature: 0.2
+    max-tokens: 800
+
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+
+# ── Logging ───────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    com.lankapay: DEBUG
+    org.springframework.security: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{correlationId}] %-5level %logger{36} - %msg%n"
